@@ -1,12 +1,15 @@
 import React from "react";
 
 import { formatearNivel, formatearTendencia } from "../api.js";
+import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
+import { usePaginacion } from "../hooks/usePaginacion.js";
 
 export default function TablaIna() {
   const { usuario } = useAuth();
   const { datos, error, cargando } = useFetchLista("/api/ina");
+  const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(datos);
 
   return (
     <div>
@@ -26,12 +29,12 @@ export default function TablaIna() {
             </tr>
           </thead>
           <tbody>
-            {datos.length === 0 ? (
+            {itemsDePagina.length === 0 ? (
               <tr>
                 <td className="vacio" colSpan={5}>Todavia no se corrio la fuente INA.</td>
               </tr>
             ) : (
-              datos.map((f, i) => {
+              itemsDePagina.map((f, i) => {
                 const tendencia = formatearTendencia(f.tendencia, usuario?.unidad_nivel);
                 return (
                   <tr key={`${f.estacion}-${f.fecha_boletin}-${i}`}>
@@ -47,6 +50,12 @@ export default function TablaIna() {
           </tbody>
         </table>
       </div>
+      <Paginador
+        paginaActual={paginaActual}
+        totalPaginas={totalPaginas}
+        irAPagina={irAPagina}
+        totalItems={datos.length}
+      />
     </div>
   );
 }

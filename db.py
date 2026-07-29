@@ -36,12 +36,23 @@ def inicializar_db() -> None:
             CREATE TABLE IF NOT EXISTS usuarios (
                 usuario TEXT PRIMARY KEY,
                 nombre_completo TEXT NOT NULL,
-                salt TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
+                salt TEXT,
+                password_hash TEXT,
                 unidad_nivel TEXT NOT NULL DEFAULT 'm',
                 unidad_caudal TEXT NOT NULL DEFAULT 'm3s'
             )
             """
+        )
+        # salt/password_hash nullable: una cuenta creada con "Continuar con
+        # Google" no tiene contraseña local. Migracion para tablas ya
+        # existentes (creadas cuando estas columnas eran NOT NULL).
+        con.execute("ALTER TABLE usuarios ALTER COLUMN salt DROP NOT NULL")
+        con.execute("ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL")
+        con.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT")
+        # Indice unico parcial (no "UNIQUE" en la columna): permite muchas
+        # cuentas viejas sin email (NULL) sin que colisionen entre si.
+        con.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_key ON usuarios (email) WHERE email IS NOT NULL"
         )
         con.execute(
             """

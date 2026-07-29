@@ -9,7 +9,7 @@ from types import ModuleType
 from typing import Optional
 
 from data_pipeline.sources import ina, itaipu, prefectura_naval, yacyreta  # noqa: F401 (itaipu: ver nota abajo)
-from data_pipeline.storage.per_source import guardar_filas_fuente
+from data_pipeline.storage.per_source import existe_boletin, guardar_filas_fuente
 from data_pipeline.storage.unify import actualizar_historico
 
 # Cada fuente es un modulo de sources/ con las mismas funciones y constantes:
@@ -46,6 +46,15 @@ def ejecutar_fuente(fuente: ModuleType, fecha: date) -> Optional[str]:
     url = None
     for dias_atras in range(dias_atras_max + 1):
         fecha_intento = fecha - timedelta(days=dias_atras)
+
+        # Solo aplica a fuentes que reintentan hacia atras (DIAS_ATRAS_SI_FALTA,
+        # hoy unicamente INA: su URL depende de la fecha). Yacyreta y
+        # Prefectura Naval siempre traen "lo ultimo publicado" de una URL fija
+        # sin importar la fecha, asi que a ellas no les aplica este chequeo.
+        if dias_atras_max > 0 and existe_boletin(fuente.NOMBRE, fecha_intento.isoformat()):
+            print(f"[{fuente.NOMBRE}] ya tenemos el boletin de {fecha_intento} en la base, no hace falta volver a pedirlo.")
+            return None
+
         url = fuente.construir_url(fecha_intento)
         print(f"[{fuente.NOMBRE}] consultando {url}")
         contenido = fuente.obtener_contenido(url)

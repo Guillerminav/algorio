@@ -222,6 +222,55 @@ button {
   min-height: 1.1em;
 }
 
+.tarjeta-login button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.separador-o {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+}
+
+.separador-o::before,
+.separador-o::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--borde);
+}
+
+.boton-google {
+  display: flex;
+  justify-content: center;
+}
+
+.enlace-alternativo {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.tarjeta-login button.enlace-boton {
+  display: inline;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--acento);
+  font-size: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tarjeta-login button.enlace-boton:hover {
+  background: none;
+  text-decoration: underline;
+}
+
 /* ------------------------------------------------------------- App shell */
 
 .app {
@@ -638,6 +687,36 @@ tbody tr:hover {
 
 .vacio {
   color: var(--texto-suave);
+}
+
+.paginador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.paginador button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.paginador button:hover:not(:disabled) {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.paginador button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* --------------------------------------------------------------- Mi flota */

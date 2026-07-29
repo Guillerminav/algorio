@@ -211,7 +211,7 @@ def mapa_estado_estaciones() -> dict[str, dict]:
     """Combina INA y Prefectura Naval por estacion (normalizando el nombre):
     nivel promedio, tendencia dia contra dia, y los umbrales oficiales de
     Prefectura Naval (los unicos que traen umbral_alerta_m/umbral_evacuacion_m).
-    Es la base compartida de dashboard_estaciones(), alertas_activas() y del
+    Es la base compartida de alertas_activas(), mapa_estaciones() y del
     estado de cada "activo" que un usuario guarde (backend/activos.py).
     """
     ina_todo = leer_ina()
@@ -274,21 +274,84 @@ def mapa_estado_estaciones() -> dict[str, dict]:
     return combinado
 
 
-def dashboard_estaciones() -> list[dict]:
-    """Listado de estaciones para el dashboard general (ver mapa_estado_estaciones)."""
+def _lecturas_combinadas() -> pd.DataFrame:
+    """Todas las lecturas historicas de INA + Prefectura Naval (no solo hoy),
+    una fila por estacion+fecha+fuente: base de dashboard_historico()."""
+    filas = []
+    for df, fuente in ((leer_ina(), "ina"), (leer_prefectura(), "prefectura")):
+        if df.empty:
+            continue
+        for _, fila in df.iterrows():
+            clave = normalizar_estacion(fila.get("estacion"))
+            numero = _parsear_numero(fila.get("nivel_actual_m"))
+            if not clave or numero is None or not fila.get("fecha_boletin"):
+                continue
+            filas.append({
+                "clave_estacion": clave,
+                "estacion": fila["estacion"],
+                "rio": canonizar_rio(fila.get("rio")),
+                "fecha_boletin": fila["fecha_boletin"],
+                "nivel_m": numero,
+                "fuente": fuente,
+            })
+    return pd.DataFrame(filas)
+
+
+def dashboard_historico() -> list[dict]:
+    """Listado historico para el dashboard general: una fila por estacion y
+    fecha de boletin (no solo la ultima), promediando INA+Prefectura Naval
+    cuando ambas reportan ese dia, con tendencia contra la fecha anterior con
+    dato de esa misma estacion (mismo criterio de signos que
+    mapa_estado_estaciones(), pero para todo el historico en vez de solo
+    hoy/ayer)."""
+    df = _lecturas_combinadas()
+    if df.empty:
+        return []
+
+    pivot = df.pivot_table(
+        index=["clave_estacion", "estacion", "rio", "fecha_boletin"],
+        columns="fuente", values="nivel_m", aggfunc="first",
+    ).reset_index()
+    for columna in ("ina", "prefectura"):
+        if columna not in pivot.columns:
+            pivot[columna] = None
+
+    pivot["nivel_promedio_m"] = pivot[["ina", "prefectura"]].mean(axis=1, skipna=True).round(2)
+    pivot["_fecha_dt"] = pd.to_datetime(pivot["fecha_boletin"], errors="coerce")
+    pivot = pivot.dropna(subset=["_fecha_dt", "nivel_promedio_m"])
+    pivot = pivot.sort_values(["clave_estacion", "_fecha_dt"])
+
     resultado = []
-    for entrada in mapa_estado_estaciones().values():
-        resultado.append({
-            "estacion": entrada["estacion"],
-            "rio": entrada["rio"],
-            "nivel_ina_m": entrada["nivel_ina_m"],
-            "nivel_prefectura_m": entrada["nivel_prefectura_m"],
-            "nivel_promedio_m": entrada["nivel_actual_m"],
-            "tendencia": entrada["tendencia"],
-            "tendencia_diferencia_m": entrada["tendencia_diferencia_m"],
-            "fuentes": entrada["fuentes"],
-        })
-    resultado.sort(key=lambda e: e["estacion"])
+    for _, grupo in pivot.groupby("clave_estacion"):
+        nivel_anterior = None
+        for _, fila in grupo.iterrows():
+            tendencia = None
+            tendencia_diferencia = None
+            if nivel_anterior is not None:
+                tendencia_diferencia = round(fila["nivel_promedio_m"] - nivel_anterior, 2)
+                tendencia = (
+                    "subiendo" if tendencia_diferencia > 0
+                    else "bajando" if tendencia_diferencia < 0
+                    else "estable"
+                )
+            fuentes = [
+                nombre for nombre, valor in (("ina", fila["ina"]), ("prefectura", fila["prefectura"]))
+                if pd.notna(valor)
+            ]
+            resultado.append({
+                "estacion": fila["estacion"],
+                "rio": fila["rio"],
+                "fecha_boletin": fila["fecha_boletin"],
+                "nivel_ina_m": None if pd.isna(fila["ina"]) else round(fila["ina"], 2),
+                "nivel_prefectura_m": None if pd.isna(fila["prefectura"]) else round(fila["prefectura"], 2),
+                "nivel_promedio_m": fila["nivel_promedio_m"],
+                "tendencia": tendencia,
+                "tendencia_diferencia_m": tendencia_diferencia,
+                "fuentes": fuentes,
+            })
+            nivel_anterior = fila["nivel_promedio_m"]
+
+    resultado.sort(key=lambda e: (e["fecha_boletin"], e["estacion"]), reverse=True)
     return resultado
 
 
