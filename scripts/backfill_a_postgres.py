@@ -20,6 +20,19 @@ DIR_PER_SOURCE = RAIZ_PROYECTO / "data" / "per_source"
 FUENTES = [ina, yacyreta, prefectura_naval]
 
 
+def _filas_sin_nan(df: pd.DataFrame) -> list[dict]:
+    """df.where(pd.notnull(df), None) no alcanza: pandas puede reconvertir ese
+    None de nuevo en NaN para mantener el dtype de la columna, y NaN no es
+    JSON valido (ver mismo comentario en backend/datos.py). Por eso se
+    recorre registro por registro."""
+    filas = df.to_dict(orient="records")
+    for fila in filas:
+        for clave, valor in fila.items():
+            if isinstance(valor, float) and pd.isna(valor):
+                fila[clave] = None
+    return filas
+
+
 def main() -> None:
     for fuente in FUENTES:
         archivo = DIR_PER_SOURCE / f"dataset_{fuente.NOMBRE}.csv"
@@ -28,7 +41,7 @@ def main() -> None:
             continue
 
         df = pd.read_csv(archivo, dtype=str)
-        filas = df.where(pd.notnull(df), None).to_dict(orient="records")
+        filas = _filas_sin_nan(df)
         guardar_filas_fuente(filas, fuente.NOMBRE, columnas_clave=fuente.COLUMNAS_CLAVE)
 
     actualizar_historico()
