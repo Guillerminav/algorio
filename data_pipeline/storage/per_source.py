@@ -8,6 +8,23 @@ from typing import Optional
 from psycopg.types.json import Jsonb
 
 from db import conexion, inicializar_db
+from normalizacion import canonizar_estacion, canonizar_rio, normalizar_fecha
+
+
+def _normalizar_fila(fila: dict) -> dict:
+    """Unifica fecha/estacion/rio a un unico formato antes de guardar, sin
+    importar como los haya mandado cada fuente (ver normalizacion.py). Se
+    hace aca, en el unico lugar por el que pasa cualquier boletin nuevo antes
+    de guardarse, para no depender de que cada modulo de sources/ se acuerde
+    de normalizar por su cuenta."""
+    fila = dict(fila)
+    if "fecha_boletin" in fila:
+        fila["fecha_boletin"] = normalizar_fecha(fila["fecha_boletin"])
+    if "estacion" in fila:
+        fila["estacion"] = canonizar_estacion(fila["estacion"])
+    if "rio" in fila:
+        fila["rio"] = canonizar_rio(fila["rio"])
+    return fila
 
 
 def existe_boletin(nombre_fuente: str, fecha_boletin: str) -> bool:
@@ -44,6 +61,7 @@ def guardar_filas_fuente(
     inicializar_db()
     with conexion() as con:
         for fila in filas:
+            fila = _normalizar_fila(fila)
             clave_dedup = "|".join(str(fila.get(c)) for c in columnas_clave)
             con.execute(
                 """

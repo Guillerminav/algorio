@@ -3,14 +3,13 @@
 Lee de Postgres (tabla mediciones_fuente, ver db.py) lo que guarda
 data_pipeline/ en cada corrida.
 """
-import re
-import unicodedata
 from typing import Optional
 
 import pandas as pd
 
 from backend.coordenadas_estaciones import COORDENADAS_ESTACIONES
 from db import conexion
+from normalizacion import canonizar_rio, normalizar_estacion
 
 
 def _leer_fuente(nombre_fuente: str) -> pd.DataFrame:
@@ -64,54 +63,6 @@ def _a_registros(df: pd.DataFrame) -> list[dict]:
             if isinstance(valor, float) and pd.isna(valor):
                 registro[clave] = None
     return registros
-
-
-def _normalizar_texto(valor: Optional[str]) -> str:
-    """Quita tildes/puntuacion y pasa a mayusculas, para comparar texto libre que
-    cada fuente escribe distinto (ej. 'Iguazú' vs 'IGUAZU')."""
-    if not valor:
-        return ""
-    sin_tildes = "".join(
-        c for c in unicodedata.normalize("NFD", valor) if unicodedata.category(c) != "Mn"
-    )
-    limpio = re.sub(r"[.,]", "", sin_tildes).upper()
-    return re.sub(r"\s+", " ", limpio).strip()
-
-
-def normalizar_estacion(nombre: Optional[str]) -> str:
-    """Normaliza un nombre de estacion para poder cruzar INA con Prefectura Naval."""
-    return _normalizar_texto(nombre)
-
-
-# Nombre "bonito" (con tildes y mayusculas/minusculas correctas) por rio
-# normalizado. Prefectura Naval manda todo en MAYUSCULAS sin tildes; INA a
-# veces si trae tildes. Se unifica a esta grafia sin importar de que fuente
-# vino el dato. Si aparece un rio nuevo que no esta mapeado, se usa Title Case
-# como mejor esfuerzo (no puede inventar tildes que ninguna fuente mando).
-RIOS_CANONICOS = {
-    "PARANA": "Paraná",
-    "PARAGUAY": "Paraguay",
-    "URUGUAY": "Uruguay",
-    "IGUAZU": "Iguazú",
-    "ALTO PARANA": "Alto Paraná",
-    "PARANA / IGUAZU": "Paraná / Iguazú",
-    # "Paraná/Delta" (como lo escribe INA) y "Delta Paraná" (como lo escribe
-    # Prefectura Naval) son el mismo tramo; se unifican a esta unica grafia.
-    "PARANA/DELTA": "Delta Paraná",
-    "DE LA PLATA": "De la Plata",
-    "DELTA PARANA": "Delta Paraná",
-    "GUALEGUAY": "Gualeguay",
-    "GUALEGUAYCHU": "Gualeguaychú",
-    "IBICUY": "Ibicuy",
-    "SAN JAVIER": "San Javier",
-}
-
-
-def canonizar_rio(nombre: Optional[str]) -> Optional[str]:
-    """Unifica el nombre de un rio a una unica grafia sin importar la fuente."""
-    if not nombre or (isinstance(nombre, float) and pd.isna(nombre)):
-        return None
-    return RIOS_CANONICOS.get(_normalizar_texto(nombre), nombre.title())
 
 
 def _parsear_numero(valor) -> Optional[float]:

@@ -40,18 +40,12 @@ def extraer(contenido: bytes) -> Optional[dict]:
     return extraer_datos_de_pdf(contenido, SCHEMA, INSTRUCCIONES_EXTRACCION)
 
 
-def _normalizar_fecha(fecha_boletin: str) -> str:
-    """Gemini a veces devuelve la fecha con '/' (ej. '2026/07/27') en vez de
-    '-' como las demas fuentes; se unifica el separador para que las tres
-    tablas del frontend muestren el mismo formato."""
-    return fecha_boletin.replace("/", "-")
-
-
 def a_filas(datos: Optional[dict]) -> list[dict]:
-    """Un boletin de INA trae varias estaciones: una fila por estacion."""
+    """Un boletin de INA trae varias estaciones: una fila por estacion.
+
+    Gemini a veces devuelve la fecha con '/' en vez de '-'; no hace falta
+    normalizarla aca, data_pipeline/storage/per_source.py lo hace para
+    cualquier fuente antes de guardar (ver normalizacion.py)."""
     if not datos:
         return []
-    return [
-        {"fecha_boletin": _normalizar_fecha(datos["fecha_boletin"]), **estacion}
-        for estacion in datos["estaciones"]
-    ]
+    return [{"fecha_boletin": datos["fecha_boletin"], **estacion} for estacion in datos["estaciones"]]
