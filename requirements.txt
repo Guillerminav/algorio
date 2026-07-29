@@ -1,0 +1,11 @@
+google-genai
+pydantic
+requests
+beautifulsoup4
+pdfplumber
+pandas
+python-dotenv
+fastapi
+uvicorn[standard]
+itsdangerous
+psycopg[binary]>=3.2
