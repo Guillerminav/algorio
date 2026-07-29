@@ -23,16 +23,44 @@ def _hashear_password(password: str, salt: str) -> str:
     ).hex()
 
 
-def crear_usuario(usuario: str, password: str, nombre_completo: str) -> None:
-    """Crea un usuario nuevo. Lanza psycopg.errors.UniqueViolation si el usuario ya existe."""
+def crear_usuario(usuario: str, password: str, nombre_completo: str, email: Optional[str] = None) -> None:
+    """Crea un usuario nuevo. Lanza psycopg.errors.UniqueViolation si el usuario
+    o el email ya existen."""
     inicializar_db()
     salt = secrets.token_hex(16)
     password_hash = _hashear_password(password, salt)
     with conexion() as con:
         con.execute(
-            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash) VALUES (%s, %s, %s, %s)",
-            (usuario, nombre_completo, salt, password_hash),
+            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash, email) VALUES (%s, %s, %s, %s, %s)",
+            (usuario, nombre_completo, salt, password_hash, email),
         )
+
+
+def _generar_username_unico(con, base: str) -> str:
+    """A partir del local-part de un email ('juan' de 'juan@gmail.com'),
+    prueba 'juan', 'juan2', 'juan3'... hasta encontrar uno libre. Se usa para
+    dar de alta cuentas creadas con "Continuar con Google", que no traen un
+    nombre de usuario elegido a mano."""
+    base = base or "usuario"
+    candidato = base
+    sufijo = 1
+    while con.execute("SELECT 1 FROM usuarios WHERE usuario = %s", (candidato,)).fetchone():
+        sufijo += 1
+        candidato = f"{base}{sufijo}"
+    return candidato
+
+
+def crear_usuario_google(email: str, nombre_completo: str) -> dict:
+    """Da de alta (o, si ya existe por email, no deberia llamarse) una cuenta
+    sin contraseña local: solo se puede ingresar con "Continuar con Google"."""
+    inicializar_db()
+    with conexion() as con:
+        usuario = _generar_username_unico(con, email.split("@")[0])
+        con.execute(
+            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash, email) VALUES (%s, %s, NULL, NULL, %s)",
+            (usuario, nombre_completo, email),
+        )
+    return obtener_usuario(usuario)
 
 
 def verificar_credenciales(usuario: str, password: str) -> Optional[dict]:
@@ -41,6 +69,9 @@ def verificar_credenciales(usuario: str, password: str) -> Optional[dict]:
     with conexion() as con:
         fila = con.execute("SELECT * FROM usuarios WHERE usuario = %s", (usuario,)).fetchone()
     if fila is None:
+        return None
+    if fila["password_hash"] is None:
+        # Cuenta creada con "Continuar con Google": no tiene contraseña local.
         return None
     if _hashear_password(password, fila["salt"]) != fila["password_hash"]:
         return None
@@ -55,6 +86,13 @@ def obtener_usuario(usuario: str) -> Optional[dict]:
             (usuario,),
         ).fetchone()
     return dict(fila) if fila else None
+
+
+def obtener_usuario_por_email(email: str) -> Optional[dict]:
+    inicializar_db()
+    with conexion() as con:
+        fila = con.execute("SELECT usuario FROM usuarios WHERE email = %s", (email,)).fetchone()
+    return obtener_usuario(fila["usuario"]) if fila else None
 
 
 def actualizar_perfil(
@@ -80,6 +118,8 @@ def actualizar_perfil(
             raise ValueError("El usuario no existe.")
 
         if password_nueva:
+            if fila["salt"] is None:
+                raise ValueError("Esta cuenta se creo con Google, no tiene contraseña local para cambiar.")
             if not password_actual or _hashear_password(password_actual, fila["salt"]) != fila["password_hash"]:
                 raise ValueError("La contraseña actual no es correcta.")
             nuevo_salt = secrets.token_hex(16)

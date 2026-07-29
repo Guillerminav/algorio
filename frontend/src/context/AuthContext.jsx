@@ -24,6 +24,24 @@ export function AuthProvider({ children }) {
     setUsuario(perfil);
   }
 
+  async function registrar({ usuario: usuarioTexto, email, password }) {
+    const perfil = await pedirJSON("/api/registro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuario: usuarioTexto, email, password }),
+    });
+    setUsuario(perfil);
+  }
+
+  async function loginConGoogle(credential) {
+    const perfil = await pedirJSON("/api/login/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    setUsuario(perfil);
+  }
+
   async function logout() {
     await pedirJSON("/api/logout", { method: "POST" }).catch(() => {});
     setUsuario(null);
@@ -40,7 +58,9 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ usuario, verificando, login, logout, actualizarPerfil }}>
+    <AuthContext.Provider
+      value={{ usuario, verificando, login, registrar, loginConGoogle, logout, actualizarPerfil }}
+    >
       {children}
     </AuthContext.Provider>
   );

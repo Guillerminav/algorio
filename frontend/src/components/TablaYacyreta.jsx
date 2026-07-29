@@ -1,12 +1,15 @@
 import React from "react";
 
 import { formatearCaudal, formatearNivel } from "../api.js";
+import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
+import { usePaginacion } from "../hooks/usePaginacion.js";
 
 export default function TablaYacyreta() {
   const { usuario } = useAuth();
   const { datos, error, cargando } = useFetchLista("/api/yacyreta");
+  const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(datos);
 
   return (
     <div>
@@ -25,12 +28,12 @@ export default function TablaYacyreta() {
             </tr>
           </thead>
           <tbody>
-            {datos.length === 0 ? (
+            {itemsDePagina.length === 0 ? (
               <tr>
                 <td className="vacio" colSpan={4}>Todavia no se corrio la fuente Yacyreta.</td>
               </tr>
             ) : (
-              datos.map((f, i) => (
+              itemsDePagina.map((f, i) => (
                 <tr key={`${f.fecha_boletin}-${i}`}>
                   <td>{f.fecha_boletin}</td>
                   <td className="num">{formatearNivel(f.altura_ituzaingo_m, usuario?.unidad_nivel)}</td>
@@ -42,6 +45,12 @@ export default function TablaYacyreta() {
           </tbody>
         </table>
       </div>
+      <Paginador
+        paginaActual={paginaActual}
+        totalPaginas={totalPaginas}
+        irAPagina={irAPagina}
+        totalItems={datos.length}
+      />
     </div>
   );
 }

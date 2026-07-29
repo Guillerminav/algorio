@@ -11,12 +11,17 @@ import secrets
 from pathlib import Path
 from typing import Optional
 
+import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
+from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend import activos, auth, datos
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
 RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 # El frontend es una app de React (Vite); esto sirve el build de produccion,
@@ -58,6 +63,16 @@ def usuario_actual(request: Request) -> dict:
 class CredencialesLogin(BaseModel):
     usuario: str
     password: str
+
+
+class RegistroRequest(BaseModel):
+    usuario: str
+    email: EmailStr
+    password: str
+
+
+class CredencialGoogle(BaseModel):
+    credential: str  # ID token JWT que entrega Google Identity Services
 
 
 class PerfilActualizacion(BaseModel):
@@ -111,6 +126,52 @@ def login(credenciales: CredencialesLogin, request: Request):
     return usuario
 
 
+@app.post("/api/registro", status_code=201)
+def registro(datos_registro: RegistroRequest, request: Request):
+    if len(datos_registro.password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres.")
+
+    try:
+        auth.crear_usuario(
+            datos_registro.usuario,
+            datos_registro.password,
+            nombre_completo=datos_registro.usuario,
+            email=datos_registro.email,
+        )
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(status_code=400, detail="El usuario o el email ya estan registrados.")
+
+    usuario = auth.obtener_usuario(datos_registro.usuario)
+    request.session["usuario"] = usuario["usuario"]
+    request.session["nombre_completo"] = usuario["nombre_completo"]
+    return usuario
+
+
+@app.post("/api/login/google")
+def login_google(payload: CredencialGoogle, request: Request):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Falta configurar GOOGLE_CLIENT_ID en el servidor.")
+
+    try:
+        info = google_id_token.verify_oauth2_token(
+            payload.credential, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token de Google invalido.")
+
+    email = info.get("email")
+    if not email or not info.get("email_verified"):
+        raise HTTPException(status_code=401, detail="No se pudo verificar el email de la cuenta de Google.")
+
+    usuario = auth.obtener_usuario_por_email(email)
+    if usuario is None:
+        usuario = auth.crear_usuario_google(email, info.get("name") or email.split("@")[0])
+
+    request.session["usuario"] = usuario["usuario"]
+    request.session["nombre_completo"] = usuario["nombre_completo"]
+    return usuario
+
+
 @app.post("/api/logout")
 def logout(request: Request):
     request.session.clear()
@@ -159,7 +220,7 @@ def api_prefectura_naval(usuario: dict = Depends(usuario_actual)):
 
 @app.get("/api/dashboard")
 def api_dashboard(usuario: dict = Depends(usuario_actual)):
-    return datos.dashboard_estaciones()
+    return datos.dashboard_historico()
 
 
 @app.get("/api/alertas")

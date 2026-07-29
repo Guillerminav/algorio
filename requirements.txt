@@ -9,3 +9,5 @@ fastapi
 uvicorn[standard]
 itsdangerous
 psycopg[binary]>=3.2
+pydantic[email]
+google-auth

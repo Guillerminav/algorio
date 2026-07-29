@@ -21,11 +21,6 @@ COLUMNAS_CLAVE = ["fecha_boletin", "estacion"]
 # N dias anteriores hasta encontrar el ultimo disponible.
 DIAS_ATRAS_SI_FALTA = 3
 
-MESES_ES = {
-    1: "ene", 2: "feb", 3: "mar", 4: "abr", 5: "may", 6: "jun",
-    7: "jul", 8: "ago", 9: "sep", 10: "oct", 11: "nov", 12: "dic",
-}
-
 INSTRUCCIONES_EXTRACCION = (
     "Extrae todas las estaciones que figuran en esta tabla del Instituto Nacional del Agua, "
     "con su nivel actual, tendencia y estado (color/alerta). "
@@ -34,10 +29,7 @@ INSTRUCCIONES_EXTRACCION = (
 
 
 def construir_url(fecha: date) -> str:
-    return (
-        f"https://www.ina.gov.ar/archivos/alerta/"
-        f"Cuadro_{fecha.year}{MESES_ES[fecha.month]}{fecha.day:02d}.pdf"
-    )
+    return f"https://alerta.ina.gob.ar/a5/diario/pdf/reporte_diario_{fecha.isoformat()}.pdf"
 
 
 def obtener_contenido(url: str) -> Optional[bytes]:
