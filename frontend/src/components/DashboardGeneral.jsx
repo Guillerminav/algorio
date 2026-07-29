@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-import { formatearNivel, formatearTendencia } from "../api.js";
+import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
@@ -12,9 +12,29 @@ const TENDENCIAS = [
   { value: "estable", label: "Estable" },
 ];
 
-export default function DashboardGeneral() {
+// Solo visual (ver plan): no hay severidad por fila en el historico general
+// todavia, a diferencia de Alertas/Mi Flota que si la calculan contra el
+// umbral oficial de una estacion puntual.
+const ESTADOS_FILTRO = [
+  { label: "Normal", color: "var(--subida)" },
+  { label: "Precaución", color: "var(--alerta)" },
+  { label: "Alerta", color: "var(--evacuacion)" },
+];
+
+const COLUMNAS_CSV = [
+  { clave: "fecha_boletin", etiqueta: "Fecha" },
+  { clave: "estacion", etiqueta: "Estacion" },
+  { clave: "rio", etiqueta: "Rio" },
+  { clave: "nivel_ina_m", etiqueta: "Nivel INA" },
+  { clave: "nivel_prefectura_m", etiqueta: "Nivel Prefectura" },
+  { clave: "nivel_promedio_m", etiqueta: "Nivel promedio" },
+  { clave: "tendencia", etiqueta: "Tendencia" },
+  { clave: "fuentes", etiqueta: "Fuentes" },
+];
+
+export default function DashboardGeneral({ onListo }) {
   const { usuario } = useAuth();
-  const { datos, error, cargando } = useFetchLista("/api/dashboard");
+  const { datos, error, cargando, recargar } = useFetchLista("/api/dashboard");
   const [filtroEstacion, setFiltroEstacion] = useState("");
   const [filtroRio, setFiltroRio] = useState("");
   const [filtroTendencia, setFiltroTendencia] = useState("");
@@ -43,6 +63,28 @@ export default function DashboardGeneral() {
   }, [datos, filtroEstacion, filtroRio, filtroTendencia, fechaDesde, fechaHasta]);
 
   const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(filtradas);
+
+  const filasCSV = useMemo(
+    () => filtradas.map((f) => ({
+      fecha_boletin: f.fecha_boletin,
+      estacion: f.estacion,
+      rio: f.rio ?? "",
+      nivel_ina_m: formatearNivel(f.nivel_ina_m, usuario?.unidad_nivel),
+      nivel_prefectura_m: formatearNivel(f.nivel_prefectura_m, usuario?.unidad_nivel),
+      nivel_promedio_m: formatearNivel(f.nivel_promedio_m, usuario?.unidad_nivel),
+      tendencia: formatearTendencia(f.tendencia, usuario?.unidad_nivel).texto,
+      fuentes: f.fuentes.join(" "),
+    })),
+    [filtradas, usuario?.unidad_nivel],
+  );
+
+  useEffect(() => {
+    if (!onListo) return;
+    onListo({
+      recargar,
+      exportar: () => exportarCSV("dashboard_general", COLUMNAS_CSV, filasCSV),
+    });
+  }, [onListo, recargar, filasCSV]);
 
   return (
     <div>
@@ -86,6 +128,14 @@ export default function DashboardGeneral() {
           Hasta
           <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
         </label>
+        <div className="filtros-pills">
+          {ESTADOS_FILTRO.map((ef) => (
+            <button key={ef.label} type="button" className="pill-estado">
+              <span className="pill-estado-punto" style={{ background: ef.color }} />
+              {ef.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="estado">
         {error
