@@ -11,7 +11,7 @@ export const SECCIONES = [
 
 export const TITULOS_SECCION = Object.fromEntries(SECCIONES.map((s) => [s.id, s.etiqueta]));
 
-export default function Sidebar({ seccionActiva, onCambiarSeccion }) {
+export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda }) {
   return (
     <aside className="barra-lateral">
       <div className="marca">
@@ -33,6 +33,13 @@ export default function Sidebar({ seccionActiva, onCambiarSeccion }) {
           </button>
         ))}
       </nav>
+      {/* Al final de la barra (margin-top:auto en el CSS): no es una seccion
+          mas de navegacion, abre el formulario de contacto. En mobile, donde
+          no hay barra lateral, el acceso esta en el menu de perfil. */}
+      <button type="button" className="nav-boton nav-boton-ayuda" onClick={onAbrirAyuda}>
+        <span className="nav-boton-punto" />
+        Ayuda
+      </button>
     </aside>
   );
 }

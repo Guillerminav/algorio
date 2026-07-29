@@ -105,3 +105,18 @@ def inicializar_db() -> None:
             )
             """
         )
+        # Mensajes del boton "Ayuda". Se guardan siempre, ademas de mandarse
+        # por mail: si el envio falla (falta la API key, se cayo el servicio),
+        # el mensaje del usuario no se pierde.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mensajes_ayuda (
+                id BIGSERIAL PRIMARY KEY,
+                usuario TEXT NOT NULL,
+                mensaje TEXT NOT NULL,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                enviado_por_mail BOOLEAN NOT NULL DEFAULT FALSE,
+                error_envio TEXT
+            )
+            """
+        )

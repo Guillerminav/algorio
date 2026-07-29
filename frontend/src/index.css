@@ -356,6 +356,12 @@ button {
   background: var(--acento-claro);
 }
 
+/* Empuja el boton de Ayuda al fondo de la barra lateral (el gap del
+   contenedor no alcanza: hay que consumir el espacio libre que queda). */
+.nav-boton-ayuda {
+  margin-top: auto;
+}
+
 .columna-principal {
   flex: 1;
   min-width: 0;
@@ -494,12 +500,19 @@ button {
 }
 
 .modal-tarjeta input,
-.modal-tarjeta select {
+.modal-tarjeta select,
+.modal-tarjeta textarea {
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--borde);
   border-radius: 8px;
   background: #fff;
   color: var(--texto);
+}
+
+.modal-tarjeta textarea {
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
 }
 
 .modal-botones {

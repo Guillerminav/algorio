@@ -19,7 +19,7 @@ from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend import activos, auth, datos
+from backend import activos, auth, ayuda, datos
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
@@ -73,6 +73,10 @@ class RegistroRequest(BaseModel):
 
 class CredencialGoogle(BaseModel):
     credential: str  # ID token JWT que entrega Google Identity Services
+
+
+class AyudaRequest(BaseModel):
+    mensaje: str
 
 
 class PerfilActualizacion(BaseModel):
@@ -201,6 +205,18 @@ def actualizar_perfil(
 
     request.session["nombre_completo"] = perfil["nombre_completo"]
     return perfil
+
+
+@app.post("/api/ayuda", status_code=201)
+def api_ayuda(payload: AyudaRequest, usuario: dict = Depends(usuario_actual)):
+    """El mensaje queda guardado en la base incluso si el mail no sale (ver
+    backend/ayuda.py), asi que esto no devuelve error por un fallo de envio:
+    informa `enviado_por_mail` para que el frontend ajuste el texto que le
+    muestra al usuario."""
+    try:
+        return ayuda.registrar_mensaje_ayuda(usuario["usuario"], payload.mensaje)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/ina")

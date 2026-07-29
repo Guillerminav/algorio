@@ -1,7 +1,5 @@
 """Crea una cuenta de usuario nueva para poder iniciar sesion en Algorio.
 
-Se corre a mano, una vez por persona (no hay pantalla de "registrarse" en el
-frontend a proposito, para no dejar el alta de usuarios abierta a cualquiera).
 
 Uso (desde algorio/, con el entorno virtual activado):
     python -m backend.crear_usuario
