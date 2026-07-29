@@ -8,11 +8,32 @@ import { useFetchLista } from "../hooks/useFetchLista.js";
 // deriva de datos que ya se piden en otras pantallas (/api/dashboard y
 // /api/yacyreta), sin endpoints nuevos: se vuelven a pedir aca porque esta
 // fila es visible sin importar que subtab este activo.
+// Prefijo con el usuario: si dos cuentas distintas usan el mismo navegador,
+// cada una recuerda su propia estacion elegida en vez de pisarse.
+function claveEstacionKpi(usuario) {
+  return `algorio:kpi-estacion:${usuario?.usuario ?? "anonimo"}`;
+}
+
 export default function KpisDashboard() {
   const { usuario } = useAuth();
   const { datos: general } = useFetchLista("/api/dashboard");
   const { datos: yacyreta } = useFetchLista("/api/yacyreta");
-  const [estacionElegida, setEstacionElegida] = useState("");
+  const [estacionElegida, setEstacionElegidaState] = useState(() => {
+    try {
+      return localStorage.getItem(claveEstacionKpi(usuario)) ?? "";
+    } catch {
+      return "";
+    }
+  });
+
+  function setEstacionElegida(id) {
+    setEstacionElegidaState(id);
+    try {
+      localStorage.setItem(claveEstacionKpi(usuario), id);
+    } catch {
+      // localStorage puede no estar disponible (modo privado, etc.); no es critico.
+    }
+  }
 
   const estaciones = useMemo(
     () => [...new Set(general.map((f) => f.estacion))].sort((a, b) => a.localeCompare(b)),

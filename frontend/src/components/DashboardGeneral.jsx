@@ -4,6 +4,7 @@ import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
+import { useOrdenFecha } from "../hooks/useOrdenFecha.js";
 import { usePaginacion } from "../hooks/usePaginacion.js";
 
 const TENDENCIAS = [
@@ -62,10 +63,11 @@ export default function DashboardGeneral({ onListo }) {
     });
   }, [datos, filtroEstacion, filtroRio, filtroTendencia, fechaDesde, fechaHasta]);
 
-  const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(filtradas);
+  const { itemsOrdenados, orden, alternarOrden } = useOrdenFecha(filtradas);
+  const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(itemsOrdenados);
 
   const filasCSV = useMemo(
-    () => filtradas.map((f) => ({
+    () => itemsOrdenados.map((f) => ({
       fecha_boletin: f.fecha_boletin,
       estacion: f.estacion,
       rio: f.rio ?? "",
@@ -75,7 +77,7 @@ export default function DashboardGeneral({ onListo }) {
       tendencia: formatearTendencia(f.tendencia, usuario?.unidad_nivel).texto,
       fuentes: f.fuentes.join(" "),
     })),
-    [filtradas, usuario?.unidad_nivel],
+    [itemsOrdenados, usuario?.unidad_nivel],
   );
 
   useEffect(() => {
@@ -148,7 +150,9 @@ export default function DashboardGeneral({ onListo }) {
         <table>
           <thead>
             <tr>
-              <th>Fecha</th>
+              <th className="th-ordenable" onClick={alternarOrden} title="Ordenar por fecha">
+                Fecha {orden === "desc" ? "↓" : "↑"}
+              </th>
               <th>Estacion</th>
               <th>Rio</th>
               <th className="num">Nivel INA</th>

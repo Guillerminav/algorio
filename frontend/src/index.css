@@ -798,6 +798,15 @@ th {
   top: 0;
 }
 
+.th-ordenable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.th-ordenable:hover {
+  color: var(--acento);
+}
+
 th.num, td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
