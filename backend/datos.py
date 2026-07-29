@@ -20,7 +20,21 @@ def _leer_fuente(nombre_fuente: str) -> pd.DataFrame:
         ).fetchall()
     if not filas:
         return pd.DataFrame()
-    return pd.DataFrame([f["datos"] for f in filas])
+    df = pd.DataFrame([f["datos"] for f in filas])
+    return df.apply(_a_numerico_si_corresponde)
+
+
+def _a_numerico_si_corresponde(columna: pd.Series) -> pd.Series:
+    """Las columnas numericas pueden llegar como texto (ej. datos cargados una
+    sola vez desde un CSV viejo, con dtype=str) en vez de como float, a
+    diferencia de una corrida en vivo del pipeline. pd.read_csv() convertia
+    esto solo antes; ahora que se lee del JSONB de Postgres hay que intentarlo
+    a mano. Si la columna entera se puede convertir sin perder valores, se usa
+    la version numerica (asi el frontend, que solo formatea numbers, no la
+    muestra como "—"); si no (es texto real, ej. "estacion"), se deja igual."""
+    convertida = pd.to_numeric(columna, errors="coerce")
+    si_convierte_completo = convertida.notna().sum() == columna.notna().sum()
+    return convertida if si_convierte_completo else columna
 
 
 def leer_ina() -> pd.DataFrame:

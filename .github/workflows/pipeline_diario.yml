@@ -1,0 +1,30 @@
+name: Pipeline diario
+
+# Corre el scraping de las 3 fuentes (INA, Yacyreta, Prefectura Naval) y
+# actualiza el historico en Postgres (Neon). Se puede disparar a mano desde
+# la pestaña Actions de GitHub con "Run workflow" ademas del horario fijo.
+on:
+  schedule:
+    # 12:00 UTC = 09:00 en Argentina (ART, UTC-3). Los boletines de las
+    # fuentes suelen publicarse a la manana.
+    - cron: "0 12 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Correr el pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -m data_pipeline.main

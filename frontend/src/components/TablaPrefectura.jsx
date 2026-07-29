@@ -22,9 +22,9 @@ export default function TablaPrefectura() {
         <table>
           <thead>
             <tr>
+              <th>Fecha y hora</th>
               <th>Estacion</th>
               <th>Rio</th>
-              <th>Fecha y hora</th>
               <th className="num">Nivel actual</th>
               <th className="num">Variación</th>
               <th>Tendencia</th>
@@ -41,9 +41,9 @@ export default function TablaPrefectura() {
                 const tendencia = formatearTendencia(f.tendencia, usuario?.unidad_nivel);
                 return (
                   <tr key={`${f.estacion}-${f.fecha_boletin}-${i}`}>
+                    <td>{`${f.fecha_boletin} ${f.hora_registro ?? ""}`.trim()}</td>
                     <td>{f.estacion}</td>
                     <td>{f.rio ?? "—"}</td>
-                    <td>{`${f.fecha_boletin} ${f.hora_registro ?? ""}`.trim()}</td>
                     <td className="num">{formatearNivel(f.nivel_actual_m, usuario?.unidad_nivel)}</td>
                     <td className="num">{formatearNivel(f.variacion_m, usuario?.unidad_nivel)}</td>
                     <td className={`tendencia ${tendencia.clase}`}>{tendencia.texto}</td>
