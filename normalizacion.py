@@ -74,9 +74,33 @@ def canonizar_estacion(nombre: Optional[str]) -> Optional[str]:
 
 
 def normalizar_fecha(fecha_boletin: Optional[str]) -> Optional[str]:
-    """Unifica el separador de fecha a '-' (ISO). La unica fuente que use
-    otro separador hasta ahora fue INA, que a veces devuelve '/' en vez de
-    '-' (ver ina.py)."""
+    """Unifica cualquier fecha a formato ISO 'YYYY-MM-DD', sin importar el
+    separador ('/' o '-') ni el orden en que la mande la fuente.
+
+    INA es la unica fuente que no manda ISO directo, y ademas no es
+    consistente: el sistema viejo (ina.gov.ar) devolvia 'YYYY/MM/DD', el
+    nuevo (alerta.ina.gob.ar) muestra la fecha como la escribe la pagina,
+    'DD/MM/YYYY' (formato argentino) — Gemini extrae el texto tal cual esta
+    impreso en el reporte, no lo convierte. Un simple replace('/', '-') solo
+    arregla el separador y deja el orden de dia/mes/anio como vino, por
+    eso hace falta mirar cual de las tres partes tiene 4 digitos (el anio)
+    para saber como reordenar.
+    """
     if not fecha_boletin:
         return fecha_boletin
-    return fecha_boletin.replace("/", "-")
+
+    partes = re.split(r"[/-]", fecha_boletin.strip())
+    if len(partes) != 3:
+        return fecha_boletin  # formato inesperado: se deja como vino, mejor no inventar.
+
+    if len(partes[0]) == 4:
+        anio, mes, dia = partes
+    elif len(partes[2]) == 4:
+        dia, mes, anio = partes
+    else:
+        return fecha_boletin  # ninguna parte parece un anio de 4 digitos.
+
+    try:
+        return f"{int(anio):04d}-{int(mes):02d}-{int(dia):02d}"
+    except ValueError:
+        return fecha_boletin
