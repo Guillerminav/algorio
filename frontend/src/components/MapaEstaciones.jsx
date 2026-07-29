@@ -25,6 +25,31 @@ function iconoPorEstado(estado) {
   });
 }
 
+// Leaflet mide el tamaño del contenedor una sola vez al montar el mapa; si en
+// ese momento el layout todavia no termino de acomodarse (comun en mobile,
+// con el nav inferior fijo y el layout en columna) o si despues cambia
+// (achicar/expandir, rotar el celular), el mapa queda con el tamaño viejo y
+// se ve en blanco o cortado. invalidateSize() le pide que vuelva a medir.
+function SincronizarTamanoMapa({ expandido }) {
+  const mapa = useMap();
+
+  useEffect(() => {
+    const recalcular = () => mapa.invalidateSize();
+    // Timeout chico: espera a que termine la transicion de CSS (achicar/
+    // expandir) o el primer layout antes de medir de nuevo.
+    const timeoutId = setTimeout(recalcular, 250);
+    window.addEventListener("resize", recalcular);
+    window.addEventListener("orientationchange", recalcular);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", recalcular);
+      window.removeEventListener("orientationchange", recalcular);
+    };
+  }, [mapa, expandido]);
+
+  return null;
+}
+
 // Capa de marcadores agrupados (clustering). Leaflet.markercluster no tiene
 // bindings propios de react-leaflet, asi que se maneja imperativamente con
 // useMap() dentro de un useEffect, igual que cualquier plugin de Leaflet.
@@ -108,6 +133,7 @@ function PanelEstacion({ estacion, unidadNivel, onCerrar }) {
 export default function MapaEstaciones() {
   const { usuario } = useAuth();
   const [estacionSeleccionada, setEstacionSeleccionada] = useState(null);
+  const [expandido, setExpandido] = useState(false);
   const { datos: estaciones, error, cargando } = useFetchLista("/api/mapa-estaciones");
 
   return (
@@ -123,19 +149,30 @@ export default function MapaEstaciones() {
             ? ""
             : `${estaciones.length} estaciones con coordenada conocida`}
       </div>
-      <div className="mapa-layout">
-        <MapContainer center={[-29.5, -58]} zoom={6} className="mapa-contenedor" scrollWheelZoom>
-          <TileLayer
-            attribution="&copy; colaboradores de OpenStreetMap"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maxZoom={18}
-          />
-          <CapaClusterMarcadores
-            estaciones={estaciones}
-            unidadNivel={usuario?.unidad_nivel}
-            onSeleccionar={setEstacionSeleccionada}
-          />
-        </MapContainer>
+      <div className={`mapa-layout${expandido ? " mapa-layout-expandido" : ""}`}>
+        <div className="mapa-contenedor-wrap">
+          <button
+            type="button"
+            className="boton-expandir-mapa"
+            title={expandido ? "Achicar mapa" : "Expandir mapa"}
+            onClick={() => setExpandido((e) => !e)}
+          >
+            {expandido ? "⤡ Achicar" : "⤢ Expandir"}
+          </button>
+          <MapContainer center={[-29.5, -58]} zoom={6} className="mapa-contenedor" scrollWheelZoom>
+            <TileLayer
+              attribution="&copy; colaboradores de OpenStreetMap"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxZoom={18}
+            />
+            <CapaClusterMarcadores
+              estaciones={estaciones}
+              unidadNivel={usuario?.unidad_nivel}
+              onSeleccionar={setEstacionSeleccionada}
+            />
+            <SincronizarTamanoMapa expandido={expandido} />
+          </MapContainer>
+        </div>
 
         {estacionSeleccionada && (
           <PanelEstacion

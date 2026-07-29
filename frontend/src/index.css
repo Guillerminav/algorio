@@ -985,7 +985,17 @@ tbody tr:hover {
   align-items: flex-start;
 }
 
-.mapa-contenedor {
+.mapa-layout-expandido {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--fondo);
+  padding: 1rem;
+  align-items: stretch;
+}
+
+.mapa-contenedor-wrap {
+  position: relative;
   flex: 1;
   min-width: 0;
   height: 65vh;
@@ -993,6 +1003,39 @@ tbody tr:hover {
   border: 1px solid var(--borde);
   border-radius: 10px;
   overflow: hidden;
+}
+
+.mapa-layout-expandido .mapa-contenedor-wrap {
+  height: 100%;
+}
+
+.mapa-contenedor {
+  width: 100%;
+  height: 100%;
+}
+
+.boton-expandir-mapa {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(11, 50, 82, 0.15);
+}
+
+.boton-expandir-mapa:hover {
+  border-color: var(--acento);
+  color: var(--acento);
 }
 
 .panel-estacion {
