@@ -1,15 +1,43 @@
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 
-import { formatearNivel, formatearTendencia } from "../api.js";
+import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
 import { usePaginacion } from "../hooks/usePaginacion.js";
 
-export default function TablaPrefectura() {
+const COLUMNAS_CSV = [
+  { clave: "fecha_hora", etiqueta: "Fecha y hora" },
+  { clave: "estacion", etiqueta: "Estacion" },
+  { clave: "rio", etiqueta: "Rio" },
+  { clave: "nivel_actual_m", etiqueta: "Nivel actual" },
+  { clave: "variacion_m", etiqueta: "Variacion" },
+  { clave: "tendencia", etiqueta: "Tendencia" },
+  { clave: "nivel_anterior_m", etiqueta: "Nivel anterior" },
+];
+
+export default function TablaPrefectura({ onListo }) {
   const { usuario } = useAuth();
-  const { datos, error, cargando } = useFetchLista("/api/prefectura-naval");
+  const { datos, error, cargando, recargar } = useFetchLista("/api/prefectura-naval");
   const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(datos);
+
+  const filasCSV = useMemo(
+    () => datos.map((f) => ({
+      fecha_hora: `${f.fecha_boletin} ${f.hora_registro ?? ""}`.trim(),
+      estacion: f.estacion,
+      rio: f.rio ?? "",
+      nivel_actual_m: formatearNivel(f.nivel_actual_m, usuario?.unidad_nivel),
+      variacion_m: formatearNivel(f.variacion_m, usuario?.unidad_nivel),
+      tendencia: formatearTendencia(f.tendencia, usuario?.unidad_nivel).texto,
+      nivel_anterior_m: formatearNivel(f.nivel_anterior_m, usuario?.unidad_nivel),
+    })),
+    [datos, usuario?.unidad_nivel],
+  );
+
+  useEffect(() => {
+    if (!onListo) return;
+    onListo({ recargar, exportar: () => exportarCSV("prefectura_naval", COLUMNAS_CSV, filasCSV) });
+  }, [onListo, recargar, filasCSV]);
 
   return (
     <div>

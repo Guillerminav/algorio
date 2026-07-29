@@ -1,15 +1,37 @@
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 
-import { formatearCaudal, formatearNivel } from "../api.js";
+import { exportarCSV, formatearCaudal, formatearNivel } from "../api.js";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
 import { usePaginacion } from "../hooks/usePaginacion.js";
 
-export default function TablaYacyreta() {
+const COLUMNAS_CSV = [
+  { clave: "fecha_boletin", etiqueta: "Fecha" },
+  { clave: "nivel_rio", etiqueta: "Nivel rio Ituzaingo" },
+  { clave: "caudal", etiqueta: "Caudal afluente hoy" },
+  { clave: "nivel_embalse", etiqueta: "Nivel embalse hoy" },
+];
+
+export default function TablaYacyreta({ onListo }) {
   const { usuario } = useAuth();
-  const { datos, error, cargando } = useFetchLista("/api/yacyreta");
+  const { datos, error, cargando, recargar } = useFetchLista("/api/yacyreta");
   const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(datos);
+
+  const filasCSV = useMemo(
+    () => datos.map((f) => ({
+      fecha_boletin: f.fecha_boletin,
+      nivel_rio: formatearNivel(f.altura_ituzaingo_m, usuario?.unidad_nivel),
+      caudal: formatearCaudal(f.caudal_afluente_hoy_m3s, usuario?.unidad_caudal),
+      nivel_embalse: formatearNivel(f.nivel_embalse_hoy_msnm, usuario?.unidad_nivel),
+    })),
+    [datos, usuario?.unidad_nivel, usuario?.unidad_caudal],
+  );
+
+  useEffect(() => {
+    if (!onListo) return;
+    onListo({ recargar, exportar: () => exportarCSV("yacyreta", COLUMNAS_CSV, filasCSV) });
+  }, [onListo, recargar, filasCSV]);
 
   return (
     <div>

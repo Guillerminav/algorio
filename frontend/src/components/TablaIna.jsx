@@ -1,15 +1,39 @@
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 
-import { formatearNivel, formatearTendencia } from "../api.js";
+import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
 import { usePaginacion } from "../hooks/usePaginacion.js";
 
-export default function TablaIna() {
+const COLUMNAS_CSV = [
+  { clave: "fecha_boletin", etiqueta: "Fecha" },
+  { clave: "estacion", etiqueta: "Estacion" },
+  { clave: "rio", etiqueta: "Rio" },
+  { clave: "nivel_actual_m", etiqueta: "Nivel actual" },
+  { clave: "tendencia", etiqueta: "Tendencia" },
+];
+
+export default function TablaIna({ onListo }) {
   const { usuario } = useAuth();
-  const { datos, error, cargando } = useFetchLista("/api/ina");
+  const { datos, error, cargando, recargar } = useFetchLista("/api/ina");
   const { itemsDePagina, paginaActual, totalPaginas, irAPagina } = usePaginacion(datos);
+
+  const filasCSV = useMemo(
+    () => datos.map((f) => ({
+      fecha_boletin: f.fecha_boletin,
+      estacion: f.estacion,
+      rio: f.rio ?? "",
+      nivel_actual_m: formatearNivel(f.nivel_actual_m, usuario?.unidad_nivel),
+      tendencia: formatearTendencia(f.tendencia, usuario?.unidad_nivel).texto,
+    })),
+    [datos, usuario?.unidad_nivel],
+  );
+
+  useEffect(() => {
+    if (!onListo) return;
+    onListo({ recargar, exportar: () => exportarCSV("ina", COLUMNAS_CSV, filasCSV) });
+  }, [onListo, recargar, filasCSV]);
 
   return (
     <div>

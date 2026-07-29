@@ -55,6 +55,32 @@ function tendenciaDesdeNumero(numero, unidadNivel) {
   return { texto: `▬ ${texto}`, clase: "estable" };
 }
 
+// Arma un CSV a partir de `columnas` ({clave, etiqueta}) y `filas` (objetos
+// con esas claves, ya con los mismos valores formateados que se ven en la
+// tabla) y dispara la descarga en el navegador. Todo client-side, no pega
+// contra el backend.
+export function exportarCSV(nombreArchivo, columnas, filas) {
+  const escapar = (valor) => {
+    const texto = valor === null || valor === undefined ? "" : String(valor);
+    return /[",\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+  };
+
+  const encabezado = columnas.map((c) => escapar(c.etiqueta)).join(",");
+  const lineas = filas.map((fila) => columnas.map((c) => escapar(fila[c.clave])).join(","));
+  const csv = [encabezado, ...lineas].join("\r\n");
+
+  // BOM UTF-8 para que Excel no rompa las tildes al abrir el archivo.
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombreArchivo.endsWith(".csv") ? nombreArchivo : `${nombreArchivo}.csv`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+  URL.revokeObjectURL(url);
+}
+
 export async function pedirJSON(url, opciones) {
   const resp = await fetch(url, opciones);
   if (!resp.ok) {
