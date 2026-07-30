@@ -1,5 +1,6 @@
 import React from "react";
 
+import IconoTuerca from "./IconoTuerca.jsx";
 import LogoIcono from "./LogoIcono.jsx";
 
 export const SECCIONES = [
@@ -37,7 +38,7 @@ export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda 
           mas de navegacion, abre el formulario de contacto. En mobile, donde
           no hay barra lateral, el acceso esta en el menu de perfil. */}
       <button type="button" className="nav-boton nav-boton-ayuda" onClick={onAbrirAyuda}>
-        <span className="nav-boton-punto" />
+        <span className="nav-boton-icono"><IconoTuerca /></span>
         Ayuda
       </button>
     </aside>

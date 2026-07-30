@@ -286,6 +286,15 @@ button {
   display: flex;
   flex-direction: column;
   gap: 2.25rem;
+  /* Queda fija mientras scrollea el contenido. align-self es necesario: en un
+     contenedor flex el aside se estira a toda la altura por defecto, y un
+     elemento tan alto como su contenedor nunca llega a "pegarse". overflow-y
+     cubre el caso de una pantalla muy baja donde la nav no entre. */
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .marca {
@@ -360,6 +369,23 @@ button {
    contenedor no alcanza: hay que consumir el espacio libre que queda). */
 .nav-boton-ayuda {
   margin-top: auto;
+}
+
+/* Ocupa el mismo lugar que el punto de las secciones (6px), para que el texto
+   de todos los botones de la barra quede alineado. La tuerca es mas grande
+   que ese hueco y se desborda parejo a los costados, quedando centrada sobre
+   la misma linea vertical que los puntos; el flex-shrink evita que en vez de
+   desbordarse se achique. */
+.nav-boton-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 6px;
+  flex-shrink: 0;
+}
+
+.nav-boton-icono svg {
+  flex-shrink: 0;
 }
 
 .columna-principal {
@@ -480,7 +506,6 @@ button {
 }
 
 .suscripcion {
-  max-width: 46rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -550,13 +575,15 @@ button {
   color: var(--marca);
 }
 
+/* Dos columnas cuando hay ancho: a pantalla completa, una sola columna deja
+   lineas larguisimas y cuesta leerlas. */
 .suscripcion-incluye ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem 2rem;
 }
 
 .suscripcion-incluye li {
