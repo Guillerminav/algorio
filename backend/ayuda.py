@@ -12,7 +12,7 @@ import httpx
 
 from db import conexion, inicializar_db
 
-DESTINATARIO = "guillerminabousono@gmail.com"
+DESTINATARIO = "guillermina2000b@gmail.com"
 
 # Sin un dominio propio verificado, Resend solo permite mandar desde su
 # dominio de prueba (onboarding@resend.dev) y unicamente al mail de la cuenta

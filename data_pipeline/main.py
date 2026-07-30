@@ -72,10 +72,13 @@ def ejecutar_fuente(fuente: ModuleType, fecha: date) -> Optional[str]:
 
     # Bookkeeping comun a toda fuente: cuando se extrajo el dato y de que URL
     # exacta (las fuentes publican en horarios y con links distintos cada dia).
+    # url_origen se pone con setdefault: una fuente que haya usado una URL
+    # distinta a la de construir_url() (ej. prefectura_naval, que cae a un
+    # sitio de respaldo si el oficial no responde) ya la declaro en sus filas.
     fecha_extraccion = datetime.now().isoformat(timespec="seconds")
     for fila in filas:
         fila["fecha_extraccion"] = fecha_extraccion
-        fila["url_origen"] = url
+        fila.setdefault("url_origen", url)
 
     guardar_filas_fuente(filas, fuente.NOMBRE, columnas_clave=fuente.COLUMNAS_CLAVE)
     return url
