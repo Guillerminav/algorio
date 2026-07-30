@@ -19,8 +19,8 @@ function activoVacio() {
     nombre: "",
     tipo: "embarcacion",
     estacion_referencia: "",
-    umbral_alerta_m: "",
-    umbral_evacuacion_m: "",
+    umbral_minimo_m: "",
+    umbral_maximo_m: "",
     ...CAMPOS_EMBARCACION_VACIOS,
   };
 }
@@ -35,8 +35,8 @@ export default function FormActivo({ activoEnEdicion, estacionesDisponibles, onG
         nombre: activoEnEdicion.nombre,
         tipo: activoEnEdicion.tipo,
         estacion_referencia: activoEnEdicion.estacion_referencia,
-        umbral_alerta_m: activoEnEdicion.umbral_alerta_m ?? "",
-        umbral_evacuacion_m: activoEnEdicion.umbral_evacuacion_m ?? "",
+        umbral_minimo_m: activoEnEdicion.umbral_minimo_m ?? "",
+        umbral_maximo_m: activoEnEdicion.umbral_maximo_m ?? "",
         categoria_embarcacion: activoEnEdicion.categoria_embarcacion ?? "",
         eslora_m: activoEnEdicion.eslora_m ?? "",
         manga_m: activoEnEdicion.manga_m ?? "",
@@ -94,8 +94,8 @@ export default function FormActivo({ activoEnEdicion, estacionesDisponibles, onG
       nombre: resto.nombre.trim(),
       tipo: resto.tipo,
       estacion_referencia: resto.estacion_referencia,
-      umbral_alerta_m: resto.umbral_alerta_m ? parseFloat(resto.umbral_alerta_m) : null,
-      umbral_evacuacion_m: resto.umbral_evacuacion_m ? parseFloat(resto.umbral_evacuacion_m) : null,
+      umbral_minimo_m: resto.umbral_minimo_m ? parseFloat(resto.umbral_minimo_m) : null,
+      umbral_maximo_m: resto.umbral_maximo_m ? parseFloat(resto.umbral_maximo_m) : null,
       caracteristicas_embarcacion: esEmbarcacion
         ? {
             categoria_embarcacion: categoria_embarcacion || null,
@@ -149,23 +149,23 @@ export default function FormActivo({ activoEnEdicion, estacionesDisponibles, onG
         </select>
       </label>
       <label>
-        Umbral de alerta propio (m)
+        Umbral de alerta mínimo (m)
+        <input
+          type="number"
+          step="0.01"
+          placeholder="Alerta por bajante"
+          value={form.umbral_minimo_m}
+          onChange={(e) => actualizarCampo("umbral_minimo_m", e.target.value)}
+        />
+      </label>
+      <label>
+        Umbral de alerta máximo (m)
         <input
           type="number"
           step="0.01"
           placeholder="Opcional, usa el oficial si se deja vacío"
-          value={form.umbral_alerta_m}
-          onChange={(e) => actualizarCampo("umbral_alerta_m", e.target.value)}
-        />
-      </label>
-      <label>
-        Umbral de evacuación propio (m)
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Opcional"
-          value={form.umbral_evacuacion_m}
-          onChange={(e) => actualizarCampo("umbral_evacuacion_m", e.target.value)}
+          value={form.umbral_maximo_m}
+          onChange={(e) => actualizarCampo("umbral_maximo_m", e.target.value)}
         />
       </label>
 

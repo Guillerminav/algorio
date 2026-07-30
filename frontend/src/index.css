@@ -845,8 +845,15 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+/* Alertas de estaciones (seccion Alertas, criterio oficial de Prefectura). */
 .severidad.alerta { color: var(--alerta); }
 .severidad.evacuacion { color: var(--evacuacion); }
+
+/* Alertas de activos propios (Mi flota): bajante contra el umbral minimo o
+   crecida contra el maximo. Son dos alertas distintas, no dos niveles de la
+   misma, por eso no reusan alerta/evacuacion. */
+.severidad.minimo { color: var(--alerta); }
+.severidad.maximo { color: var(--evacuacion); }
 
 .fuente-chip {
   display: inline-block;

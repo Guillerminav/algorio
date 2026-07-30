@@ -45,8 +45,8 @@ def crear_activo(
     nombre: str,
     tipo: str,
     estacion_referencia: str,
-    umbral_alerta_m: Optional[float] = None,
-    umbral_evacuacion_m: Optional[float] = None,
+    umbral_minimo_m: Optional[float] = None,
+    umbral_maximo_m: Optional[float] = None,
     caracteristicas_embarcacion: Optional[dict] = None,
 ) -> dict:
     if tipo not in TIPOS_VALIDOS:
@@ -55,9 +55,9 @@ def crear_activo(
         raise ValueError("nombre y estacion_referencia son obligatorios.")
 
     caracteristicas_embarcacion = caracteristicas_embarcacion or {}
-    columnas = ["usuario", "nombre", "tipo", "estacion_referencia", "umbral_alerta_m", "umbral_evacuacion_m", "creado_en"]
+    columnas = ["usuario", "nombre", "tipo", "estacion_referencia", "umbral_minimo_m", "umbral_maximo_m", "creado_en"]
     valores = [
-        usuario, nombre, tipo, estacion_referencia, umbral_alerta_m, umbral_evacuacion_m,
+        usuario, nombre, tipo, estacion_referencia, umbral_minimo_m, umbral_maximo_m,
         datetime.now().isoformat(timespec="seconds"),
     ]
     for campo in CAMPOS_EMBARCACION:
@@ -83,7 +83,7 @@ def actualizar_activo(activo_id: int, usuario: str, cambios: dict) -> dict:
         raise ValueError(f"tipo debe ser uno de {TIPOS_VALIDOS}.")
 
     campos_editables = [
-        "nombre", "tipo", "estacion_referencia", "umbral_alerta_m", "umbral_evacuacion_m",
+        "nombre", "tipo", "estacion_referencia", "umbral_minimo_m", "umbral_maximo_m",
         *CAMPOS_EMBARCACION,
     ]
     sets, valores = [], []

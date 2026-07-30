@@ -359,32 +359,43 @@ def mapa_estaciones() -> list[dict]:
 def estado_de_activo(activo: dict) -> dict:
     """Enriquece un "activo" (embarcacion/draga/muelle/tramo guardado por un
     usuario, ver backend/activos.py) con el nivel actual de su estacion de
-    referencia y la severidad segun SU umbral propio si lo definio, o el
-    umbral oficial de Prefectura Naval como respaldo si no."""
+    referencia y su estado contra los umbrales minimo y maximo.
+
+    Dos alertas distintas, no dos niveles de la misma: el nivel llego al
+    minimo o menos (bajante, no se puede navegar/operar) o llego al maximo o
+    mas (crecida). El maximo, si el usuario no cargo uno propio, cae al
+    umbral de alerta oficial de Prefectura Naval para esa estacion, que es
+    justamente de crecida. El minimo no tiene equivalente oficial (ninguna
+    fuente publica umbrales de bajante), asi que solo funciona si el usuario
+    lo define.
+    """
     estacion = estado_de_estacion(activo["estacion_referencia"])
 
     nivel_actual_m = estacion["nivel_actual_m"] if estacion else None
     rio = estacion["rio"] if estacion else None
-    umbral_alerta_oficial = estacion["umbral_alerta_m"] if estacion else None
-    umbral_evacuacion_oficial = estacion["umbral_evacuacion_m"] if estacion else None
+    umbral_maximo_oficial = estacion["umbral_alerta_m"] if estacion else None
 
-    umbral_alerta_efectivo = activo.get("umbral_alerta_m")
-    if umbral_alerta_efectivo is None:
-        umbral_alerta_efectivo = umbral_alerta_oficial
-    umbral_evacuacion_efectivo = activo.get("umbral_evacuacion_m")
-    if umbral_evacuacion_efectivo is None:
-        umbral_evacuacion_efectivo = umbral_evacuacion_oficial
+    umbral_minimo_efectivo = activo.get("umbral_minimo_m")
+    umbral_maximo_efectivo = activo.get("umbral_maximo_m")
+    if umbral_maximo_efectivo is None:
+        umbral_maximo_efectivo = umbral_maximo_oficial
+
+    severidad = None
+    if nivel_actual_m is not None:
+        if umbral_maximo_efectivo is not None and nivel_actual_m >= umbral_maximo_efectivo:
+            severidad = "maximo"
+        elif umbral_minimo_efectivo is not None and nivel_actual_m <= umbral_minimo_efectivo:
+            severidad = "minimo"
 
     return {
         **activo,
         "rio": rio,
         "nivel_actual_m": nivel_actual_m,
-        "umbral_alerta_oficial_m": umbral_alerta_oficial,
-        "umbral_evacuacion_oficial_m": umbral_evacuacion_oficial,
-        "umbral_alerta_efectivo_m": umbral_alerta_efectivo,
-        "umbral_evacuacion_efectivo_m": umbral_evacuacion_efectivo,
-        "usa_umbral_propio": activo.get("umbral_alerta_m") is not None or activo.get("umbral_evacuacion_m") is not None,
-        "severidad": _severidad(nivel_actual_m, umbral_alerta_efectivo, umbral_evacuacion_efectivo),
+        "umbral_maximo_oficial_m": umbral_maximo_oficial,
+        "umbral_minimo_efectivo_m": umbral_minimo_efectivo,
+        "umbral_maximo_efectivo_m": umbral_maximo_efectivo,
+        "usa_umbral_propio": activo.get("umbral_minimo_m") is not None or activo.get("umbral_maximo_m") is not None,
+        "severidad": severidad,
         "tiene_datos": estacion is not None,
     }
 

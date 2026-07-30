@@ -62,12 +62,32 @@ def inicializar_db() -> None:
                 nombre TEXT NOT NULL,
                 tipo TEXT NOT NULL,
                 estacion_referencia TEXT NOT NULL,
-                umbral_alerta_m DOUBLE PRECISION,
-                umbral_evacuacion_m DOUBLE PRECISION,
+                umbral_minimo_m DOUBLE PRECISION,
+                umbral_maximo_m DOUBLE PRECISION,
                 creado_en TEXT NOT NULL
             )
             """
         )
+        # Umbrales de "Mi flota": antes eran alerta/evacuacion (dos niveles del
+        # lado de la crecida, copiando el criterio oficial de Prefectura); ahora
+        # son minimo/maximo, que es lo que le sirve a un operador (bajante que
+        # impide navegar / crecida). Migracion para tablas ya existentes: el
+        # umbral de alerta viejo era de crecida, asi que pasa a ser el maximo;
+        # el de evacuacion se descarta. Las columnas viejas se borran al final,
+        # asi esto corre una sola vez (inicializar_db se llama en cada request).
+        con.execute("ALTER TABLE activos ADD COLUMN IF NOT EXISTS umbral_minimo_m DOUBLE PRECISION")
+        con.execute("ALTER TABLE activos ADD COLUMN IF NOT EXISTS umbral_maximo_m DOUBLE PRECISION")
+        tiene_columnas_viejas = con.execute(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'activos' AND column_name = 'umbral_alerta_m'"
+        ).fetchone()
+        if tiene_columnas_viejas:
+            con.execute(
+                "UPDATE activos SET umbral_maximo_m = umbral_alerta_m "
+                "WHERE umbral_maximo_m IS NULL AND umbral_alerta_m IS NOT NULL"
+            )
+            con.execute("ALTER TABLE activos DROP COLUMN IF EXISTS umbral_alerta_m")
+            con.execute("ALTER TABLE activos DROP COLUMN IF EXISTS umbral_evacuacion_m")
         # Caracteristicas de embarcacion (solo aplican cuando activos.tipo =
         # 'embarcacion'; texto libre porque la tabla de referencia trae rangos
         # o texto en vez de numeros limpios, ver frontend/src/embarcaciones.js).

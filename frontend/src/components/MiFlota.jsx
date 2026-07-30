@@ -6,7 +6,9 @@ import { CATEGORIAS_EMBARCACION } from "../embarcaciones.js";
 import FormActivo from "./FormActivo.jsx";
 
 const ETIQUETAS_TIPO_ACTIVO = { embarcacion: "Embarcación", draga: "Draga", muelle: "Muelle", tramo: "Tramo" };
-const ETIQUETAS_SEVERIDAD = { alerta: "▲ Alerta", evacuacion: "▲ Evacuación" };
+// Dos alertas distintas (no dos niveles de la misma): el nivel toco el
+// minimo (bajante) o el maximo (crecida). Ver backend/datos.py: estado_de_activo.
+const ETIQUETAS_SEVERIDAD = { minimo: "▼ Bajo mínimo", maximo: "▲ Sobre máximo" };
 
 export default function MiFlota() {
   const { usuario } = useAuth();
@@ -71,8 +73,10 @@ export default function MiFlota() {
     <div>
       <p className="descripcion">
         Guardá una vez tus embarcaciones, dragas, muelles o tramos de interés,
-        con la estación que querés monitorear y, si tu equipo lo requiere, un
-        umbral de alerta propio distinto al oficial.
+        con la estación que querés monitorear y tus umbrales de alerta: se
+        avisa cuando el nivel baja hasta el mínimo (no se puede operar) o
+        cuando llega al máximo (crecida). Si no cargás un máximo propio, se
+        usa el umbral de alerta oficial de esa estación.
       </p>
 
       <FormActivo
@@ -94,7 +98,8 @@ export default function MiFlota() {
               <th>Estación</th>
               <th>Río</th>
               <th className="num">Nivel actual</th>
-              <th>Umbral aplicado</th>
+              <th className="num">Umbral mínimo</th>
+              <th className="num">Umbral máximo</th>
               <th>Estado</th>
               <th></th>
             </tr>
@@ -102,13 +107,20 @@ export default function MiFlota() {
           <tbody>
             {activos.length === 0 ? (
               <tr>
-                <td className="vacio" colSpan={9}>Todavía no guardaste ningún activo.</td>
+                <td className="vacio" colSpan={10}>Todavía no guardaste ningún activo.</td>
               </tr>
             ) : (
               activos.map((f) => {
-                let umbralAplicado = "—";
-                if (f.umbral_alerta_efectivo_m != null) {
-                  umbralAplicado = `${formatearNivel(f.umbral_alerta_efectivo_m, usuario?.unidad_nivel)} (${f.usa_umbral_propio ? "propio" : "oficial"})`;
+                const umbralMinimo = f.umbral_minimo_efectivo_m != null
+                  ? formatearNivel(f.umbral_minimo_efectivo_m, usuario?.unidad_nivel)
+                  : "—";
+                // El maximo puede venir del umbral oficial de la estacion si
+                // el usuario no cargo uno propio; el minimo siempre es propio
+                // (ninguna fuente publica umbrales de bajante).
+                let umbralMaximo = "—";
+                if (f.umbral_maximo_efectivo_m != null) {
+                  const origen = f.umbral_maximo_m != null ? "propio" : "oficial";
+                  umbralMaximo = `${formatearNivel(f.umbral_maximo_efectivo_m, usuario?.unidad_nivel)} (${origen})`;
                 }
                 const estadoTexto = f.severidad
                   ? ETIQUETAS_SEVERIDAD[f.severidad]
@@ -123,7 +135,8 @@ export default function MiFlota() {
                     <td>{f.estacion_referencia}</td>
                     <td>{f.rio ?? "—"}</td>
                     <td className="num">{formatearNivel(f.nivel_actual_m, usuario?.unidad_nivel)}</td>
-                    <td>{umbralAplicado}</td>
+                    <td className="num">{umbralMinimo}</td>
+                    <td className="num">{umbralMaximo}</td>
                     <td className={f.severidad ? `severidad ${f.severidad}` : ""}>{estadoTexto}</td>
                     <td className="celda-acciones">
                       <button type="button" className="boton-fila" onClick={() => setActivoEnEdicion(f)}>

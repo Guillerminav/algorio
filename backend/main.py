@@ -106,8 +106,8 @@ class ActivoEntrada(BaseModel):
     nombre: str
     tipo: str
     estacion_referencia: str
-    umbral_alerta_m: Optional[float] = None
-    umbral_evacuacion_m: Optional[float] = None
+    umbral_minimo_m: Optional[float] = None
+    umbral_maximo_m: Optional[float] = None
     caracteristicas_embarcacion: Optional[CaracteristicasEmbarcacion] = None
 
 
@@ -115,8 +115,8 @@ class ActivoActualizacion(BaseModel):
     nombre: Optional[str] = None
     tipo: Optional[str] = None
     estacion_referencia: Optional[str] = None
-    umbral_alerta_m: Optional[float] = None
-    umbral_evacuacion_m: Optional[float] = None
+    umbral_minimo_m: Optional[float] = None
+    umbral_maximo_m: Optional[float] = None
     caracteristicas_embarcacion: Optional[CaracteristicasEmbarcacion] = None
 
 
@@ -271,8 +271,8 @@ def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_act
             nombre=entrada.nombre,
             tipo=entrada.tipo,
             estacion_referencia=entrada.estacion_referencia,
-            umbral_alerta_m=entrada.umbral_alerta_m,
-            umbral_evacuacion_m=entrada.umbral_evacuacion_m,
+            umbral_minimo_m=entrada.umbral_minimo_m,
+            umbral_maximo_m=entrada.umbral_maximo_m,
             caracteristicas_embarcacion=(
                 entrada.caracteristicas_embarcacion.model_dump()
                 if entrada.caracteristicas_embarcacion
