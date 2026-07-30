@@ -39,7 +39,8 @@ def inicializar_db() -> None:
                 salt TEXT,
                 password_hash TEXT,
                 unidad_nivel TEXT NOT NULL DEFAULT 'm',
-                unidad_caudal TEXT NOT NULL DEFAULT 'm3s'
+                unidad_caudal TEXT NOT NULL DEFAULT 'm3s',
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
             )
             """
         )
@@ -49,6 +50,15 @@ def inicializar_db() -> None:
         con.execute("ALTER TABLE usuarios ALTER COLUMN salt DROP NOT NULL")
         con.execute("ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL")
         con.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT")
+        # Fecha de alta de la cuenta (base del sistema de suscripcion: desde
+        # cuando corre una prueba gratis, antiguedad del usuario, etc.). Se
+        # agrega en dos pasos a proposito: si se agregara con DEFAULT en el
+        # mismo ALTER, Postgres rellenaria las cuentas ya existentes con la
+        # fecha de la migracion, que seria un dato inventado. Asi, las cuentas
+        # viejas quedan en NULL (no sabemos cuando se crearon) y solo las
+        # nuevas traen fecha real.
+        con.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS creado_en TIMESTAMPTZ")
+        con.execute("ALTER TABLE usuarios ALTER COLUMN creado_en SET DEFAULT now()")
         # Indice unico parcial (no "UNIQUE" en la columna): permite muchas
         # cuentas viejas sin email (NULL) sin que colisionen entre si.
         con.execute(

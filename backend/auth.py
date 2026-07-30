@@ -82,7 +82,8 @@ def obtener_usuario(usuario: str) -> Optional[dict]:
     inicializar_db()
     with conexion() as con:
         fila = con.execute(
-            "SELECT usuario, nombre_completo, unidad_nivel, unidad_caudal FROM usuarios WHERE usuario = %s",
+            "SELECT usuario, nombre_completo, email, unidad_nivel, unidad_caudal, creado_en "
+            "FROM usuarios WHERE usuario = %s",
             (usuario,),
         ).fetchone()
     return dict(fila) if fila else None
