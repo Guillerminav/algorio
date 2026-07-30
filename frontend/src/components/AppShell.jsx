@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import Alertas from "./Alertas.jsx";
+import AvisoPrueba from "./AvisoPrueba.jsx";
 import Dashboard from "./Dashboard.jsx";
 import MapaEstaciones from "./MapaEstaciones.jsx";
 import MiFlota from "./MiFlota.jsx";
@@ -8,12 +9,19 @@ import ModalAyuda from "./ModalAyuda.jsx";
 import ModalPerfil from "./ModalPerfil.jsx";
 import NavInferior from "./NavInferior.jsx";
 import Sidebar, { TITULOS_SECCION } from "./Sidebar.jsx";
+import SuscripcionVencida from "./SuscripcionVencida.jsx";
 import TopBar from "./TopBar.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function AppShell() {
+  const { suscripcion } = useAuth();
   const [seccionActiva, setSeccionActiva] = useState("dashboard");
   const [modalPerfilAbierto, setModalPerfilAbierto] = useState(false);
   const [modalAyudaAbierto, setModalAyudaAbierto] = useState(false);
+
+  // El backend ya bloquea los endpoints de datos con 402; esto evita ademas
+  // renderizar secciones que solo mostrarian errores.
+  const sinAcceso = suscripcion !== null && suscripcion.tiene_acceso === false;
 
   return (
     <div className="app">
@@ -31,10 +39,17 @@ export default function AppShell() {
         />
 
         <main>
-          {seccionActiva === "dashboard" && <Dashboard />}
-          {seccionActiva === "alertas" && <Alertas />}
-          {seccionActiva === "mapa" && <MapaEstaciones />}
-          {seccionActiva === "flota" && <MiFlota />}
+          <AvisoPrueba onAbrirAyuda={() => setModalAyudaAbierto(true)} />
+          {sinAcceso ? (
+            <SuscripcionVencida onAbrirAyuda={() => setModalAyudaAbierto(true)} />
+          ) : (
+            <>
+              {seccionActiva === "dashboard" && <Dashboard />}
+              {seccionActiva === "alertas" && <Alertas />}
+              {seccionActiva === "mapa" && <MapaEstaciones />}
+              {seccionActiva === "flota" && <MiFlota />}
+            </>
+          )}
         </main>
 
         <NavInferior seccionActiva={seccionActiva} onCambiarSeccion={setSeccionActiva} />

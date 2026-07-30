@@ -19,7 +19,7 @@ from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend import activos, auth, ayuda, datos
+from backend import activos, auth, ayuda, datos, suscripciones
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
@@ -53,11 +53,25 @@ app.add_middleware(SessionMiddleware, secret_key=_obtener_o_crear_secreto(), sam
 
 
 def usuario_actual(request: Request) -> dict:
-    """Dependency que exige sesion iniciada; se usa en todos los endpoints de datos."""
+    """Dependency que exige sesion iniciada."""
     usuario = request.session.get("usuario")
     if not usuario:
         raise HTTPException(status_code=401, detail="No hay sesion iniciada.")
     return {"usuario": usuario, "nombre_completo": request.session.get("nombre_completo")}
+
+
+def usuario_con_suscripcion(usuario: dict = Depends(usuario_actual)) -> dict:
+    """Dependency que ademas exige suscripcion vigente (o prueba gratis sin
+    vencer). Se usa en los endpoints de datos; los de cuenta (perfil, logout,
+    ayuda, estado de suscripcion) quedan accesibles aunque haya vencido, para
+    que el usuario pueda ver que le pasa, escribirnos y suscribirse.
+
+    Devuelve 402 (Payment Required) en vez de 401/403 para que el frontend
+    distinga "no estas logueado" de "te falta pagar" y muestre la pantalla
+    correcta."""
+    if not suscripciones.tiene_acceso(usuario["usuario"]):
+        raise HTTPException(status_code=402, detail="Tu prueba gratis venció. Suscribite para seguir usando AlgoRío.")
+    return usuario
 
 
 class CredencialesLogin(BaseModel):
@@ -219,52 +233,60 @@ def api_ayuda(payload: AyudaRequest, usuario: dict = Depends(usuario_actual)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/api/suscripcion")
+def api_suscripcion(usuario: dict = Depends(usuario_actual)):
+    """Estado de la suscripcion. Deliberadamente NO exige suscripcion
+    vigente: es lo que el frontend consulta para saber que mostrar cuando
+    justamente esta vencida."""
+    return suscripciones.estado_de_suscripcion(usuario["usuario"])
+
+
 @app.get("/api/ina")
-def api_ina(usuario: dict = Depends(usuario_actual)):
+def api_ina(usuario: dict = Depends(usuario_con_suscripcion)):
     return datos.datos_ina()
 
 
 @app.get("/api/yacyreta")
-def api_yacyreta(usuario: dict = Depends(usuario_actual)):
+def api_yacyreta(usuario: dict = Depends(usuario_con_suscripcion)):
     return datos.datos_yacyreta()
 
 
 @app.get("/api/prefectura-naval")
-def api_prefectura_naval(usuario: dict = Depends(usuario_actual)):
+def api_prefectura_naval(usuario: dict = Depends(usuario_con_suscripcion)):
     return datos.datos_prefectura()
 
 
 @app.get("/api/dashboard")
-def api_dashboard(usuario: dict = Depends(usuario_actual)):
+def api_dashboard(usuario: dict = Depends(usuario_con_suscripcion)):
     return datos.dashboard_historico()
 
 
 @app.get("/api/alertas")
-def api_alertas(usuario: dict = Depends(usuario_actual)):
+def api_alertas(usuario: dict = Depends(usuario_con_suscripcion)):
     return datos.alertas_activas()
 
 
 @app.get("/api/estaciones-disponibles")
-def api_estaciones_disponibles(usuario: dict = Depends(usuario_actual)):
+def api_estaciones_disponibles(usuario: dict = Depends(usuario_con_suscripcion)):
     """Estaciones conocidas (INA + Prefectura Naval) para elegir como
     'estacion de referencia' al cargar un activo."""
     return datos.estaciones_disponibles()
 
 
 @app.get("/api/mapa-estaciones")
-def api_mapa_estaciones(usuario: dict = Depends(usuario_actual)):
+def api_mapa_estaciones(usuario: dict = Depends(usuario_con_suscripcion)):
     """Estaciones reales (INA + Prefectura Naval) con coordenadas conocidas,
     para el mapa interactivo. Reemplaza al mock del frontend."""
     return datos.mapa_estaciones()
 
 
 @app.get("/api/activos")
-def api_listar_activos(usuario: dict = Depends(usuario_actual)):
+def api_listar_activos(usuario: dict = Depends(usuario_con_suscripcion)):
     return [datos.estado_de_activo(a) for a in activos.listar_activos(usuario["usuario"])]
 
 
 @app.post("/api/activos")
-def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_actual)):
+def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_con_suscripcion)):
     try:
         nuevo = activos.crear_activo(
             usuario["usuario"],
@@ -286,7 +308,7 @@ def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_act
 
 @app.put("/api/activos/{activo_id}")
 def api_actualizar_activo(
-    activo_id: int, cambios: ActivoActualizacion, usuario: dict = Depends(usuario_actual)
+    activo_id: int, cambios: ActivoActualizacion, usuario: dict = Depends(usuario_con_suscripcion)
 ):
     datos_cambios = cambios.model_dump(exclude_unset=True)
     caracteristicas = datos_cambios.pop("caracteristicas_embarcacion", None)
@@ -301,7 +323,7 @@ def api_actualizar_activo(
 
 
 @app.delete("/api/activos/{activo_id}")
-def api_eliminar_activo(activo_id: int, usuario: dict = Depends(usuario_actual)):
+def api_eliminar_activo(activo_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
     if not activos.eliminar_activo(activo_id, usuario["usuario"]):
         raise HTTPException(status_code=404, detail="El activo no existe (o no pertenece a este usuario).")
     return {"ok": True}

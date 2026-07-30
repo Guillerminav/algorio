@@ -135,6 +135,23 @@ def inicializar_db() -> None:
             )
             """
         )
+        # Suscripciones. `vigente_hasta` es el corazon del control de acceso:
+        # en vez de preguntar "pago este mes?" se pregunta "hoy es anterior a
+        # esa fecha?". Cada pago confirmado la empuja un mes; si el cobro
+        # falla, la fecha no se mueve y el acceso caduca solo, sin cron.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS suscripciones (
+                usuario TEXT PRIMARY KEY REFERENCES usuarios (usuario),
+                estado TEXT NOT NULL,
+                plan TEXT,
+                proveedor_id TEXT,
+                vigente_hasta TIMESTAMPTZ,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
         # Mensajes del boton "Ayuda". Se guardan siempre, ademas de mandarse
         # por mail: si el envio falla (falta la API key, se cayo el servicio),
         # el mensaje del usuario no se pierde.
