@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
 
-export default function PerfilMenu({ onEditarPerfil, onAbrirAyuda }) {
+export default function PerfilMenu({ onEditarPerfil, onAbrirAyuda, onVerSuscripcion }) {
   const { usuario, logout } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const contenedorRef = useRef(null);
@@ -51,6 +51,15 @@ export default function PerfilMenu({ onEditarPerfil, onAbrirAyuda }) {
             }}
           >
             Editar perfil
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAbierto(false);
+              onVerSuscripcion();
+            }}
+          >
+            Suscripción
           </button>
           {/* En mobile no hay barra lateral (donde vive el boton de Ayuda),
               asi que este es el unico acceso al formulario de contacto ahi. */}

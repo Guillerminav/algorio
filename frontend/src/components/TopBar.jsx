@@ -3,7 +3,7 @@ import React from "react";
 import LogoIcono from "./LogoIcono.jsx";
 import PerfilMenu from "./PerfilMenu.jsx";
 
-export default function TopBar({ titulo, onEditarPerfil, onAbrirAyuda }) {
+export default function TopBar({ titulo, onEditarPerfil, onAbrirAyuda, onVerSuscripcion }) {
   return (
     <header className="barra-superior">
       <div className="barra-superior-marca-movil">
@@ -12,7 +12,11 @@ export default function TopBar({ titulo, onEditarPerfil, onAbrirAyuda }) {
         </div>
       </div>
       <h2>{titulo}</h2>
-      <PerfilMenu onEditarPerfil={onEditarPerfil} onAbrirAyuda={onAbrirAyuda} />
+      <PerfilMenu
+        onEditarPerfil={onEditarPerfil}
+        onAbrirAyuda={onAbrirAyuda}
+        onVerSuscripcion={onVerSuscripcion}
+      />
     </header>
   );
 }
