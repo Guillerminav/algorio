@@ -1,22 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:wght@400;500;600;700&display=swap');
 
-/* Glock Grotesk 2.0 es una fuente comercial (Zetafonts): no esta en Google
-   Fonts ni se puede servir desde un CDN publico, hay que comprar la licencia
-   web y dejar los archivos en frontend/public/fuentes/. Mientras no esten,
-   estos @font-face fallan en silencio y --fuente-titulo cae a Montserrat,
-   que es el fallback declarado abajo. */
+/* Fuente del wordmark "AlgoRío". El archivo dice "medium" en el nombre pero
+   internamente es ExtraBold, asi que se declara para todo el rango y sirve
+   para cualquier peso que pida el diseño.
+   OJO: este archivo trae 187 glifos y NINGUNA vocal acentuada, asi que la "í"
+   de AlgoRío cae al fallback. Por eso se usa solo en el wordmark (variable
+   propia) y no en --fuente-titulo: aplicarla a todos los titulos rompería
+   "Gráficos", "Suscripción", "Yacyretá" y demas. Con un archivo que incluya
+   Latin-1 completo se puede pasar a --fuente-titulo. */
 @font-face {
-  font-family: "Glock Grotesk 2.0";
-  src: url("/fuentes/GlockGrotesk2-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Glock Grotesk 2.0";
-  src: url("/fuentes/GlockGrotesk2-ExtraBold.woff2") format("woff2");
-  font-weight: 800;
+  font-family: "Glock Grotesque";
+  src: url("/fuentes/glockgrotesque-medium.otf") format("opentype");
+  font-weight: 400 900;
   font-style: normal;
   font-display: swap;
 }
@@ -49,7 +44,8 @@
   --estable: #6e7781;
   --alerta: #b8790b;
   --evacuacion: #c0392b;
-  --fuente-titulo: "Glock Grotesk 2.0", "Montserrat", system-ui, sans-serif;
+  --fuente-titulo: "Montserrat", system-ui, sans-serif;
+  --fuente-marca: "Glock Grotesque", "Montserrat", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -96,7 +92,7 @@ h1, h2, h3 {
 }
 
 .login-hero-marca {
-  font-family: var(--fuente-titulo);
+  font-family: var(--fuente-marca);
   font-weight: 800;
   font-size: 1.6rem;
   letter-spacing: -0.01em;
@@ -315,7 +311,7 @@ button {
 }
 
 .marca-texto {
-  font-family: var(--fuente-titulo);
+  font-family: var(--fuente-marca);
   font-weight: 800;
   font-size: 1.35rem;
   color: #fff;
@@ -426,7 +422,7 @@ button {
 .barra-superior-marca-movil {
   display: none;
   align-items: center;
-  font-family: var(--fuente-titulo);
+  font-family: var(--fuente-marca);
   font-weight: 800;
   font-size: 1.05rem;
   color: var(--marca);
@@ -928,11 +924,15 @@ main {
   color: var(--marca);
 }
 
+/* Sin max-width: el texto acompaña el ancho del contenido (tablas, mapa,
+   graficos). Con un tope propio quedaba cortado a media pantalla mientras
+   todo lo demas ocupaba el ancho completo, y se leia como un error de
+   maquetado. main ya limita el ancho total a 1180px. */
 .descripcion {
   color: var(--texto-suave);
   font-size: 0.92rem;
   margin: 0 0 1.1rem;
-  max-width: 42rem;
+  line-height: 1.6;
 }
 
 .estado {
