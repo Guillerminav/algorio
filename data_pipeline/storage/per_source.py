@@ -8,7 +8,7 @@ from typing import Optional
 from psycopg.types.json import Jsonb
 
 from db import conexion, inicializar_db
-from normalizacion import canonizar_estacion, canonizar_rio, normalizar_fecha
+from normalizacion import canonizar_estacion, canonizar_rio, normalizar_fecha, rio_de_estacion
 
 
 def _normalizar_fila(fila: dict) -> dict:
@@ -20,10 +20,18 @@ def _normalizar_fila(fila: dict) -> dict:
     fila = dict(fila)
     if "fecha_boletin" in fila:
         fila["fecha_boletin"] = normalizar_fecha(fila["fecha_boletin"])
+    if "rio" in fila:
+        # El rio se resuelve a partir de la estacion cuando se la conoce: una
+        # misma estacion aparece con rios distintos segun la fuente (ej.
+        # "Rosario" en "Paraná" y en "Paraná/Delta") y el registro ya tiene
+        # decidido cual gana.
+        fila["rio"] = (
+            rio_de_estacion(fila.get("estacion"), fila["rio"])
+            if "estacion" in fila
+            else canonizar_rio(fila["rio"])
+        )
     if "estacion" in fila:
         fila["estacion"] = canonizar_estacion(fila["estacion"])
-    if "rio" in fila:
-        fila["rio"] = canonizar_rio(fila["rio"])
     return fila
 
 

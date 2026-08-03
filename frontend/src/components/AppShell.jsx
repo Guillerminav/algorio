@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Alertas from "./Alertas.jsx";
 import AvisoPrueba from "./AvisoPrueba.jsx";
 import Dashboard from "./Dashboard.jsx";
+import Graficos from "./Graficos.jsx";
 import MapaEstaciones from "./MapaEstaciones.jsx";
 import MiFlota from "./MiFlota.jsx";
 import ModalAyuda from "./ModalAyuda.jsx";
@@ -56,6 +57,7 @@ export default function AppShell() {
           ) : (
             <>
               {seccionActiva === "dashboard" && <Dashboard />}
+              {seccionActiva === "graficos" && <Graficos />}
               {seccionActiva === "alertas" && <Alertas />}
               {seccionActiva === "mapa" && <MapaEstaciones />}
               {seccionActiva === "flota" && <MiFlota />}

@@ -1080,6 +1080,74 @@ tbody tr:hover {
   cursor: not-allowed;
 }
 
+/* --------------------------------------------------------------- Graficos */
+
+.grafico-estaciones {
+  margin-bottom: 1.1rem;
+}
+
+.grafico-estaciones-titulo {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  font-weight: 500;
+  margin-bottom: 0.45rem;
+}
+
+.grafico-estaciones-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pill-estacion {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--borde);
+  background: var(--superficie);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.pill-estacion:hover {
+  border-color: var(--acento);
+}
+
+.pill-estacion.activa {
+  color: var(--texto);
+  font-weight: 600;
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+}
+
+.pill-estacion-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.grafico-contenedor {
+  padding: 1.25rem 1rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+}
+
+.grafico-vacio {
+  padding: 3rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  text-align: center;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
 /* --------------------------------------------------------------- Mi flota */
 
 .form-activo {

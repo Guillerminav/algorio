@@ -5,6 +5,7 @@ import LogoIcono from "./LogoIcono.jsx";
 
 export const SECCIONES = [
   { id: "dashboard", etiqueta: "Dashboard" },
+  { id: "graficos", etiqueta: "Gráficos" },
   { id: "alertas", etiqueta: "Alertas" },
   { id: "mapa", etiqueta: "Mapa" },
   { id: "flota", etiqueta: "Mi flota" },

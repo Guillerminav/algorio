@@ -56,21 +56,165 @@ def canonizar_rio(nombre: Optional[str]) -> Optional[str]:
     # faltante llega como float('nan') en vez de None.
     if not nombre or isinstance(nombre, float):
         return None
-    return RIOS_CANONICOS.get(_normalizar_texto(nombre), nombre.title())
+    return RIOS_CANONICOS.get(_normalizar_texto(nombre)) or titulo_es(nombre)
 
 
-# A diferencia de los rios (un puñado de valores conocidos), las estaciones
-# son muchas y no hay un diccionario armado a mano: se usa Title Case como
-# mejor esfuerzo. Esto arregla el caso mas comun (mayusculas vs mayusculas/
-# minusculas, ej. "CORRIENTES" -> "Corrientes"), pero si una estacion viene
-# SOLO de una fuente que manda mayusculas sin tildes (ej. Prefectura Naval),
-# no puede restituir una tilde que ningun lado mando (mismo limite que
-# canonizar_rio antes de tener RIOS_CANONICOS). Si aparece un caso asi, se
-# puede sumar un diccionario ESTACIONES_CANONICAS analogo a RIOS_CANONICOS.
+# Palabras que en castellano van en minuscula dentro de un nombre propio
+# (salvo que sean la primera): "Concepcion del Uruguay", no "Del".
+PALABRAS_MENORES = {"de", "del", "la", "las", "los", "el", "y", "e", "en", "a"}
+
+
+def titulo_es(texto: str) -> str:
+    """Title case con las reglas del castellano, respetando parentesis."""
+    salida = []
+    for i, palabra in enumerate(texto.split()):
+        nucleo = palabra.strip("()")
+        izquierda = palabra[: len(palabra) - len(palabra.lstrip("("))]
+        derecha = palabra[len(palabra.rstrip(")")):]
+        minuscula = nucleo.lower()
+        if i > 0 and minuscula in PALABRAS_MENORES:
+            formateado = minuscula
+        else:
+            formateado = minuscula[:1].upper() + minuscula[1:]
+        salida.append(f"{izquierda}{formateado}{derecha}")
+    return " ".join(salida)
+
+
+# Registro canonico de estaciones: clave normalizada -> (nombre, rio).
+#
+# Hace falta porque las fuentes escriben la misma estacion de formas
+# distintas y NINGUNA fila alcanza por si sola para resolverlo:
+#   - Mayusculas: Prefectura manda "ROSARIO", INA "Rosario".
+#   - Tildes: "ITUZAINGO" vs "Ituzaingó". Una tilde que ninguna fuente mando
+#     no se puede inventar, asi que el nombre de aca sale de la variante con
+#     mas tildes que se haya visto entre todas las fuentes.
+#   - Rios distintos para la misma estacion: "Rosario" figura en Paraná y en
+#     "Paraná/Delta". Se toma el nombre de rio mas corto (criterio acordado:
+#     el mas corto suele ser el rio principal, no el tramo).
+#
+# Generado a partir de los datos ya guardados; si aparece una estacion nueva
+# que no este aca, canonizar_estacion() cae a titulo_es() como mejor esfuerzo
+# (arregla mayusculas, no puede restituir tildes ausentes).
+ESTACIONES_CANONICAS = {
+    'ALBA POSSE': ('Alba Posse', 'Uruguay'),
+    'ALVEAR': ('Alvear', 'Uruguay'),
+    'ANDRESITO': ('Andresito', 'Iguazú'),
+    'ATALAYA': ('Atalaya', 'De la Plata'),
+    'BARADERO': ('Baradero', 'Delta Paraná'),
+    'BARRANQUERAS': ('Barranqueras', 'Paraná'),
+    'BELLA VISTA': ('Bella Vista', 'Paraná'),
+    'BERMEJO': ('Bermejo', 'Paraguay'),
+    'BOCA GUALEGUAYCHU': ('Boca Gualeguaychú', 'Uruguay'),
+    'BOMPLAND': ('Bompland', 'Uruguay'),
+    'BOUVIER': ('Bouvier', 'Paraguay'),
+    'BRAGA': ('Braga', 'De la Plata'),
+    'BUENOS AIRES': ('Buenos Aires', 'De la Plata'),
+    'CAMPANA': ('Campana', 'Delta Paraná'),
+    'CAMPICHUELO': ('Campichuelo', 'Uruguay'),
+    'CANAL NUEVO': ('Canal Nuevo', 'Delta Paraná'),
+    'CAXIA (BRASIL)': ('Caxia (Brasil)', 'Iguazú'),
+    'CHANA MINI': ('Chana Mini', 'Delta Paraná'),
+    'COLON': ('Colon', 'Uruguay'),
+    'CONCEP DEL URUGUAY': ('Concep. del Uruguay', 'Uruguay'),
+    'CONCEPCION DEL URUGUAY': ('Concepción del Uruguay', 'Uruguay'),
+    'CONCORDIA': ('Concordia', 'Uruguay'),
+    'CONFLUENCIA': ('Confluencia', 'Paraná / Iguazú'),
+    'CORRIENTES': ('Corrientes', 'Paraná'),
+    'DIAMANTE': ('Diamante', 'Paraná'),
+    'DIQUE LUJAN': ('Dique Lujan', 'Delta Paraná'),
+    'EL SOBERBIO': ('El Soberbio', 'Uruguay'),
+    'ELDORADO': ('Eldorado', 'Paraná'),
+    'EMPEDRADO': ('Empedrado', 'Paraná'),
+    'ESCOBAR': ('Escobar', 'Delta Paraná'),
+    'ESQUINA': ('Esquina', 'Paraná'),
+    'FEDERACION': ('Federacion', 'Uruguay'),
+    'FEDERACION EMBALSE': ('Federacion Embalse', 'Uruguay'),
+    'FORMOSA': ('Formosa', 'Paraguay'),
+    'GARRUCHOS': ('Garruchos', 'Uruguay'),
+    'GOYA': ('Goya', 'Paraná'),
+    'GUAIRA': ('Guairá', 'Alto Paraná'),
+    'GUALEGUAYCHU': ('Gualeguaychu', 'Gualeguaychú'),
+    'GUAYRA (BRASIL)': ('Guayra (Brasil)', 'Paraná'),
+    'GUAZUCITO': ('Guazucito', 'Delta Paraná'),
+    'HERNANDARIAS': ('Hernandarias', 'Paraná'),
+    'IBICUY': ('Ibicuy', 'Ibicuy'),
+    'IGUAZU': ('Iguazú', 'Iguazú'),
+    'ISLA DEL CERRITO': ('Isla del Cerrito', 'Paraguay'),
+    'ITA IBATE': ('Ita Ibate', 'Paraná'),
+    'ITAIPU': ('Itaipú', 'Alto Paraná'),
+    'ITATI': ('Itati', 'Paraná'),
+    'ITUZAINGO': ('Ituzaingó', 'Paraná'),
+    'LA CALERA': ('La Calera', 'Uruguay'),
+    'LA CRUZ': ('La Cruz', 'Uruguay'),
+    'LA PAZ': ('La Paz', 'Paraná'),
+    'LA PLATA': ('La Plata', 'De la Plata'),
+    'LAS PALMAS': ('Las Palmas', 'Paraguay'),
+    'LIBERTAD': ('Libertad', 'Paraná'),
+    'LIBERTADOR': ('Libertador', 'Paraná'),
+    'MARTIN GARCIA': ('Martin Garcia', 'Delta Paraná'),
+    'MOCORETA': ('Mocoreta', 'Uruguay'),
+    'MONTE CASEROS': ('Monte Caseros', 'Uruguay'),
+    'OLIVOS': ('Olivos', 'Delta Paraná'),
+    'PANAMBI': ('Panambi', 'Uruguay'),
+    'PARANA': ('Paraná', 'Paraná'),
+    'PARANACITO': ('Paranacito', 'Uruguay'),
+    'PASO DE LA PATRIA': ('Paso de la Patria', 'Paraná'),
+    'PASO DE LOS LIBRES': ('Paso de los Libres', 'Uruguay'),
+    'PILCOMAYO': ('Pilcomayo', 'Paraguay'),
+    'POSADAS': ('Posadas', 'Paraná'),
+    'PTO GUALEGUAYCHU': ('Pto. Gualeguaychú', 'Uruguay'),
+    'PUERTO CONCEPCION': ('Puerto Concepcion', 'Uruguay'),
+    'PUERTO FORMOSA': ('Puerto Formosa', 'Paraguay'),
+    'PUERTO IGUAZU': ('Puerto Iguazú', 'Paraná'),
+    'PUERTO MANI': ('Puerto Mani', 'Paraná'),
+    'PUERTO PILCOMAYO': ('Puerto Pilcomayo', 'Paraguay'),
+    'PUERTO RUIZ': ('Puerto Ruiz', 'Gualeguay'),
+    'RAMALLO': ('Ramallo', 'Paraná'),
+    'RECONQUISTA': ('Reconquista', 'Paraná'),
+    'REPRESA CAPANEMA (BRASIL)': ('Represa Capanema (Brasil)', 'Iguazú'),
+    'REPRESA ITAIPU (BRASIL)': ('Represa Itaipu (Brasil)', 'Paraná'),
+    'ROSARIO': ('Rosario', 'Paraná'),
+    'SALTO GRANDE ABAJO': ('Salto Grande Abajo', 'Uruguay'),
+    'SALTO GRANDE ARRIBA': ('Salto Grande Arriba', 'Uruguay'),
+    'SAN FERNANDO': ('San Fernando', 'Lujan'),
+    'SAN ISIDRO': ('San Isidro', 'Delta Paraná'),
+    'SAN JAVIER': ('San Javier', 'Uruguay'),
+    'SAN JAVIER (SANTA FE)': ('San Javier (Santa Fe)', 'San Javier'),
+    'SAN LORENZO': ('San Lorenzo', 'Paraná'),
+    'SAN NICOLAS': ('San Nicolás', 'Paraná'),
+    'SAN PEDRO': ('San Pedro', 'Delta Paraná'),
+    'SANTA ANA': ('Santa Ana', 'Paraná'),
+    'SANTA ELENA': ('Santa Elena', 'Paraná'),
+    'SANTA FE': ('Santa Fe', 'Paraná'),
+    'SANTA TERESITA': ('Santa Teresita', 'De la Plata'),
+    'SANTO TOME': ('Santo Tomé', 'Uruguay'),
+    'TIGRE': ('Tigre', 'Delta Paraná'),
+    'VICTORIA': ('Victoria', 'Paraná'),
+    'VILLA CONSTITUCION': ('Villa Constitución', 'Paraná'),
+    'YACYRETA AFLUENTE': ('Yacyretá Afluente', 'Paraná'),
+    'YACYRETA EFLUENTE': ('Yacyretá Efluente', 'Paraná'),
+    'YAPEYU': ('Yapeyu', 'Uruguay'),
+    'YERUA': ('Yerua', 'Uruguay'),
+    'ZARATE': ('Zarate', 'Delta Paraná'),
+}
+
+
 def canonizar_estacion(nombre: Optional[str]) -> Optional[str]:
     if not nombre or isinstance(nombre, float):
         return None
-    return nombre.title()
+    entrada = ESTACIONES_CANONICAS.get(_normalizar_texto(nombre))
+    return entrada[0] if entrada else titulo_es(nombre)
+
+
+def rio_de_estacion(estacion: Optional[str], rio: Optional[str]) -> Optional[str]:
+    """Rio canonico de una estacion. Si la estacion esta en el registro, gana
+    el rio de ahi (el mas corto entre los observados), sin importar cual haya
+    mandado esta fila puntual; si no, se normaliza el que vino."""
+    if estacion and not isinstance(estacion, float):
+        entrada = ESTACIONES_CANONICAS.get(_normalizar_texto(estacion))
+        if entrada and entrada[1]:
+            return entrada[1]
+    return canonizar_rio(rio)
 
 
 def normalizar_fecha(fecha_boletin: Optional[str]) -> Optional[str]:
