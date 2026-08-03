@@ -24,13 +24,21 @@ export default function SelectorEstaciones({
     return () => document.removeEventListener("click", alHacerClickFuera);
   }, []);
 
-  const filtradas = estaciones.filter((e) =>
-    e.toLowerCase().includes(busqueda.trim().toLowerCase()),
-  );
+  // Sin distinguir mayusculas NI tildes: "rosario" encuentra "Rosario" y
+  // "ituzaingo" encuentra "Ituzaingó" (varias estaciones llevan tilde y
+  // escribirla al buscar es incomodo).
+  const paraBuscar = (texto) =>
+    texto
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase();
+
+  const termino = paraBuscar(busqueda.trim());
+  const filtradas = estaciones.filter((e) => paraBuscar(e).includes(termino));
   const tope = seleccionadas.length >= maximo;
 
   const resumen = seleccionadas.length === 0
-    ? "Ninguna estación"
+    ? "Seleccionar una estación"
     : seleccionadas.length === 1
       ? seleccionadas[0]
       : `${seleccionadas.length} estaciones`;

@@ -1,7 +1,6 @@
 import React from "react";
 
 import IconoTuerca from "./IconoTuerca.jsx";
-import LogoIcono from "./LogoIcono.jsx";
 
 export const SECCIONES = [
   { id: "dashboard", etiqueta: "Dashboard" },
@@ -17,9 +16,6 @@ export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda 
   return (
     <aside className="barra-lateral">
       <div className="marca">
-        <div className="marca-icono">
-          <LogoIcono size={20} />
-        </div>
         <div className="marca-texto">AlgoRío</div>
       </div>
       <nav className="nav-secciones">

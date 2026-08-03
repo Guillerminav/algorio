@@ -2,7 +2,6 @@ import React, { useState } from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import BotonGoogle from "./BotonGoogle.jsx";
-import LogoIcono from "./LogoIcono.jsx";
 
 export default function Registro({ onIrALogin }) {
   const { registrar } = useAuth();
@@ -40,9 +39,6 @@ export default function Registro({ onIrALogin }) {
     <div className="pantalla-login">
       <div className="login-hero">
         <div className="login-hero-logo">
-          <div className="login-hero-icono">
-            <LogoIcono />
-          </div>
           <div className="login-hero-marca">AlgoRío</div>
         </div>
         <div className="login-hero-cuerpo">

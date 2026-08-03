@@ -74,9 +74,10 @@ export default function Graficos() {
     [datos],
   );
 
-  // Sin eleccion explicita se muestran las primeras estaciones, para que la
-  // pantalla no arranque vacia.
-  const activas = seleccionadas.length > 0 ? seleccionadas : estaciones.slice(0, 3);
+  // La pantalla arranca sin ninguna estacion elegida: no hay una eleccion por
+  // defecto que sea la correcta para todos, y preseleccionar sugiere que esas
+  // son "las importantes".
+  const activas = seleccionadas;
 
   const { series, puntos } = useMemo(() => {
     const enRango = datos.filter((f) => {
@@ -114,10 +115,9 @@ export default function Graficos() {
 
   function alternarEstacion(estacion) {
     setSeleccionadas((previas) => {
-      const base = previas.length > 0 ? previas : estaciones.slice(0, 3);
-      if (base.includes(estacion)) return base.filter((e) => e !== estacion);
-      if (base.length >= MAX_ESTACIONES) return base;
-      return [...base, estacion];
+      if (previas.includes(estacion)) return previas.filter((e) => e !== estacion);
+      if (previas.length >= MAX_ESTACIONES) return previas;
+      return [...previas, estacion];
     });
   }
 
@@ -166,7 +166,9 @@ export default function Graficos() {
             ? `Error cargando los datos: ${error.message}`
             : cargando
               ? ""
-              : `${puntos.length} ${puntos.length === 1 ? "período" : "períodos"} · ${series.length} ${series.length === 1 ? "estación" : "estaciones"}`}
+              : activas.length === 0
+                ? `Elegí hasta ${MAX_ESTACIONES} estaciones para comparar.`
+                : `${puntos.length} ${puntos.length === 1 ? "período" : "períodos"} · ${series.length} ${series.length === 1 ? "estación" : "estaciones"}`}
         </div>
         <button
           type="button"
@@ -179,7 +181,9 @@ export default function Graficos() {
       </div>
       {errorDescarga && <div className="mensaje-error">{errorDescarga}</div>}
 
-      {puntos.length === 0 ? (
+      {activas.length === 0 ? (
+        <div className="grafico-vacio">Seleccioná una estación</div>
+      ) : puntos.length === 0 ? (
         <div className="grafico-vacio">
           No hay datos para las estaciones y el rango de fechas elegidos.
         </div>

@@ -2,7 +2,6 @@ import React, { useState } from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import BotonGoogle from "./BotonGoogle.jsx";
-import LogoIcono from "./LogoIcono.jsx";
 
 // Decoracion abstracta del panel de login (no hay foto real del rio todavia:
 // se usa un patron de ondas en vez de un placeholder de imagen vacio).
@@ -41,9 +40,6 @@ export default function Login({ onIrARegistro }) {
     <div className="pantalla-login">
       <div className="login-hero">
         <div className="login-hero-logo">
-          <div className="login-hero-icono">
-            <LogoIcono />
-          </div>
           <div className="login-hero-marca">AlgoRío</div>
         </div>
 
