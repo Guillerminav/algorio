@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 
 import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
+import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
@@ -41,7 +42,7 @@ export default function TablaIna({ onListo }) {
     <div>
       <h3>INA — Cuadro de alerta</h3>
       <div className="estado">
-        {error ? `Error cargando INA: ${error.message}` : cargando ? "" : `${datos.length} registros`}
+        {error ? `Error cargando INA: ${error.message}` : cargando ? "Cargando…" : `${datos.length} registros`}
       </div>
       <div className="tabla-contenedor">
         <table>
@@ -58,9 +59,11 @@ export default function TablaIna({ onListo }) {
           </thead>
           <tbody>
             {itemsDePagina.length === 0 ? (
-              <tr>
-                <td className="vacio" colSpan={5}>Todavia no se corrio la fuente INA.</td>
-              </tr>
+              <FilaTablaVacia
+                colSpan={5}
+                cargando={cargando}
+                mensaje="Todavía no se corrió la fuente INA."
+              />
             ) : (
               itemsDePagina.map((f, i) => {
                 const tendencia = formatearTendencia(f.tendencia, usuario?.unidad_nivel);

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 
 import { exportarCSV, formatearCaudal, formatearNivel } from "../api.js";
+import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
@@ -39,7 +40,7 @@ export default function TablaYacyreta({ onListo }) {
     <div>
       <h3>Yacyreta — Resumen ejecutivo (EBY)</h3>
       <div className="estado">
-        {error ? `Error cargando Yacyreta: ${error.message}` : cargando ? "" : `${datos.length} boletines`}
+        {error ? `Error cargando Yacyreta: ${error.message}` : cargando ? "Cargando…" : `${datos.length} boletines`}
       </div>
       <div className="tabla-contenedor">
         <table>
@@ -55,9 +56,11 @@ export default function TablaYacyreta({ onListo }) {
           </thead>
           <tbody>
             {itemsDePagina.length === 0 ? (
-              <tr>
-                <td className="vacio" colSpan={4}>Todavia no se corrio la fuente Yacyreta.</td>
-              </tr>
+              <FilaTablaVacia
+                colSpan={4}
+                cargando={cargando}
+                mensaje="Todavía no se corrió la fuente Yacyretá."
+              />
             ) : (
               itemsDePagina.map((f, i) => (
                 <tr key={`${f.fecha_boletin}-${i}`}>

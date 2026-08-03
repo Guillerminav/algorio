@@ -165,7 +165,7 @@ export default function Graficos() {
           {error
             ? `Error cargando los datos: ${error.message}`
             : cargando
-              ? ""
+              ? "Cargando…"
               : activas.length === 0
                 ? `Elegí hasta ${MAX_ESTACIONES} estaciones para comparar.`
                 : `${puntos.length} ${puntos.length === 1 ? "período" : "períodos"} · ${series.length} ${series.length === 1 ? "estación" : "estaciones"}`}
@@ -181,7 +181,9 @@ export default function Graficos() {
       </div>
       {errorDescarga && <div className="mensaje-error">{errorDescarga}</div>}
 
-      {activas.length === 0 ? (
+      {cargando ? (
+        <div className="grafico-vacio">Cargando…</div>
+      ) : activas.length === 0 ? (
         <div className="grafico-vacio">Seleccioná una estación</div>
       ) : puntos.length === 0 ? (
         <div className="grafico-vacio">

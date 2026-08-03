@@ -1,5 +1,6 @@
 import React from "react";
 
+import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import { formatearNivel } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
@@ -18,7 +19,7 @@ export default function Alertas() {
         {error
           ? `Error cargando alertas: ${error.message}`
           : cargando
-            ? ""
+            ? "Cargando…"
             : `${datos.length} estaciones en alerta`}
       </div>
       <div className="tabla-contenedor">
@@ -36,9 +37,11 @@ export default function Alertas() {
           </thead>
           <tbody>
             {datos.length === 0 ? (
-              <tr>
-                <td className="vacio" colSpan={7}>No hay estaciones en alerta en este momento.</td>
-              </tr>
+              <FilaTablaVacia
+                colSpan={7}
+                cargando={cargando}
+                mensaje="No hay estaciones en alerta en este momento."
+              />
             ) : (
               datos.map((f, i) => (
                 <tr key={`${f.estacion}-${i}`}>

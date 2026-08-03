@@ -146,8 +146,10 @@ export default function MapaEstaciones() {
         {error
           ? `Error cargando el mapa: ${error.message}`
           : cargando
-            ? ""
-            : `${estaciones.length} estaciones con coordenada conocida`}
+            ? "Cargando…"
+            : estaciones.length === 0
+              ? "No hay estaciones con coordenada conocida en este momento."
+              : `${estaciones.length} estaciones con coordenada conocida`}
       </div>
       <div className={`mapa-layout${expandido ? " mapa-layout-expandido" : ""}`}>
         <div className="mapa-contenedor-wrap">

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
+import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
@@ -143,7 +144,7 @@ export default function DashboardGeneral({ onListo }) {
         {error
           ? `Error cargando el dashboard: ${error.message}`
           : cargando
-            ? ""
+            ? "Cargando…"
             : `${filtradas.length} de ${datos.length} registros`}
       </div>
       <div className="tabla-contenedor">
@@ -164,9 +165,11 @@ export default function DashboardGeneral({ onListo }) {
           </thead>
           <tbody>
             {itemsDePagina.length === 0 ? (
-              <tr>
-                <td className="vacio" colSpan={8}>Ninguna fila coincide con el filtro.</td>
-              </tr>
+              <FilaTablaVacia
+                colSpan={8}
+                cargando={cargando}
+                mensaje="Ninguna fila coincide con el filtro."
+              />
             ) : (
               itemsDePagina.map((f) => {
                 const tendencia = formatearTendencia(f.tendencia, usuario?.unidad_nivel);

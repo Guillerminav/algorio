@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { formatearNivel, pedirJSON } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { CATEGORIAS_EMBARCACION } from "../embarcaciones.js";
+import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import FormActivo from "./FormActivo.jsx";
 
 const ETIQUETAS_TIPO_ACTIVO = { embarcacion: "Embarcación", draga: "Draga", muelle: "Muelle", tramo: "Tramo" };
@@ -16,6 +17,9 @@ export default function MiFlota() {
   const [activos, setActivos] = useState([]);
   const [activoEnEdicion, setActivoEnEdicion] = useState(null);
   const [estado, setEstado] = useState("");
+  // Arranca en true: la primera pintura ocurre antes de que llegue la
+  // respuesta, y ahi la tabla no puede afirmar todavia que no hay activos.
+  const [cargando, setCargando] = useState(true);
   const [errorFormulario, setErrorFormulario] = useState("");
 
   async function cargarEstaciones() {
@@ -29,6 +33,8 @@ export default function MiFlota() {
       setEstado(`${filas.length} activos guardados`);
     } catch (e) {
       setEstado(`Error cargando tu flota: ${e.message}`);
+    } finally {
+      setCargando(false);
     }
   }
 
@@ -87,7 +93,7 @@ export default function MiFlota() {
         error={errorFormulario}
       />
 
-      <div className="estado">{estado}</div>
+      <div className="estado">{cargando ? "Cargando…" : estado}</div>
       <div className="tabla-contenedor">
         <table>
           <thead>
@@ -106,9 +112,11 @@ export default function MiFlota() {
           </thead>
           <tbody>
             {activos.length === 0 ? (
-              <tr>
-                <td className="vacio" colSpan={10}>Todavía no guardaste ningún activo.</td>
-              </tr>
+              <FilaTablaVacia
+                colSpan={10}
+                cargando={cargando}
+                mensaje="Todavía no guardaste ningún activo."
+              />
             ) : (
               activos.map((f) => {
                 const umbralMinimo = f.umbral_minimo_efectivo_m != null

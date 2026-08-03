@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 
 import { exportarCSV, formatearNivel, formatearTendencia } from "../api.js";
+import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import Paginador from "./Paginador.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
@@ -48,7 +49,7 @@ export default function TablaPrefectura({ onListo }) {
         {error
           ? `Error cargando Prefectura Naval: ${error.message}`
           : cargando
-            ? ""
+            ? "Cargando…"
             : `${datos.length} registros`}
       </div>
       <div className="tabla-contenedor">
@@ -68,9 +69,11 @@ export default function TablaPrefectura({ onListo }) {
           </thead>
           <tbody>
             {itemsDePagina.length === 0 ? (
-              <tr>
-                <td className="vacio" colSpan={7}>Todavia no se corrio la fuente Prefectura Naval.</td>
-              </tr>
+              <FilaTablaVacia
+                colSpan={7}
+                cargando={cargando}
+                mensaje="Todavía no se corrió la fuente Prefectura Naval."
+              />
             ) : (
               itemsDePagina.map((f, i) => {
                 const tendencia = formatearTendencia(f.tendencia, usuario?.unidad_nivel);
