@@ -313,7 +313,7 @@ button {
 .marca-texto {
   font-family: var(--fuente-marca);
   font-weight: 800;
-  font-size: 1.35rem;
+  font-size: 1.85rem;
   color: #fff;
 }
 
@@ -418,14 +418,29 @@ button {
   color: var(--marca);
 }
 
-/* La marca en mobile, donde no hay barra lateral que la muestre. */
-.barra-superior-marca-movil {
+/* Boton hamburguesa: solo en mobile, donde no hay barra lateral. Las tres
+   rayas son spans para no depender de un icono externo. */
+.boton-hamburguesa {
   display: none;
-  align-items: center;
-  font-family: var(--fuente-marca);
-  font-weight: 800;
-  font-size: 1.05rem;
-  color: var(--marca);
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  cursor: pointer;
+}
+
+.boton-hamburguesa span {
+  display: block;
+  width: 17px;
+  height: 2px;
+  margin: 0 auto;
+  border-radius: 1px;
+  background: var(--marca);
 }
 
 .perfil {
@@ -1495,12 +1510,121 @@ tbody tr:hover {
 }
 
 /* --------------------------------------------------------------- Mobile */
-/* Debajo de este ancho: la barra lateral se oculta y aparece una barra de
-   navegacion fija abajo (patron mobile-nativo, mejor con 4 secciones que un
-   menu hamburguesa). El login pasa de split-screen a apilado. */
+/* Debajo de este ancho la barra lateral se oculta y la navegacion pasa a un
+   cajon desplegable (hamburguesa), que ademas del listado de secciones -- ya
+   son cinco -- incluye el perfil arriba de todo. El login pasa de
+   split-screen a apilado. */
 
-.nav-inferior {
-  display: none;
+.menu-movil-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 50, 82, 0.45);
+  z-index: 40;
+  display: flex;
+}
+
+/* Red de seguridad: si alguien agranda la ventana con el cajon abierto, la
+   barra lateral vuelve y el cajon no tiene por que seguir tapando nada. */
+@media (min-width: 881px) {
+  .menu-movil-fondo {
+    display: none;
+  }
+}
+
+.menu-movil {
+  width: min(19rem, 85vw);
+  background: var(--marca);
+  padding: 1.25rem 1.1rem calc(1.25rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+}
+
+.menu-movil-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.menu-movil-marca {
+  font-family: var(--fuente-marca);
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: #fff;
+}
+
+.menu-movil-cerrar {
+  border: none;
+  background: none;
+  color: var(--marca-texto-suave);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+}
+
+.menu-movil-perfil {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--marca-borde);
+}
+
+.menu-movil-perfil-datos {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.menu-movil-avatar {
+  flex-shrink: 0;
+}
+
+.menu-movil-nombre {
+  font-weight: 700;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.menu-movil-usuario {
+  font-size: 0.78rem;
+  color: var(--marca-texto-tenue);
+}
+
+.menu-movil-perfil-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.menu-movil-perfil-acciones button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: none;
+  background: none;
+  text-align: left;
+  color: var(--marca-texto-suave);
+  padding: 0.55rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.menu-movil-perfil-acciones button:hover {
+  color: #fff;
+  background: rgba(79, 179, 217, 0.12);
+}
+
+.menu-movil-salir {
+  color: #f0a9a0 !important;
+}
+
+.menu-movil-secciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 @media (max-width: 880px) {
@@ -1508,55 +1632,12 @@ tbody tr:hover {
     display: none;
   }
 
-  .barra-superior-marca-movil {
+  .boton-hamburguesa {
     display: flex;
   }
 
   main {
-    padding: 1.25rem 1rem 5.5rem;
-  }
-
-  .nav-inferior {
-    display: flex;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--marca);
-    padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom));
-    justify-content: space-around;
-    z-index: 15;
-  }
-
-  .nav-inferior button {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-    border: none;
-    background: none;
-    color: var(--marca-texto-suave);
-    font-size: 0.68rem;
-    font-weight: 500;
-    padding: 0.4rem 0.2rem;
-    cursor: pointer;
-  }
-
-  .nav-inferior button.activo {
-    color: var(--acento-claro);
-    font-weight: 700;
-  }
-
-  .nav-inferior-punto {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #3a6484;
-  }
-
-  .nav-inferior button.activo .nav-inferior-punto {
-    background: var(--acento-claro);
+    padding: 1.25rem 1rem 2.5rem;
   }
 
   .kpis {

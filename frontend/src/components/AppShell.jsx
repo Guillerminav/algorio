@@ -7,8 +7,8 @@ import Graficos from "./Graficos.jsx";
 import MapaEstaciones from "./MapaEstaciones.jsx";
 import MiFlota from "./MiFlota.jsx";
 import ModalAyuda from "./ModalAyuda.jsx";
+import MenuMovil from "./MenuMovil.jsx";
 import ModalPerfil from "./ModalPerfil.jsx";
-import NavInferior from "./NavInferior.jsx";
 import PantallaSuscripcion from "./PantallaSuscripcion.jsx";
 import Sidebar, { TITULOS_SECCION } from "./Sidebar.jsx";
 import TopBar from "./TopBar.jsx";
@@ -24,6 +24,7 @@ export default function AppShell() {
   const [seccionActiva, setSeccionActiva] = useState("dashboard");
   const [modalPerfilAbierto, setModalPerfilAbierto] = useState(false);
   const [modalAyudaAbierto, setModalAyudaAbierto] = useState(false);
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
   const abrirAyuda = () => setModalAyudaAbierto(true);
 
@@ -48,6 +49,7 @@ export default function AppShell() {
           onEditarPerfil={() => setModalPerfilAbierto(true)}
           onAbrirAyuda={abrirAyuda}
           onVerSuscripcion={() => setSeccionActiva("suscripcion")}
+          onAbrirMenu={() => setMenuMovilAbierto(true)}
         />
 
         <main>
@@ -65,8 +67,17 @@ export default function AppShell() {
           )}
         </main>
 
-        <NavInferior seccionActiva={seccionActiva} onCambiarSeccion={setSeccionActiva} />
       </div>
+
+      <MenuMovil
+        abierto={menuMovilAbierto}
+        onCerrar={() => setMenuMovilAbierto(false)}
+        seccionActiva={seccionActiva}
+        onCambiarSeccion={setSeccionActiva}
+        onEditarPerfil={() => setModalPerfilAbierto(true)}
+        onVerSuscripcion={() => setSeccionActiva("suscripcion")}
+        onAbrirAyuda={abrirAyuda}
+      />
 
       {modalPerfilAbierto && <ModalPerfil onCerrar={() => setModalPerfilAbierto(false)} />}
       {modalAyudaAbierto && <ModalAyuda onCerrar={() => setModalAyudaAbierto(false)} />}
