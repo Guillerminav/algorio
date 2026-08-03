@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -11,6 +11,8 @@ import {
 } from "recharts";
 
 import { formatearNivel } from "../api.js";
+import { descargarGraficoComoPNG } from "../exportarGrafico.js";
+import SelectorEstaciones from "./SelectorEstaciones.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useFetchLista } from "../hooks/useFetchLista.js";
 
@@ -54,6 +56,18 @@ export default function Graficos() {
   const [granularidad, setGranularidad] = useState("diario");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [errorDescarga, setErrorDescarga] = useState("");
+  const contenedorGrafico = useRef(null);
+
+  async function descargarPNG() {
+    setErrorDescarga("");
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
+      await descargarGraficoComoPNG(contenedorGrafico.current, `algorio_niveles_${granularidad}_${hoy}`);
+    } catch (e) {
+      setErrorDescarga(e.message);
+    }
+  }
 
   const estaciones = useMemo(
     () => [...new Set(datos.map((f) => f.estacion))].sort((a, b) => a.localeCompare(b)),
@@ -119,6 +133,16 @@ export default function Graficos() {
 
       <div className="filtros">
         <label>
+          Estaciones
+          <SelectorEstaciones
+            estaciones={estaciones}
+            seleccionadas={activas}
+            onAlternar={alternarEstacion}
+            colorDe={(estacion) => COLORES_SERIE[activas.indexOf(estacion) % COLORES_SERIE.length]}
+            maximo={MAX_ESTACIONES}
+          />
+        </label>
+        <label>
           Período
           <select value={granularidad} onChange={(e) => setGranularidad(e.target.value)}>
             {GRANULARIDADES.map((g) => (
@@ -136,47 +160,31 @@ export default function Graficos() {
         </label>
       </div>
 
-      <div className="grafico-estaciones">
-        <span className="grafico-estaciones-titulo">
-          Estaciones ({activas.length} de {MAX_ESTACIONES} máximo)
-        </span>
-        <div className="grafico-estaciones-lista">
-          {estaciones.map((estacion) => {
-            const indice = activas.indexOf(estacion);
-            const activa = indice !== -1;
-            return (
-              <button
-                key={estacion}
-                type="button"
-                className={`pill-estacion${activa ? " activa" : ""}`}
-                onClick={() => alternarEstacion(estacion)}
-                aria-pressed={activa}
-              >
-                <span
-                  className="pill-estacion-punto"
-                  style={{ background: activa ? COLORES_SERIE[indice % COLORES_SERIE.length] : "var(--borde)" }}
-                />
-                {estacion}
-              </button>
-            );
-          })}
+      <div className="grafico-barra">
+        <div className="estado">
+          {error
+            ? `Error cargando los datos: ${error.message}`
+            : cargando
+              ? ""
+              : `${puntos.length} ${puntos.length === 1 ? "período" : "períodos"} · ${series.length} ${series.length === 1 ? "estación" : "estaciones"}`}
         </div>
+        <button
+          type="button"
+          className="boton-secundario"
+          onClick={descargarPNG}
+          disabled={puntos.length === 0}
+        >
+          ⭳ Descargar PNG
+        </button>
       </div>
-
-      <div className="estado">
-        {error
-          ? `Error cargando los datos: ${error.message}`
-          : cargando
-            ? ""
-            : `${puntos.length} ${puntos.length === 1 ? "período" : "períodos"} · ${series.length} ${series.length === 1 ? "estación" : "estaciones"}`}
-      </div>
+      {errorDescarga && <div className="mensaje-error">{errorDescarga}</div>}
 
       {puntos.length === 0 ? (
         <div className="grafico-vacio">
           No hay datos para las estaciones y el rango de fechas elegidos.
         </div>
       ) : (
-        <div className="grafico-contenedor">
+        <div className="grafico-contenedor" ref={contenedorGrafico}>
           <ResponsiveContainer width="100%" height={380}>
             <LineChart data={puntos} margin={{ top: 8, right: 24, bottom: 8, left: 0 }}>
               {/* Grilla recesiva: hairline solida, un paso por encima de la
