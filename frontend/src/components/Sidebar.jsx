@@ -38,10 +38,15 @@ export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda 
       {/* Al final de la barra (margin-top:auto en el CSS): no es una seccion
           mas de navegacion, abre el formulario de contacto. En mobile, donde
           no hay barra lateral, el acceso esta en el menu de perfil. */}
-      <button type="button" className="nav-boton nav-boton-ayuda" onClick={onAbrirAyuda}>
-        <span className="nav-boton-icono"><IconoTuerca /></span>
-        Ayuda
-      </button>
+      <div className="barra-lateral-pie">
+        <button type="button" className="nav-boton" onClick={onAbrirAyuda}>
+          <span className="nav-boton-icono"><IconoTuerca /></span>
+          Ayuda
+        </button>
+        {/* __APP_VERSION__ lo inyecta Vite desde el archivo VERSION de la
+            raiz (ver vite.config.js): una sola fuente de verdad. */}
+        <span className="barra-lateral-version">v{__APP_VERSION__}</span>
+      </div>
     </aside>
   );
 }

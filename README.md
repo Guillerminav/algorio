@@ -12,6 +12,17 @@ parsean directo, sin pasar por el modelo.
 de consulta (HTML/CSS/JS simple, sin build ni frameworks), servida por el
 mismo backend.
 
+## Versionado
+
+La version vive en el archivo `VERSION` de la raiz y es la unica fuente de
+verdad: `frontend/vite.config.js` la lee al buildear y la inyecta como
+`__APP_VERSION__`, que se muestra al pie de la barra lateral.
+
+Se arranco en `0.0.0` y **se sube el ultimo numero (patch) en cada
+modificacion**: editar `VERSION` como parte del mismo cambio, antes de
+commitear. Si algun dia hay que subir minor o major, se hace a mano ahi
+mismo.
+
 ## Instalacion
 
 ```bash

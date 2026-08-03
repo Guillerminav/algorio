@@ -365,10 +365,22 @@ button {
   background: var(--acento-claro);
 }
 
-/* Empuja el boton de Ayuda al fondo de la barra lateral (el gap del
-   contenedor no alcanza: hay que consumir el espacio libre que queda). */
-.nav-boton-ayuda {
+/* Empuja el pie (Ayuda + version) al fondo de la barra lateral: el gap del
+   contenedor no alcanza, hay que consumir el espacio libre que queda. El
+   padding-bottom despega el bloque del borde inferior. */
+.barra-lateral-pie {
   margin-top: auto;
+  padding-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.barra-lateral-version {
+  padding-left: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--marca-texto-tenue);
+  letter-spacing: 0.02em;
 }
 
 /* Ocupa el mismo lugar que el punto de las secciones (6px), para que el texto
