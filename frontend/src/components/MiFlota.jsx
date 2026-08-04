@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { CATEGORIAS_EMBARCACION } from "../embarcaciones.js";
 import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import FormActivo from "./FormActivo.jsx";
+import OverlayCargando from "./OverlayCargando.jsx";
 
 const ETIQUETAS_TIPO_ACTIVO = { embarcacion: "Embarcación", draga: "Draga", muelle: "Muelle", tramo: "Tramo" };
 // Dos alertas distintas (no dos niveles de la misma): el nivel toco el
@@ -20,6 +21,9 @@ export default function MiFlota() {
   // Arranca en true: la primera pintura ocurre antes de que llegue la
   // respuesta, y ahi la tabla no puede afirmar todavia que no hay activos.
   const [cargando, setCargando] = useState(true);
+  // Mensaje del overlay mientras se guarda/elimina, o null si no hay nada en
+  // curso (asi el mismo estado dice "si esta ocupado" y "que esta haciendo").
+  const [guardando, setGuardando] = useState(null);
   const [errorFormulario, setErrorFormulario] = useState("");
 
   async function cargarEstaciones() {
@@ -45,6 +49,11 @@ export default function MiFlota() {
 
   async function guardarActivo(cuerpo) {
     setErrorFormulario("");
+    // El overlay cubre el guardado Y la recarga posterior: el backend
+    // recalcula el estado de cada activo contra todo el dataset, asi que la
+    // tabla tarda varios segundos en reflejar el alta. Sin esto parecia que
+    // el boton no habia hecho nada.
+    setGuardando(activoEnEdicion ? "Guardando cambios…" : "Agregando a tu flota…");
     try {
       if (activoEnEdicion) {
         await pedirJSON(`/api/activos/${activoEnEdicion.id}`, {
@@ -63,20 +72,26 @@ export default function MiFlota() {
       await cargarActivos();
     } catch (e) {
       setErrorFormulario(e.message);
+    } finally {
+      setGuardando(null);
     }
   }
 
   async function eliminarActivo(id) {
+    setGuardando("Eliminando…");
     try {
       await pedirJSON(`/api/activos/${id}`, { method: "DELETE" });
       await cargarActivos();
     } catch (e) {
       setEstado(`Error eliminando: ${e.message}`);
+    } finally {
+      setGuardando(null);
     }
   }
 
   return (
     <div>
+      {guardando && <OverlayCargando mensaje={guardando} />}
       <p className="descripcion">
         Guardá una vez tus embarcaciones, dragas, muelles o tramos de interés,
         con la estación que querés monitorear y tus umbrales de alerta: se

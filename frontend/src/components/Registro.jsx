@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import BotonGoogle from "./BotonGoogle.jsx";
+import HeroAutenticacion from "./HeroAutenticacion.jsx";
 
 export default function Registro({ onIrALogin }) {
   const { registrar } = useAuth();
@@ -37,19 +38,7 @@ export default function Registro({ onIrALogin }) {
 
   return (
     <div className="pantalla-login">
-      <div className="login-hero">
-        <div className="login-hero-logo">
-          <div className="login-hero-marca">AlgoRío</div>
-        </div>
-        <div className="login-hero-cuerpo">
-          <div className="login-hero-titulo">Monitoreo y alertas hidrológicas en tiempo real</div>
-          <p className="login-hero-texto">
-            Niveles, caudal y tendencias del Paraná y el Paraguay, unificados
-            desde INA, Prefectura Naval y Yacyretá en un solo panel.
-          </p>
-        </div>
-        <div className="login-hero-footer">Estaciones de INA · Prefectura Naval · Yacyretá</div>
-      </div>
+      <HeroAutenticacion />
 
       <div className="login-form-panel">
         <form className="tarjeta-login" onSubmit={manejarSubmit}>

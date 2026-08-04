@@ -49,7 +49,7 @@ function periodoDe(fechaISO, granularidad) {
   return fechaISO;
 }
 
-export default function Graficos() {
+export default function Historico() {
   const { usuario } = useAuth();
   const { datos, error, cargando } = useFetchLista("/api/dashboard");
   const [seleccionadas, setSeleccionadas] = useState([]);

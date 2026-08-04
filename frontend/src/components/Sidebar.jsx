@@ -4,7 +4,7 @@ import IconoTuerca from "./IconoTuerca.jsx";
 
 export const SECCIONES = [
   { id: "dashboard", etiqueta: "Dashboard" },
-  { id: "graficos", etiqueta: "Gráficos" },
+  { id: "historico", etiqueta: "Histórico" },
   { id: "alertas", etiqueta: "Alertas" },
   { id: "mapa", etiqueta: "Mapa" },
   { id: "flota", etiqueta: "Mi flota" },

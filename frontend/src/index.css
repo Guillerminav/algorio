@@ -409,6 +409,12 @@ button {
   padding: 1.25rem 2rem;
   border-bottom: 1px solid var(--borde);
   background: var(--superficie);
+  /* Fija al hacer scroll. Va por encima del contenido pero por debajo del
+     menu de perfil (z-index 20) y de los modales (30), que se despliegan
+     desde aca. */
+  position: sticky;
+  top: 0;
+  z-index: 15;
 }
 
 .barra-superior h2 {
@@ -660,6 +666,53 @@ button {
   font-size: 0.88rem;
   color: var(--texto-suave);
   line-height: 1.55;
+}
+
+/* ---------------------------------------------------- Overlay de carga */
+
+.overlay-cargando {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 50, 82, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Por encima de los modales (30): puede aparecer sobre uno de ellos. */
+  z-index: 40;
+}
+
+.overlay-cargando-caja {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--superficie);
+  border-radius: 10px;
+  padding: 1rem 1.4rem;
+  box-shadow: 0 10px 28px rgba(11, 50, 82, 0.22);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--texto);
+}
+
+.overlay-cargando-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--borde);
+  border-top-color: var(--acento);
+  border-radius: 50%;
+  animation: girar 0.7s linear infinite;
+}
+
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+
+/* Respeta a quien pidio menos movimiento: el spinner deja de girar y queda
+   como un anillo estatico, el mensaje sigue estando. */
+@media (prefers-reduced-motion: reduce) {
+  .overlay-cargando-spinner {
+    animation: none;
+  }
 }
 
 /* --------------------------------------------------------------- Modal */
@@ -1238,16 +1291,26 @@ tbody tr:hover {
 
 /* --------------------------------------------------------------- Mi flota */
 
+/* Grid en vez de flex-wrap: con flex, el ultimo campo de la fila caia solo y
+   quedaba estirado ocupando el ancho completo. Con auto-fit las columnas se
+   reparten parejo y todos los campos miden lo mismo. */
 .form-activo {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
-  align-items: flex-end;
+  align-items: end;
   background: var(--superficie);
   border: 1px solid var(--borde);
   border-radius: 10px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
+}
+
+/* Ocupan la fila entera: no son campos mas del formulario. */
+.form-activo > .campos-embarcacion,
+.form-activo > .mensaje-error,
+.form-activo > .form-activo-botones {
+  grid-column: 1 / -1;
 }
 
 .form-activo label {
@@ -1268,14 +1331,17 @@ tbody tr:hover {
   background: #fff;
   color: var(--texto);
   font-size: 0.88rem;
-  min-width: 170px;
+  /* Sin min-width: la columna del grid ya fija el ancho, y un minimo propio
+     desbordaria la celda en pantallas angostas. */
+  min-width: 0;
+  width: 100%;
 }
 
 .campos-embarcacion {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
-  align-items: flex-end;
+  align-items: end;
   width: 100%;
   padding-top: 1rem;
   margin-top: 0.25rem;
@@ -1300,12 +1366,14 @@ tbody tr:hover {
   background: #fff;
   color: var(--texto);
   font-size: 0.88rem;
-  min-width: 170px;
+  min-width: 0;
+  width: 100%;
 }
 
 .form-activo-botones {
   display: flex;
   gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .form-activo-botones button[type="button"] {
@@ -1714,19 +1782,8 @@ tbody tr:hover {
     font-size: 0.72rem;
   }
 
-  .form-activo,
-  .campos-embarcacion {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .form-activo input,
-  .form-activo select,
-  .campos-embarcacion input,
-  .campos-embarcacion select {
-    min-width: 0;
-    width: 100%;
-  }
+  /* El grid de auto-fit ya colapsa a una columna cuando no entra otra, asi
+     que aca no hace falta forzar nada sobre los campos. */
 
   .form-activo-botones {
     justify-content: stretch;
