@@ -8,6 +8,7 @@ export const SECCIONES = [
   { id: "alertas", etiqueta: "Alertas" },
   { id: "mapa", etiqueta: "Mapa" },
   { id: "flota", etiqueta: "Mi flota" },
+  { id: "rutas", etiqueta: "Rutas" },
 ];
 
 export const TITULOS_SECCION = Object.fromEntries(SECCIONES.map((s) => [s.id, s.etiqueta]));

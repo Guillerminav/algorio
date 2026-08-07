@@ -21,6 +21,7 @@ function activoVacio() {
     estacion_referencia: "",
     umbral_minimo_m: "",
     umbral_maximo_m: "",
+    alertas_email: false,
     ...CAMPOS_EMBARCACION_VACIOS,
   };
 }
@@ -37,6 +38,7 @@ export default function FormActivo({ activoEnEdicion, estacionesDisponibles, onG
         estacion_referencia: activoEnEdicion.estacion_referencia,
         umbral_minimo_m: activoEnEdicion.umbral_minimo_m ?? "",
         umbral_maximo_m: activoEnEdicion.umbral_maximo_m ?? "",
+        alertas_email: activoEnEdicion.alertas_email ?? false,
         categoria_embarcacion: activoEnEdicion.categoria_embarcacion ?? "",
         eslora_m: activoEnEdicion.eslora_m ?? "",
         manga_m: activoEnEdicion.manga_m ?? "",
@@ -96,6 +98,7 @@ export default function FormActivo({ activoEnEdicion, estacionesDisponibles, onG
       estacion_referencia: resto.estacion_referencia,
       umbral_minimo_m: resto.umbral_minimo_m ? parseFloat(resto.umbral_minimo_m) : null,
       umbral_maximo_m: resto.umbral_maximo_m ? parseFloat(resto.umbral_maximo_m) : null,
+      alertas_email: resto.alertas_email,
       caracteristicas_embarcacion: esEmbarcacion
         ? {
             categoria_embarcacion: categoria_embarcacion || null,
@@ -168,6 +171,36 @@ export default function FormActivo({ activoEnEdicion, estacionesDisponibles, onG
           onChange={(e) => actualizarCampo("umbral_maximo_m", e.target.value)}
         />
       </label>
+
+      {/* Ocupa la fila entera: no es un campo mas del formulario sino una
+          decision aparte sobre que hacer cuando se cruza el umbral. */}
+      <div className="campo-toggle">
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={form.alertas_email}
+            onChange={(e) => actualizarCampo("alertas_email", e.target.checked)}
+          />
+          <span className="toggle-pista" aria-hidden="true"><span className="toggle-perilla" /></span>
+          <span className="toggle-texto">
+            <strong>Avisarme por mail</strong>
+            <span className="toggle-detalle">
+              Llega un mail cuando el nivel toca el mínimo (bajante) o el máximo (crecida).
+              Se manda una sola vez por cruce, no todos los días, y se rearma cuando vuelve
+              a la normalidad.
+            </span>
+          </span>
+        </label>
+        {/* El maximo cae al umbral oficial de Prefectura si no se carga uno
+            propio, pero el minimo no tiene equivalente oficial: sin ese valor
+            la mitad del aviso nunca se puede disparar. */}
+        {form.alertas_email && !form.umbral_minimo_m && (
+          <p className="campo-toggle-aviso">
+            Sin umbral mínimo cargado solo vas a recibir el aviso de crecida: ninguna
+            fuente publica umbrales de bajante, así que ese lo tenés que definir vos.
+          </p>
+        )}
+      </div>
 
       {esEmbarcacion && (
         <div className="campos-embarcacion">

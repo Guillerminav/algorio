@@ -108,6 +108,64 @@ def inicializar_db() -> None:
         ):
             con.execute(f"ALTER TABLE activos ADD COLUMN IF NOT EXISTS {columna} TEXT")
 
+        # Aviso por mail cuando el nivel toca el umbral minimo o el maximo.
+        # Arranca apagado: mandar mails no pedidos a los activos que ya estaban
+        # cargados seria spam el dia que se despliega esto.
+        con.execute(
+            "ALTER TABLE activos ADD COLUMN IF NOT EXISTS alertas_email BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+
+        # Ultimo aviso mandado por activo, para no repetir el mismo mail todos
+        # los dias mientras dura la bajante. Una fila por activo (no un log):
+        # se compara la severidad de hoy contra la guardada y solo se manda
+        # cuando cambia. Cuando el activo vuelve a normal la fila se borra, y
+        # asi el proximo cruce del umbral vuelve a avisar.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alertas_notificadas (
+                activo_id INTEGER PRIMARY KEY REFERENCES activos (id) ON DELETE CASCADE,
+                severidad TEXT NOT NULL,
+                nivel_m DOUBLE PRECISION,
+                fecha_boletin TEXT,
+                enviado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                error_envio TEXT
+            )
+            """
+        )
+
+        # Rutas guardadas (pantalla "Rutas"). `estaciones` es la lista ordenada
+        # de estaciones del trayecto: el orden ES la ruta, por eso va como
+        # JSONB y no como tabla hija (nunca se consulta una estacion suelta,
+        # siempre la secuencia completa).
+        #
+        # activo_id es opcional y con ON DELETE SET NULL a proposito: se puede
+        # guardar una ruta sin embarcacion (muestra los niveles del trayecto
+        # pero no calcula calado ni carga), y borrar una embarcacion no debe
+        # llevarse puestas las rutas que la usaban, solo degradarlas a ese modo.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rutas (
+                id SERIAL PRIMARY KEY,
+                usuario TEXT NOT NULL REFERENCES usuarios (usuario),
+                nombre TEXT NOT NULL,
+                plantilla TEXT,
+                activo_id INTEGER REFERENCES activos (id) ON DELETE SET NULL,
+                estaciones JSONB NOT NULL,
+                sentido TEXT,
+                cantidad_barcazas INTEGER,
+                resguardo_quilla_pies DOUBLE PRECISION,
+                profundidades_pies JSONB,
+                creado_en TEXT NOT NULL
+            )
+            """
+        )
+        # Profundidad garantizada propia por tramo, {id_tramo: pies}. La tabla
+        # de backend/tramos_navegacion.py es solo un valor sugerido: el rio se
+        # mueve (un banco nuevo, una draga parada, un paso que Prefectura
+        # acaba de limitar) y el operador que esta ahi sabe antes que nosotros.
+        # Lo que cargue aca pisa al sugerido en el calculo de esa ruta.
+        con.execute("ALTER TABLE rutas ADD COLUMN IF NOT EXISTS profundidades_pies JSONB")
+
         con.execute(
             """
             CREATE TABLE IF NOT EXISTS mediciones_fuente (

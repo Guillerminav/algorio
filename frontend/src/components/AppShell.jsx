@@ -10,6 +10,7 @@ import ModalAyuda from "./ModalAyuda.jsx";
 import MenuMovil from "./MenuMovil.jsx";
 import ModalPerfil from "./ModalPerfil.jsx";
 import PantallaSuscripcion from "./PantallaSuscripcion.jsx";
+import Rutas from "./Rutas.jsx";
 import Sidebar, { TITULOS_SECCION } from "./Sidebar.jsx";
 import TopBar from "./TopBar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -63,6 +64,7 @@ export default function AppShell() {
               {seccionActiva === "alertas" && <Alertas />}
               {seccionActiva === "mapa" && <MapaEstaciones />}
               {seccionActiva === "flota" && <MiFlota />}
+              {seccionActiva === "rutas" && <Rutas />}
             </>
           )}
         </main>

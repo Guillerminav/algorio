@@ -19,7 +19,8 @@ from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend import activos, auth, ayuda, datos, suscripciones
+from backend import activos, auth, ayuda, datos, rutas, suscripciones
+from backend import tramos_navegacion
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
@@ -122,6 +123,7 @@ class ActivoEntrada(BaseModel):
     estacion_referencia: str
     umbral_minimo_m: Optional[float] = None
     umbral_maximo_m: Optional[float] = None
+    alertas_email: bool = False
     caracteristicas_embarcacion: Optional[CaracteristicasEmbarcacion] = None
 
 
@@ -131,7 +133,34 @@ class ActivoActualizacion(BaseModel):
     estacion_referencia: Optional[str] = None
     umbral_minimo_m: Optional[float] = None
     umbral_maximo_m: Optional[float] = None
+    alertas_email: Optional[bool] = None
     caracteristicas_embarcacion: Optional[CaracteristicasEmbarcacion] = None
+
+
+class RutaEntrada(BaseModel):
+    """`estaciones` va ordenada: el orden es el trayecto. `activo_id` es
+    opcional (una ruta sin embarcacion muestra los niveles pero no calcula
+    calado ni carga), igual que `profundidades_pies`, el diccionario
+    {id_tramo: pies} con el que el usuario pisa la profundidad sugerida."""
+    nombre: str
+    estaciones: list[str]
+    plantilla: Optional[str] = None
+    activo_id: Optional[int] = None
+    sentido: Optional[str] = None
+    cantidad_barcazas: Optional[int] = None
+    resguardo_quilla_pies: Optional[float] = None
+    profundidades_pies: Optional[dict[str, float]] = None
+
+
+class RutaActualizacion(BaseModel):
+    nombre: Optional[str] = None
+    estaciones: Optional[list[str]] = None
+    plantilla: Optional[str] = None
+    activo_id: Optional[int] = None
+    sentido: Optional[str] = None
+    cantidad_barcazas: Optional[int] = None
+    resguardo_quilla_pies: Optional[float] = None
+    profundidades_pies: Optional[dict[str, float]] = None
 
 
 @app.post("/api/login")
@@ -282,7 +311,14 @@ def api_mapa_estaciones(usuario: dict = Depends(usuario_con_suscripcion)):
 
 @app.get("/api/activos")
 def api_listar_activos(usuario: dict = Depends(usuario_con_suscripcion)):
-    return [datos.estado_de_activo(a) for a in activos.listar_activos(usuario["usuario"])]
+    # El mapa de estado se calcula una sola vez para toda la lista: recorre el
+    # dataset completo, asi que pedirlo por activo multiplicaba ese costo por
+    # la cantidad de activos del usuario.
+    mapa_estado = datos.mapa_estado_estaciones()
+    return [
+        datos.estado_de_activo(a, mapa_estado)
+        for a in activos.listar_activos(usuario["usuario"])
+    ]
 
 
 @app.post("/api/activos")
@@ -295,6 +331,7 @@ def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_con
             estacion_referencia=entrada.estacion_referencia,
             umbral_minimo_m=entrada.umbral_minimo_m,
             umbral_maximo_m=entrada.umbral_maximo_m,
+            alertas_email=entrada.alertas_email,
             caracteristicas_embarcacion=(
                 entrada.caracteristicas_embarcacion.model_dump()
                 if entrada.caracteristicas_embarcacion
@@ -326,6 +363,74 @@ def api_actualizar_activo(
 def api_eliminar_activo(activo_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
     if not activos.eliminar_activo(activo_id, usuario["usuario"]):
         raise HTTPException(status_code=404, detail="El activo no existe (o no pertenece a este usuario).")
+    return {"ok": True}
+
+
+def _calcular_rutas(usuario: str, solo_id: Optional[int] = None) -> list[dict]:
+    """Calcula una o todas las rutas del usuario.
+
+    mapa_estado_estaciones() recorre el dataset completo, asi que se llama una
+    sola vez y se reusa para todas las rutas: con una llamada por ruta, un
+    usuario con cinco rutas pagaba cinco recorridas del historico entero.
+    """
+    guardadas = rutas.listar_rutas(usuario)
+    if solo_id is not None:
+        guardadas = [r for r in guardadas if r["id"] == solo_id]
+    if not guardadas:
+        return []
+
+    mapa_estado = datos.mapa_estado_estaciones()
+    por_id = {a["id"]: a for a in activos.listar_activos(usuario)}
+    return [
+        rutas.calcular_ruta(ruta, por_id.get(ruta["activo_id"]), mapa_estado)
+        for ruta in guardadas
+    ]
+
+
+# Declarado antes que /api/rutas/{ruta_id} para que "plantillas" no se lea como
+# un id de ruta.
+@app.get("/api/rutas/plantillas")
+def api_plantillas_rutas(usuario: dict = Depends(usuario_con_suscripcion)):
+    """Las rutas principales precargadas (botones de ruta rápida) y la tabla de
+    tramos con su profundidad sugerida, que el usuario puede pisar por ruta."""
+    return {
+        "plantillas": tramos_navegacion.plantillas_para_frontend(),
+        "tramos": tramos_navegacion.TRAMOS,
+        "estacion_a_tramo": tramos_navegacion.ESTACION_A_TRAMO,
+    }
+
+
+@app.get("/api/rutas")
+def api_listar_rutas(usuario: dict = Depends(usuario_con_suscripcion)):
+    return _calcular_rutas(usuario["usuario"])
+
+
+@app.post("/api/rutas", status_code=201)
+def api_crear_ruta(entrada: RutaEntrada, usuario: dict = Depends(usuario_con_suscripcion)):
+    try:
+        nueva = rutas.crear_ruta(usuario["usuario"], **entrada.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    calculadas = _calcular_rutas(usuario["usuario"], solo_id=nueva["id"])
+    return calculadas[0]
+
+
+@app.put("/api/rutas/{ruta_id}")
+def api_actualizar_ruta(
+    ruta_id: int, cambios: RutaActualizacion, usuario: dict = Depends(usuario_con_suscripcion)
+):
+    try:
+        rutas.actualizar_ruta(ruta_id, usuario["usuario"], cambios.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    calculadas = _calcular_rutas(usuario["usuario"], solo_id=ruta_id)
+    return calculadas[0]
+
+
+@app.delete("/api/rutas/{ruta_id}")
+def api_eliminar_ruta(ruta_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
+    if not rutas.eliminar_ruta(ruta_id, usuario["usuario"]):
+        raise HTTPException(status_code=404, detail="La ruta no existe (o no pertenece a este usuario).")
     return {"ok": True}
 
 

@@ -202,6 +202,21 @@ de React, no cambia la URL) — ver estructura abajo. `usuario` (perfil +
 preferencia de unidades) vive en `AuthContext`; cada seccion pide sus propios
 datos con un hook chico (`useFetchLista`) al montarse.
 
+## Dominios
+
+Son dos apps separadas, cada una con su repo y su proyecto de Vercel, bajo el
+mismo dominio:
+
+| URL | Que atiende |
+| --- | --- |
+| `algorio.com.ar` | La landing (repo `algorio_landing`) |
+| `app.algorio.com.ar` | Este sistema (`frontend/`) |
+| `app.algorio.com.ar/api/*` | Proxeado al backend en Render (`frontend/vercel.json`) |
+
+El backend nunca se expone directo: `/api/*` sale del mismo origen que la app
+porque Vercel lo reescribe hacia Render. Por eso no hace falta CORS y la
+cookie de sesion viaja como cookie propia del dominio.
+
 ## Estructura
 
 ```

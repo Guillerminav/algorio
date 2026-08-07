@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 // Reemplaza a la barra lateral en pantallas chicas. Un cajon desplegable en
 // vez de la barra inferior de antes: entran todas las secciones (que ya son
-// cinco) y ademas el perfil, sin apretar cinco botones en el ancho de un
+// seis) y ademas el perfil, sin apretar seis botones en el ancho de un
 // celular.
 export default function MenuMovil({
   abierto,

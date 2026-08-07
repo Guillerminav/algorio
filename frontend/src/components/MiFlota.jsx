@@ -122,13 +122,14 @@ export default function MiFlota() {
               <th className="num">Umbral mínimo</th>
               <th className="num">Umbral máximo</th>
               <th>Estado</th>
+              <th>Alertas</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {activos.length === 0 ? (
               <FilaTablaVacia
-                colSpan={10}
+                colSpan={11}
                 cargando={cargando}
                 mensaje="Todavía no guardaste ningún activo."
               />
@@ -161,6 +162,11 @@ export default function MiFlota() {
                     <td className="num">{umbralMinimo}</td>
                     <td className="num">{umbralMaximo}</td>
                     <td className={f.severidad ? `severidad ${f.severidad}` : ""}>{estadoTexto}</td>
+                    <td>
+                      <span className={`chip-alertas${f.alertas_email ? " activas" : ""}`}>
+                        {f.alertas_email ? "✉ Por mail" : "Sin aviso"}
+                      </span>
+                    </td>
                     <td className="celda-acciones">
                       <button type="button" className="boton-fila" onClick={() => setActivoEnEdicion(f)}>
                         Editar

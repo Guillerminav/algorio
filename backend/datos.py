@@ -316,10 +316,18 @@ def estaciones_disponibles() -> list[dict]:
     return resultado
 
 
-def estado_de_estacion(nombre_estacion: str) -> Optional[dict]:
+def estado_de_estacion(nombre_estacion: str, mapa_estado: Optional[dict] = None) -> Optional[dict]:
     """Estado actual (nivel promedio + umbrales oficiales) de una estacion,
-    buscada por nombre normalizado. None si no hay datos para esa estacion."""
-    return mapa_estado_estaciones().get(normalizar_estacion(nombre_estacion))
+    buscada por nombre normalizado. None si no hay datos para esa estacion.
+
+    `mapa_estado` permite pasar un mapa ya calculado: mapa_estado_estaciones()
+    recorre el dataset entero, asi que quien consulte muchas estaciones de una
+    (el listado de activos, las alertas por mail) lo calcula una sola vez en
+    vez de una por consulta.
+    """
+    if mapa_estado is None:
+        mapa_estado = mapa_estado_estaciones()
+    return mapa_estado.get(normalizar_estacion(nombre_estacion))
 
 
 def mapa_estaciones() -> list[dict]:
@@ -356,7 +364,7 @@ def mapa_estaciones() -> list[dict]:
     return resultado
 
 
-def estado_de_activo(activo: dict) -> dict:
+def estado_de_activo(activo: dict, mapa_estado: Optional[dict] = None) -> dict:
     """Enriquece un "activo" (embarcacion/draga/muelle/tramo guardado por un
     usuario, ver backend/activos.py) con el nivel actual de su estacion de
     referencia y su estado contra los umbrales minimo y maximo.
@@ -369,7 +377,7 @@ def estado_de_activo(activo: dict) -> dict:
     fuente publica umbrales de bajante), asi que solo funciona si el usuario
     lo define.
     """
-    estacion = estado_de_estacion(activo["estacion_referencia"])
+    estacion = estado_de_estacion(activo["estacion_referencia"], mapa_estado)
 
     nivel_actual_m = estacion["nivel_actual_m"] if estacion else None
     rio = estacion["rio"] if estacion else None
@@ -390,6 +398,9 @@ def estado_de_activo(activo: dict) -> dict:
     return {
         **activo,
         "rio": rio,
+        # Fecha del parte del que sale el nivel: el mail de alerta la muestra
+        # para que se vea contra que dia se esta comparando el umbral.
+        "fecha_boletin": estacion.get("fecha_boletin") if estacion else None,
         "nivel_actual_m": nivel_actual_m,
         "umbral_maximo_oficial_m": umbral_maximo_oficial,
         "umbral_minimo_efectivo_m": umbral_minimo_efectivo,

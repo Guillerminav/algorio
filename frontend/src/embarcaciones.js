@@ -137,6 +137,23 @@ const ESTACIONES_APTAS_OCEANICOS = new Set([
   "SAN PEDRO", "RAMALLO", "SAN NICOLAS", "VILLA CONSTITUCION", "ROSARIO", "SAN LORENZO",
 ]);
 
+// Categorias que se arman con barcazas: la ficha describe una unidad (una
+// barcaza, o el convoy de 16 en el caso de convoy_grande) y la ruta define de
+// cuantas esta armado el convoy de ese viaje, que es lo que escala el DWT y
+// las toneladas por pie. Espejo de CATEGORIAS en backend/tramos_navegacion.py,
+// donde el calculo hace la cuenta; aca solo decide si mostrar el campo.
+const CATEGORIAS_CONVOY = new Set(["convoy_estandar", "convoy_grande", "barcaza_chica"]);
+
+export function esConvoy(claveCategoria) {
+  return CATEGORIAS_CONVOY.has(claveCategoria);
+}
+
+// Barcazas que describe la ficha de cada categoria, para arrancar el campo de
+// la ruta en un valor coherente con lo que el usuario ya vio en Mi flota.
+export function barcazasPorDefecto(claveCategoria) {
+  return claveCategoria === "convoy_grande" ? 16 : 1;
+}
+
 function normalizarNombre(valor) {
   return (valor ?? "").trim().toUpperCase();
 }

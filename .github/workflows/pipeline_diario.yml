@@ -28,3 +28,14 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python -m data_pipeline.main
+
+      # Va despues del pipeline y como paso aparte (no dentro de
+      # data_pipeline/) para que el scraping no dependa del envio de mails ni
+      # al reves: si Resend se cae, el dato del dia igual quedo guardado, y en
+      # el log de Actions se ve en cual de las dos cosas fallo.
+      - name: Avisar por mail los umbrales cruzados
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_REMITENTE: ${{ secrets.MAIL_REMITENTE }}
+        run: python -m backend.notificaciones

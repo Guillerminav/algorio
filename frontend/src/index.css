@@ -920,37 +920,6 @@ main {
   cursor: not-allowed;
 }
 
-.filtros-pills {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.pill-estado {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.75rem;
-  border: 1px solid var(--borde);
-  background: var(--superficie);
-  border-radius: 999px;
-  font-size: 0.78rem;
-  color: var(--texto);
-  cursor: pointer;
-}
-
-.pill-estado:hover {
-  border-color: var(--acento);
-}
-
-.pill-estado-punto {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
 .subtabs {
   display: inline-flex;
   gap: 2px;
@@ -1385,6 +1354,106 @@ tbody tr:hover {
   cursor: pointer;
 }
 
+/* ------------------------------------------- Alertas por mail (Mi flota) */
+
+.form-activo > .campo-toggle {
+  grid-column: 1 / -1;
+}
+
+.campo-toggle {
+  border-top: 1px solid var(--borde-suave);
+  padding-top: 0.9rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  cursor: pointer;
+}
+
+/* El checkbox real se oculta pero sigue existiendo: es el que recibe el foco
+   del teclado, el que anuncia el lector de pantalla y el que dispara el
+   cambio. La pista y la perilla son solo su representacion visual. */
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-pista {
+  flex-shrink: 0;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin-top: 0.1rem;
+  background: var(--borde);
+  border-radius: 999px;
+  transition: background 0.18s;
+}
+
+.toggle-perilla {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: var(--superficie);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(11, 50, 82, 0.3);
+  transition: transform 0.18s;
+}
+
+.toggle input:checked + .toggle-pista {
+  background: var(--subida);
+}
+
+.toggle input:checked + .toggle-pista .toggle-perilla {
+  transform: translateX(16px);
+}
+
+.toggle input:focus-visible + .toggle-pista {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.toggle-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.toggle-detalle {
+  font-size: 0.76rem;
+  color: var(--texto-suave);
+  line-height: 1.45;
+}
+
+.campo-toggle-aviso {
+  margin: 0.6rem 0 0 3rem;
+  font-size: 0.76rem;
+  color: var(--alerta);
+  line-height: 1.45;
+}
+
+.chip-alertas {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  background: var(--borde-suave);
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+
+.chip-alertas.activas {
+  background: var(--chip-fondo);
+  color: var(--acento);
+  font-weight: 600;
+}
+
 .celda-acciones {
   display: flex;
   gap: 0.4rem;
@@ -1408,6 +1477,353 @@ tbody tr:hover {
 .boton-fila-peligro {
   color: var(--bajada);
   border-color: #f0c6bd;
+}
+
+/* ----------------------------------------------------------------- Rutas */
+
+.mensaje-aviso {
+  background: var(--chip-fondo);
+  border: 1px solid var(--acento-claro);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--texto);
+}
+
+.rutas-plantillas {
+  margin-bottom: 1.25rem;
+}
+
+.rutas-plantillas-titulo,
+.ruta-estaciones-titulo,
+.ruta-tramos-titulo {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-suave);
+  margin-bottom: 0.5rem;
+}
+
+.rutas-plantillas-botones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.6rem;
+}
+
+.boton-plantilla {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.boton-plantilla:hover {
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+}
+
+.boton-plantilla-titulo {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--texto);
+}
+
+.boton-plantilla-sub {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+.boton-plantilla-vacia {
+  border-style: dashed;
+}
+
+/* Selector ordenado del trayecto: a diferencia del multi-select de estaciones
+   del historico, aca el orden importa (es la secuencia del viaje), asi que se
+   agrega de a una y se reordena con las flechas. */
+.form-ruta .ruta-estaciones {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--borde-suave);
+  padding-top: 0.9rem;
+  margin-top: 0.2rem;
+}
+
+.ruta-estaciones-lista {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ruta-estacion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--fondo);
+  border-radius: 6px;
+}
+
+.ruta-estacion-orden {
+  min-width: 1.4rem;
+  height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--acento);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.ruta-estacion-nombre {
+  flex: 1;
+  font-size: 0.85rem;
+}
+
+.ruta-estacion-item .boton-fila:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ruta-estaciones-vacio,
+.rutas-vacio {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  margin: 0 0 0.6rem;
+}
+
+.rutas-vacio {
+  padding: 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--borde);
+  border-radius: 10px;
+}
+
+.ruta-estaciones-agregar {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: var(--superficie);
+  font-size: 0.85rem;
+}
+
+.rutas-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tarjeta-ruta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 1.1rem 1.2rem;
+}
+
+.tarjeta-ruta-cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.tarjeta-ruta-cabecera h3 {
+  margin: 0;
+  font-family: var(--fuente-titulo);
+  font-size: 1.05rem;
+}
+
+.tarjeta-ruta-trayecto {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.tarjeta-ruta-detalle-veredicto {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+}
+
+.chip-veredicto {
+  flex-shrink: 0;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.chip-veredicto.ok { background: var(--subida); }
+.chip-veredicto.ajustado { background: var(--alerta); }
+.chip-veredicto.critico { background: var(--evacuacion); }
+.chip-veredicto.neutro { background: var(--estable); }
+
+.tarjeta-ruta-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.ruta-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--fondo);
+  border-radius: 8px;
+}
+
+.ruta-kpi-etiqueta {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-suave);
+}
+
+.ruta-kpi-valor {
+  font-family: var(--fuente-titulo);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.ruta-kpi-sub {
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+}
+
+.ruta-advertencias {
+  margin: 0.9rem 0 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ruta-advertencias li {
+  font-size: 0.8rem;
+  color: var(--alerta);
+}
+
+.ruta-tramos {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.ruta-tramo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  font-size: 0.82rem;
+}
+
+.ruta-tramo-nombre {
+  color: var(--texto-suave);
+}
+
+.ruta-tramo-valor,
+.ruta-tramo-edicion {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ruta-tramo-origen {
+  font-size: 0.7rem;
+  color: var(--texto-suave);
+}
+
+.ruta-tramo-origen.propia {
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.ruta-tramo-edicion input {
+  width: 5.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--acento);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.boton-lapiz {
+  border: 1px solid var(--borde);
+  background: var(--superficie);
+  color: var(--acento);
+  border-radius: 6px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.boton-lapiz:hover {
+  background: var(--chip-fondo);
+  border-color: var(--acento);
+}
+
+.ruta-tramos-nota {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+  line-height: 1.45;
+}
+
+.tarjeta-ruta-acciones {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-ruta .tabla-contenedor {
+  margin-top: 0.75rem;
+}
+
+tr.fila-critica {
+  background: #fdf3f1;
+}
+
+.veredicto-estacion {
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.veredicto-estacion.critico { color: var(--evacuacion); }
+.veredicto-estacion.ajustado { color: var(--alerta); }
+.veredicto-estacion.ok { color: var(--subida); }
+.veredicto-estacion.sin_datos { color: var(--estable); }
+
+@media (max-width: 720px) {
+  .tarjeta-ruta-cabecera {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .ruta-tramo {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
 }
 
 /* ------------------------------------------------------------------ Mapa */
@@ -1580,7 +1996,7 @@ tbody tr:hover {
 /* --------------------------------------------------------------- Mobile */
 /* Debajo de este ancho la barra lateral se oculta y la navegacion pasa a un
    cajon desplegable (hamburguesa), que ademas del listado de secciones -- ya
-   son cinco -- incluye el perfil arriba de todo. El login pasa de
+   son seis -- incluye el perfil arriba de todo. El login pasa de
    split-screen a apilado. */
 
 .menu-movil-fondo {
@@ -1770,16 +2186,6 @@ tbody tr:hover {
     min-width: 0;
     padding: 0.42rem 0.55rem;
     font-size: 0.8rem;
-  }
-
-  .filtros-pills {
-    flex: 1 1 100%;
-    gap: 0.3rem;
-  }
-
-  .pill-estado {
-    padding: 0.35rem 0.6rem;
-    font-size: 0.72rem;
   }
 
   /* El grid de auto-fit ya colapsa a una columna cuando no entra otra, asi

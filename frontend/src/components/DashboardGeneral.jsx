@@ -14,15 +14,6 @@ const TENDENCIAS = [
   { value: "estable", label: "Estable" },
 ];
 
-// Solo visual (ver plan): no hay severidad por fila en el historico general
-// todavia, a diferencia de Alertas/Mi Flota que si la calculan contra el
-// umbral oficial de una estacion puntual.
-const ESTADOS_FILTRO = [
-  { label: "Normal", color: "var(--subida)" },
-  { label: "Precaución", color: "var(--alerta)" },
-  { label: "Alerta", color: "var(--evacuacion)" },
-];
-
 const COLUMNAS_CSV = [
   { clave: "fecha_boletin", etiqueta: "Fecha" },
   { clave: "estacion", etiqueta: "Estacion" },
@@ -131,14 +122,6 @@ export default function DashboardGeneral({ onListo }) {
           Hasta
           <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
         </label>
-        <div className="filtros-pills">
-          {ESTADOS_FILTRO.map((ef) => (
-            <button key={ef.label} type="button" className="pill-estado">
-              <span className="pill-estado-punto" style={{ background: ef.color }} />
-              {ef.label}
-            </button>
-          ))}
-        </div>
       </div>
       <div className="estado">
         {error
