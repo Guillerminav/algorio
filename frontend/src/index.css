@@ -516,22 +516,6 @@ button {
 
 /* -------------------------------------------------------- Suscripcion */
 
-.aviso-prueba {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.65rem 1rem;
-  margin-bottom: 1.25rem;
-  border: 1px solid var(--borde);
-  border-left: 3px solid var(--alerta);
-  border-radius: 8px;
-  background: var(--superficie);
-  font-size: 0.85rem;
-  color: var(--texto);
-}
-
 .suscripcion {
   display: flex;
   flex-direction: column;
@@ -1651,6 +1635,13 @@ tbody tr:hover {
   margin: 0.2rem 0 0;
   font-size: 0.8rem;
   color: var(--texto-suave);
+}
+
+.tarjeta-ruta-fecha {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
 }
 
 .tarjeta-ruta-detalle-veredicto {

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 import { formatearNivel, formatearTendencia } from "../api.js";
 import { descargarInformeRuta } from "../exportarInformeRuta.js";
+import { fechaHoraDeCalculo } from "../resumenRuta.js";
 
 // Que quiere decir cada veredicto, en el orden en que le importa al operador:
 // primero si sale o no sale, despues cuanto puede cargar.
@@ -13,6 +14,11 @@ const VEREDICTOS = {
   sin_embarcacion: { texto: "Sin embarcación", clase: "neutro", detalle: "Asociá una embarcación para calcular calado y toneladas." },
   sin_ficha: { texto: "Ficha incompleta", clase: "neutro", detalle: "Faltan datos de la embarcación para calcular la carga." },
   sin_datos: { texto: "Sin datos", clase: "neutro", detalle: "Ninguna estación del trayecto aporta un calado disponible." },
+  sin_calculo: {
+    texto: "Sin calcular",
+    clase: "neutro",
+    detalle: "Esta ruta se guardó antes de que se archivara el análisis. Recalculala para verlo.",
+  },
 };
 
 const VEREDICTO_ESTACION = { critico: "Punto crítico", ajustado: "Ajustado", ok: "OK", sin_datos: "Sin dato" };
@@ -22,7 +28,9 @@ const formatearToneladas = (valor) =>
 
 const formatearPies = (valor) => (typeof valor === "number" ? `${valor.toFixed(1)} ft` : "—");
 
-export default function TarjetaRuta({ ruta, unidadNivel, onEditar, onEliminar, onCambiarProfundidad }) {
+export default function TarjetaRuta({
+  ruta, unidadNivel, onEditar, onEliminar, onCambiarProfundidad, onRecalcular,
+}) {
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [tramoEnEdicion, setTramoEnEdicion] = useState(null);
   const [valorProfundidad, setValorProfundidad] = useState("");
@@ -77,6 +85,13 @@ export default function TarjetaRuta({ ruta, unidadNivel, onEditar, onEliminar, o
             {ruta.sentido === "ascendente" ? "subiendo" : "bajando"}
             {ruta.embarcacion ? ` · ${ruta.embarcacion.nombre}` : " · sin embarcación"}
             {ruta.embarcacion?.cantidad_barcazas ? ` (${ruta.embarcacion.cantidad_barcazas} barcazas)` : ""}
+          </p>
+          {/* La fecha del análisis, no la de hoy: todo lo que muestra la
+              tarjeta quedó congelado en ese momento. */}
+          <p className="tarjeta-ruta-fecha">
+            {ruta.calculado_en
+              ? `Calculado el ${fechaHoraDeCalculo(ruta)}`
+              : "Todavía sin calcular"}
           </p>
         </div>
         <span className={`chip-veredicto ${veredicto.clase}`}>{veredicto.texto}</span>
@@ -197,14 +212,21 @@ export default function TarjetaRuta({ ruta, unidadNivel, onEditar, onEliminar, o
         <button
           type="button"
           className="boton-primario"
-          disabled={exportando}
+          disabled={exportando || ruta.calculo_pendiente}
           onClick={exportarInforme}
         >
           {exportando ? "Generando…" : "Exportar informe (PDF)"}
         </button>
-        <button type="button" className="boton-secundario" onClick={() => setDetalleAbierto((v) => !v)}>
-          {detalleAbierto ? "Ocultar estaciones" : `Ver las ${ruta.estaciones_detalle?.length ?? 0} estaciones`}
+        {/* Única forma de mover una ruta ya guardada: vuelve a sacar la foto
+            con los niveles de hoy y le pone fecha nueva. */}
+        <button type="button" className="boton-secundario" onClick={() => onRecalcular(ruta.id)}>
+          Recalcular
         </button>
+        {!ruta.calculo_pendiente && (
+          <button type="button" className="boton-secundario" onClick={() => setDetalleAbierto((v) => !v)}>
+            {detalleAbierto ? "Ocultar estaciones" : `Ver las ${ruta.estaciones_detalle?.length ?? 0} estaciones`}
+          </button>
+        )}
         <button type="button" className="boton-fila" onClick={() => onEditar(ruta)}>Editar</button>
         <button type="button" className="boton-fila boton-fila-peligro" onClick={() => onEliminar(ruta.id)}>
           Eliminar

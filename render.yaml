@@ -16,3 +16,9 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
+      # Remitente verificado en Resend. Sin esto se usa el dominio de prueba,
+      # que solo entrega al mail de la cuenta dueña de la API key.
+      - key: MAIL_REMITENTE
+        sync: false
+      - key: MAIL_SOPORTE
+        sync: false

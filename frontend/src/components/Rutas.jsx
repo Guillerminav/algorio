@@ -130,6 +130,20 @@ export default function Rutas() {
     }
   }
 
+  // El analisis queda congelado en el momento en que se calculo, asi que esta
+  // es la unica forma de traer una ruta guardada al dia de hoy.
+  async function recalcularRuta(id) {
+    setGuardando("Recalculando con los niveles de hoy…");
+    try {
+      await pedirJSON(`/api/rutas/${id}/recalcular`, { method: "POST" });
+      await cargarRutas();
+    } catch (e) {
+      setEstado(`Error recalculando: ${e.message}`);
+    } finally {
+      setGuardando(null);
+    }
+  }
+
   function editarRuta(ruta) {
     setPlantillaPrecargada(null);
     setRutaEnEdicion(ruta);
@@ -209,6 +223,7 @@ export default function Rutas() {
               onEditar={editarRuta}
               onEliminar={eliminarRuta}
               onCambiarProfundidad={cambiarProfundidad}
+              onRecalcular={recalcularRuta}
             />
           ))}
         </div>

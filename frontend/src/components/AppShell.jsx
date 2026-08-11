@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 
 import Alertas from "./Alertas.jsx";
-import AvisoPrueba from "./AvisoPrueba.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Historico from "./Historico.jsx";
 import MapaEstaciones from "./MapaEstaciones.jsx";
@@ -54,7 +53,6 @@ export default function AppShell() {
         />
 
         <main>
-          <AvisoPrueba onAbrirAyuda={abrirAyuda} />
           {mostrarSuscripcion ? (
             <PantallaSuscripcion onAbrirAyuda={abrirAyuda} />
           ) : (

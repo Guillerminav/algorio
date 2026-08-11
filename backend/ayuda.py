@@ -12,7 +12,11 @@ import httpx
 
 from db import conexion, inicializar_db
 
-DESTINATARIO = "guillermina2000b@gmail.com"
+# A donde llegan los mensajes del boton "Ayuda" (soporte). Sale del entorno
+# para no tener que tocar codigo el dia que cambie la casilla: hasta ahora
+# estaba fija aca, y justamente por eso no coincidia con el mail de la cuenta
+# de AlgoRio, que es a donde van las alertas de "Mi flota".
+DESTINATARIO = os.environ.get("MAIL_SOPORTE", "guillermina2000b@gmail.com")
 
 # Sin un dominio propio verificado, Resend solo permite mandar desde su
 # dominio de prueba (onboarding@resend.dev) y unicamente al mail de la cuenta

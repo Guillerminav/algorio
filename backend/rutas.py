@@ -571,3 +571,47 @@ def eliminar_ruta(ruta_id: int, usuario: str) -> bool:
 
 def nombre_de_plantilla(clave: Optional[str]) -> Optional[str]:
     return PLANTILLAS[clave]["nombre"] if clave in PLANTILLAS else None
+
+
+# --------------------------------------------------------------------------
+# Foto del calculo
+#
+# El analisis se guarda tal como dio cuando se creo (o se edito, o se pidio
+# recalcular) la ruta, y al listar se devuelve esa foto sin recalcular. Es lo
+# que hace que el punto critico y los niveles de cada estacion sigan siendo
+# los mismos que cuando se genero el informe en PDF.
+# --------------------------------------------------------------------------
+
+# Campos que el usuario edita: viven en columnas propias y mandan siempre, asi
+# que se excluyen de la foto para que un cambio de nombre no quede pisado por
+# el valor viejo. El resto del resultado (incluido el resguardo ya resuelto a
+# su valor efectivo) si es parte de la foto.
+_COLUMNAS_EDITABLES = {
+    "id", "usuario", "nombre", "plantilla", "activo_id", "estaciones", "sentido",
+    "cantidad_barcazas", "profundidades_pies", "creado_en", "calculo", "calculado_en",
+}
+
+
+def calcular_y_guardar(ruta: dict, activo: Optional[dict], mapa_estado: dict) -> dict:
+    """Calcula la ruta y persiste el resultado con la hora en que se saco."""
+    resultado = calcular_ruta(ruta, activo, mapa_estado)
+    foto = {k: v for k, v in resultado.items() if k not in _COLUMNAS_EDITABLES}
+
+    with conexion() as con:
+        fila = con.execute(
+            "UPDATE rutas SET calculo = %s, calculado_en = now() WHERE id = %s "
+            "RETURNING calculado_en",
+            (Json(foto), ruta["id"]),
+        ).fetchone()
+
+    return {**resultado, "calculado_en": fila["calculado_en"]}
+
+
+def con_calculo_guardado(ruta: dict) -> dict:
+    """La ruta con su foto ya calculada. `calculo_pendiente` marca las rutas
+    guardadas antes de que existiera la foto: no tienen analisis todavia."""
+    foto = ruta.get("calculo")
+    base = {k: v for k, v in ruta.items() if k != "calculo"}
+    if not foto:
+        return {**base, "calculo_pendiente": True, "veredicto": "sin_calculo"}
+    return {**base, **foto, "calculo_pendiente": False}

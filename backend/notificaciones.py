@@ -236,7 +236,19 @@ def _enviar(destinatario: str, activo: dict) -> None:
         },
         timeout=20,
     )
-    respuesta.raise_for_status()
+    # raise_for_status() solo dice "403 Forbidden", que no alcanza para saber
+    # que hacer: Resend explica el motivo real en el cuerpo de la respuesta
+    # (dominio sin verificar, destinatario no permitido, key invalida). Sin
+    # esto, el error que queda guardado en alertas_notificadas no sirve para
+    # diagnosticar nada.
+    if respuesta.is_error:
+        try:
+            detalle = respuesta.json().get("message") or respuesta.text
+        except ValueError:
+            detalle = respuesta.text
+        raise RuntimeError(
+            f"Resend respondio {respuesta.status_code} al mandar a {destinatario}: {detalle}"
+        )
 
 
 def _activos_con_alertas() -> list[dict]:
@@ -245,7 +257,14 @@ def _activos_con_alertas() -> list[dict]:
     with conexion() as con:
         filas = con.execute(
             """
-            SELECT a.*, u.email, n.severidad AS severidad_avisada
+            -- Un intento fallido NO cuenta como avisado: si el mail no salio,
+            -- el usuario no se entero, asi que la severidad guardada solo
+            -- silencia los avisos siguientes cuando el envio funciono. Sin
+            -- este CASE, un 403 de Resend dejaba la alerta enterrada para
+            -- siempre (la corrida siguiente veia la misma severidad guardada
+            -- y la salteaba), y arreglar Resend despues no la revivia.
+            SELECT a.*, u.email,
+                   CASE WHEN n.error_envio IS NULL THEN n.severidad END AS severidad_avisada
             FROM activos a
             JOIN usuarios u ON u.usuario = a.usuario
             LEFT JOIN alertas_notificadas n ON n.activo_id = a.id
@@ -323,10 +342,10 @@ def evaluar_y_notificar() -> dict:
             resumen["enviados"] += 1
             print(f"[{activo['nombre']}] aviso '{severidad}' enviado a {activo['email']}.")
         except Exception as e:  # httpx.HTTPError, RuntimeError, etc.
-            # Se registra igual, con el error: asi queda rastro de que se
-            # intento y por que fallo, pero NO se marca como avisado (la
-            # severidad guardada es la de hoy, con error_envio cargado), asi
-            # que la proxima corrida lo reintenta solo si algo cambio.
+            # Se registra con el error para dejar rastro de que se intento y
+            # por que fallo. La fila queda con error_envio cargado, y el
+            # CASE de _activos_con_alertas() hace que eso NO cuente como
+            # avisado: la proxima corrida lo reintenta.
             _registrar(activo["id"], estado, str(e))
             resumen["fallidos"] += 1
             print(f"[{activo['nombre']}] fallo el envio: {e}")

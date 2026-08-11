@@ -155,10 +155,22 @@ def inicializar_db() -> None:
                 cantidad_barcazas INTEGER,
                 resguardo_quilla_pies DOUBLE PRECISION,
                 profundidades_pies JSONB,
+                calculo JSONB,
+                calculado_en TIMESTAMPTZ,
                 creado_en TEXT NOT NULL
             )
             """
         )
+        # Foto del analisis (calado por estacion, punto critico, carga) tal
+        # como dio en el momento de crear o editar la ruta, con la hora exacta.
+        # No se recalcula al listar a proposito: una ruta es una evaluacion
+        # fechada, no un tablero en vivo. Si el nivel de una estacion cambiara
+        # debajo de la ruta guardada, el punto critico se movaria solo y el
+        # informe que el usuario ya mando por mail dejaria de coincidir con lo
+        # que muestra la pantalla. Para traerla al dia esta el boton
+        # "Recalcular", que vuelve a sacar la foto y actualiza la fecha.
+        con.execute("ALTER TABLE rutas ADD COLUMN IF NOT EXISTS calculo JSONB")
+        con.execute("ALTER TABLE rutas ADD COLUMN IF NOT EXISTS calculado_en TIMESTAMPTZ")
         # Profundidad garantizada propia por tramo, {id_tramo: pies}. La tabla
         # de backend/tramos_navegacion.py es solo un valor sugerido: el rio se
         # mueve (un banco nuevo, una draga parada, un paso que Prefectura

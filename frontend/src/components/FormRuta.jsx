@@ -77,6 +77,17 @@ export default function FormRuta({
     setForm((f) => ({ ...f, [campo]: valor }));
   }
 
+  // Cambiar el sentido da vuelta el trayecto: el mismo recorrido subiendo se
+  // navega en el orden inverso al de bajando, y dejar las estaciones como
+  // estaban implicaba que el usuario tuviera que reordenarlas de a una con
+  // las flechas. Si vuelve a cambiarlo, se vuelven a invertir y queda como al
+  // principio, asi que la accion se deshace sola.
+  function cambiarSentido(sentido) {
+    setForm((f) => (
+      sentido === f.sentido ? f : { ...f, sentido, estaciones: [...f.estaciones].reverse() }
+    ));
+  }
+
   function agregarEstacion(nombre) {
     if (!nombre) return;
     setForm((f) => ({ ...f, estaciones: [...f.estaciones, nombre] }));
@@ -136,7 +147,7 @@ export default function FormRuta({
 
       <label>
         Sentido
-        <select value={form.sentido} onChange={(e) => actualizarCampo("sentido", e.target.value)}>
+        <select value={form.sentido} onChange={(e) => cambiarSentido(e.target.value)}>
           <option value="descendente">Descendente (bajando)</option>
           <option value="ascendente">Ascendente (subiendo)</option>
         </select>

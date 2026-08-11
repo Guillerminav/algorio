@@ -366,12 +366,17 @@ def api_eliminar_activo(activo_id: int, usuario: dict = Depends(usuario_con_susc
     return {"ok": True}
 
 
-def _calcular_rutas(usuario: str, solo_id: Optional[int] = None) -> list[dict]:
-    """Calcula una o todas las rutas del usuario.
+def _calcular_rutas(usuario: str, solo_id: Optional[int] = None, recalcular: bool = False) -> list[dict]:
+    """Devuelve las rutas del usuario con su analisis.
+
+    Por defecto entrega la foto guardada, sin recalcular: la ruta es una
+    evaluacion fechada y tiene que seguir diciendo lo mismo que cuando se
+    genero el informe. Se recalcula solo al crear, al editar, al pedirlo
+    explicitamente, o si la ruta todavia no tiene foto (guardada antes de
+    que existiera esta columna).
 
     mapa_estado_estaciones() recorre el dataset completo, asi que se llama una
-    sola vez y se reusa para todas las rutas: con una llamada por ruta, un
-    usuario con cinco rutas pagaba cinco recorridas del historico entero.
+    sola vez y se reusa para todas las rutas que haya que recalcular.
     """
     guardadas = rutas.listar_rutas(usuario)
     if solo_id is not None:
@@ -379,10 +384,17 @@ def _calcular_rutas(usuario: str, solo_id: Optional[int] = None) -> list[dict]:
     if not guardadas:
         return []
 
+    a_recalcular = [r for r in guardadas if recalcular or not r.get("calculo")]
+    if not a_recalcular:
+        return [rutas.con_calculo_guardado(r) for r in guardadas]
+
     mapa_estado = datos.mapa_estado_estaciones()
     por_id = {a["id"]: a for a in activos.listar_activos(usuario)}
+    ids_a_recalcular = {r["id"] for r in a_recalcular}
     return [
-        rutas.calcular_ruta(ruta, por_id.get(ruta["activo_id"]), mapa_estado)
+        rutas.calcular_y_guardar(ruta, por_id.get(ruta["activo_id"]), mapa_estado)
+        if ruta["id"] in ids_a_recalcular
+        else rutas.con_calculo_guardado(ruta)
         for ruta in guardadas
     ]
 
@@ -411,7 +423,7 @@ def api_crear_ruta(entrada: RutaEntrada, usuario: dict = Depends(usuario_con_sus
         nueva = rutas.crear_ruta(usuario["usuario"], **entrada.model_dump())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    calculadas = _calcular_rutas(usuario["usuario"], solo_id=nueva["id"])
+    calculadas = _calcular_rutas(usuario["usuario"], solo_id=nueva["id"], recalcular=True)
     return calculadas[0]
 
 
@@ -423,7 +435,19 @@ def api_actualizar_ruta(
         rutas.actualizar_ruta(ruta_id, usuario["usuario"], cambios.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    calculadas = _calcular_rutas(usuario["usuario"], solo_id=ruta_id)
+    # Editar recalcula siempre: si no, cambiar una estacion o la profundidad de
+    # un tramo dejaria el trayecto nuevo con el analisis viejo al lado.
+    calculadas = _calcular_rutas(usuario["usuario"], solo_id=ruta_id, recalcular=True)
+    return calculadas[0]
+
+
+@app.post("/api/rutas/{ruta_id}/recalcular")
+def api_recalcular_ruta(ruta_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
+    """Vuelve a sacar la foto del analisis con los niveles de hoy y actualiza
+    la fecha de calculo. Es la unica forma de mover una ruta ya guardada."""
+    calculadas = _calcular_rutas(usuario["usuario"], solo_id=ruta_id, recalcular=True)
+    if not calculadas:
+        raise HTTPException(status_code=404, detail="La ruta no existe (o no pertenece a este usuario).")
     return calculadas[0]
 
 
