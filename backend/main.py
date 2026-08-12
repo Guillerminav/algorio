@@ -75,6 +75,48 @@ def usuario_con_suscripcion(usuario: dict = Depends(usuario_actual)) -> dict:
     return usuario
 
 
+def exige_seccion(seccion: str):
+    """Fabrica de dependencies: exige, ademas de sesion y suscripcion, que la
+    plan de la cuenta habilite esa seccion.
+
+    Devuelve 403 y no 402 a proposito. El 402 significa "se te vencio la
+    prueba" y el frontend lo usa para mandar a la pantalla de suscripcion;
+    esto es otra cosa: la cuenta esta al dia, pero su plan no incluye la
+    seccion, y mandarla a esa pantalla seria confuso.
+
+    Agrega "plan" al dict del usuario para que el endpoint no tenga que
+    volver a consultarlo cuando ademas necesita chequear un tope.
+    """
+    def dependencia(usuario: dict = Depends(usuario_con_suscripcion)) -> dict:
+        plan = suscripciones.plan_de(usuario["usuario"])
+        if not suscripciones.habilita_seccion(plan, seccion):
+            etiqueta = suscripciones.PLANES[plan]["etiqueta"]
+            raise HTTPException(
+                status_code=403,
+                detail=f"Tu plan {etiqueta} no incluye esta sección.",
+            )
+        return {**usuario, "plan": plan}
+
+    return dependencia
+
+
+def _exigir_cupo(plan: str, recurso: str, cantidad_actual: int, singular: str) -> None:
+    """Corta la creacion si el plan ya llego a su tope. 409 (y no 403) para
+    que el frontend distinga "tu plan no llega hasta aca" de "llegaste al
+    limite de lo que podes cargar con este plan"."""
+    if not suscripciones.tope_alcanzado(plan, recurso, cantidad_actual):
+        return
+    tope = suscripciones.PLANES[plan][f"max_{recurso}"]
+    etiqueta = suscripciones.PLANES[plan]["etiqueta"]
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"El plan {etiqueta} permite hasta {tope} {recurso}. "
+            f"Para cargar {singular} más, cambiá de plan."
+        ),
+    )
+
+
 class CredencialesLogin(BaseModel):
     usuario: str
     password: str
@@ -84,10 +126,23 @@ class RegistroRequest(BaseModel):
     usuario: str
     email: EmailStr
     password: str
+    # El plan que eligio en el formulario. Opcional para no romper a
+    # ningun cliente viejo: si no viene, suscripciones.plan_valido() la baja
+    # al plan por defecto en vez de fallar.
+    plan: Optional[str] = None
 
 
 class CredencialGoogle(BaseModel):
     credential: str  # ID token JWT que entrega Google Identity Services
+    # Solo se usa si el token da de alta una cuenta nueva: el boton de Google
+    # vive tanto en Registro (donde hay plan elegido) como en Login (donde
+    # no). Si la cuenta ya existe, se ignora - el plan no se cambia por
+    # volver a entrar.
+    plan: Optional[str] = None
+
+
+class CambioPlan(BaseModel):
+    plan: str
 
 
 class AyudaRequest(BaseModel):
@@ -188,6 +243,11 @@ def registro(datos_registro: RegistroRequest, request: Request):
     except psycopg.errors.UniqueViolation:
         raise HTTPException(status_code=400, detail="El usuario o el email ya estan registrados.")
 
+    # La prueba se arranca aca, con el plan elegido, en vez de dejar que la
+    # cree sola el primer /api/suscripcion: ahi no habria forma de saber que
+    # plan habia pedido.
+    suscripciones.iniciar_prueba(datos_registro.usuario, datos_registro.plan)
+
     usuario = auth.obtener_usuario(datos_registro.usuario)
     request.session["usuario"] = usuario["usuario"]
     request.session["nombre_completo"] = usuario["nombre_completo"]
@@ -213,6 +273,7 @@ def login_google(payload: CredencialGoogle, request: Request):
     usuario = auth.obtener_usuario_por_email(email)
     if usuario is None:
         usuario = auth.crear_usuario_google(email, info.get("name") or email.split("@")[0])
+        suscripciones.iniciar_prueba(usuario["usuario"], payload.plan)
 
     request.session["usuario"] = usuario["usuario"]
     request.session["nombre_completo"] = usuario["nombre_completo"]
@@ -262,12 +323,55 @@ def api_ayuda(payload: AyudaRequest, usuario: dict = Depends(usuario_actual)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/api/planes")
+def api_planes():
+    """Catalogo de planes con sus precios. Sin sesion a proposito: lo consume
+    la pantalla de registro, donde todavia no hay usuario.
+
+    `dias_prueba` viaja junto al catalogo para que la pantalla pueda decir
+    cuantos dias dura la prueba sin hardcodearlo: sale de la misma constante
+    que usa el control de acceso, asi no pueden desincronizarse."""
+    return {
+        "dias_prueba": suscripciones.DIAS_PRUEBA,
+        "planes": [suscripciones.limites_de_plan(clave) for clave in suscripciones.PLANES],
+    }
+
+
+def _suscripcion_con_uso(nombre: str, estado: Optional[dict] = None) -> dict:
+    """El estado de la suscripcion mas cuanto tiene cargado el usuario.
+
+    Los dos contadores van aca y no dentro de suscripciones.py para que ese
+    modulo no tenga que saber que existen los activos ni las rutas. Los usa la
+    pantalla de Suscripcion para avisar, antes de confirmar, cuando el plan
+    elegido deja los topes por debajo de lo que la cuenta ya tiene cargado.
+    """
+    return {
+        **(estado or suscripciones.estado_de_suscripcion(nombre)),
+        "activos_usados": activos.contar_activos(nombre),
+        "rutas_usadas": rutas.contar_rutas(nombre),
+    }
+
+
 @app.get("/api/suscripcion")
 def api_suscripcion(usuario: dict = Depends(usuario_actual)):
     """Estado de la suscripcion. Deliberadamente NO exige suscripcion
     vigente: es lo que el frontend consulta para saber que mostrar cuando
     justamente esta vencida."""
-    return suscripciones.estado_de_suscripcion(usuario["usuario"])
+    return _suscripcion_con_uso(usuario["usuario"])
+
+
+@app.post("/api/suscripcion/plan")
+def api_cambiar_plan(entrada: CambioPlan, usuario: dict = Depends(usuario_actual)):
+    """Cambia el plan de la cuenta.
+
+    Tampoco exige suscripcion vigente: con la prueba vencida el usuario tiene
+    que poder entrar a esta pantalla y cambiar de plan, que es justo lo que se
+    le ofrece ahi."""
+    try:
+        estado = suscripciones.cambiar_plan(usuario["usuario"], entrada.plan)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _suscripcion_con_uso(usuario["usuario"], estado)
 
 
 @app.get("/api/ina")
@@ -310,7 +414,7 @@ def api_mapa_estaciones(usuario: dict = Depends(usuario_con_suscripcion)):
 
 
 @app.get("/api/activos")
-def api_listar_activos(usuario: dict = Depends(usuario_con_suscripcion)):
+def api_listar_activos(usuario: dict = Depends(exige_seccion("flota"))):
     # El mapa de estado se calcula una sola vez para toda la lista: recorre el
     # dataset completo, asi que pedirlo por activo multiplicaba ese costo por
     # la cantidad de activos del usuario.
@@ -322,7 +426,11 @@ def api_listar_activos(usuario: dict = Depends(usuario_con_suscripcion)):
 
 
 @app.post("/api/activos")
-def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_con_suscripcion)):
+def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(exige_seccion("flota"))):
+    _exigir_cupo(
+        usuario["plan"], "activos",
+        activos.contar_activos(usuario["usuario"]), "otra embarcación",
+    )
     try:
         nuevo = activos.crear_activo(
             usuario["usuario"],
@@ -345,7 +453,7 @@ def api_crear_activo(entrada: ActivoEntrada, usuario: dict = Depends(usuario_con
 
 @app.put("/api/activos/{activo_id}")
 def api_actualizar_activo(
-    activo_id: int, cambios: ActivoActualizacion, usuario: dict = Depends(usuario_con_suscripcion)
+    activo_id: int, cambios: ActivoActualizacion, usuario: dict = Depends(exige_seccion("flota"))
 ):
     datos_cambios = cambios.model_dump(exclude_unset=True)
     caracteristicas = datos_cambios.pop("caracteristicas_embarcacion", None)
@@ -360,7 +468,7 @@ def api_actualizar_activo(
 
 
 @app.delete("/api/activos/{activo_id}")
-def api_eliminar_activo(activo_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
+def api_eliminar_activo(activo_id: int, usuario: dict = Depends(exige_seccion("flota"))):
     if not activos.eliminar_activo(activo_id, usuario["usuario"]):
         raise HTTPException(status_code=404, detail="El activo no existe (o no pertenece a este usuario).")
     return {"ok": True}
@@ -402,7 +510,7 @@ def _calcular_rutas(usuario: str, solo_id: Optional[int] = None, recalcular: boo
 # Declarado antes que /api/rutas/{ruta_id} para que "plantillas" no se lea como
 # un id de ruta.
 @app.get("/api/rutas/plantillas")
-def api_plantillas_rutas(usuario: dict = Depends(usuario_con_suscripcion)):
+def api_plantillas_rutas(usuario: dict = Depends(exige_seccion("rutas"))):
     """Las rutas principales precargadas (botones de ruta rápida) y la tabla de
     tramos con su profundidad sugerida, que el usuario puede pisar por ruta."""
     return {
@@ -413,12 +521,13 @@ def api_plantillas_rutas(usuario: dict = Depends(usuario_con_suscripcion)):
 
 
 @app.get("/api/rutas")
-def api_listar_rutas(usuario: dict = Depends(usuario_con_suscripcion)):
+def api_listar_rutas(usuario: dict = Depends(exige_seccion("rutas"))):
     return _calcular_rutas(usuario["usuario"])
 
 
 @app.post("/api/rutas", status_code=201)
-def api_crear_ruta(entrada: RutaEntrada, usuario: dict = Depends(usuario_con_suscripcion)):
+def api_crear_ruta(entrada: RutaEntrada, usuario: dict = Depends(exige_seccion("rutas"))):
+    _exigir_cupo(usuario["plan"], "rutas", rutas.contar_rutas(usuario["usuario"]), "otra ruta")
     try:
         nueva = rutas.crear_ruta(usuario["usuario"], **entrada.model_dump())
     except ValueError as e:
@@ -429,7 +538,7 @@ def api_crear_ruta(entrada: RutaEntrada, usuario: dict = Depends(usuario_con_sus
 
 @app.put("/api/rutas/{ruta_id}")
 def api_actualizar_ruta(
-    ruta_id: int, cambios: RutaActualizacion, usuario: dict = Depends(usuario_con_suscripcion)
+    ruta_id: int, cambios: RutaActualizacion, usuario: dict = Depends(exige_seccion("rutas"))
 ):
     try:
         rutas.actualizar_ruta(ruta_id, usuario["usuario"], cambios.model_dump(exclude_unset=True))
@@ -442,7 +551,7 @@ def api_actualizar_ruta(
 
 
 @app.post("/api/rutas/{ruta_id}/recalcular")
-def api_recalcular_ruta(ruta_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
+def api_recalcular_ruta(ruta_id: int, usuario: dict = Depends(exige_seccion("rutas"))):
     """Vuelve a sacar la foto del analisis con los niveles de hoy y actualiza
     la fecha de calculo. Es la unica forma de mover una ruta ya guardada."""
     calculadas = _calcular_rutas(usuario["usuario"], solo_id=ruta_id, recalcular=True)
@@ -452,7 +561,7 @@ def api_recalcular_ruta(ruta_id: int, usuario: dict = Depends(usuario_con_suscri
 
 
 @app.delete("/api/rutas/{ruta_id}")
-def api_eliminar_ruta(ruta_id: int, usuario: dict = Depends(usuario_con_suscripcion)):
+def api_eliminar_ruta(ruta_id: int, usuario: dict = Depends(exige_seccion("rutas"))):
     if not rutas.eliminar_ruta(ruta_id, usuario["usuario"]):
         raise HTTPException(status_code=404, detail="La ruta no existe (o no pertenece a este usuario).")
     return {"ok": True}

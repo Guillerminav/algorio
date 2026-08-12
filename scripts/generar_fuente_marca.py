@@ -97,8 +97,8 @@ def main() -> None:
         "// jsPDF pueda embeberla en el informe de ruta.\n"
         "//\n"
         "// CARACTERES_SOPORTADOS no incluye vocales acentuadas porque la fuente\n"
-        "// original no las trae: en la app la \"i\" de AlgoRio ya cae en la\n"
-        "// tipografia de respaldo, y el PDF replica eso mismo.\n"
+        "// original no las trae. Por eso el wordmark se escribe \"AlgoRio\" sin\n"
+        "// tilde, igual que en la app, la landing y los mails.\n"
         'export const NOMBRE_FUENTE_MARCA = "GlockGrotesque";\n'
         'export const ARCHIVO_FUENTE_MARCA = "GlockGrotesque-Medium.ttf";\n'
         f"export const CARACTERES_SOPORTADOS = {json.dumps(soportados)};\n"

@@ -20,8 +20,10 @@ serian 21 mails identicos y el usuario terminaria filtrando el remitente.
 Corre despues del pipeline diario (ver .github/workflows/pipeline_diario.yml):
     python -m backend.notificaciones
 """
+import base64
 import os
 from html import escape
+from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -35,8 +37,24 @@ from db import conexion, inicializar_db
 # que creo la API key. Hasta verificar un dominio, las alertas a los mails de
 # otros usuarios se van a rechazar (el error queda guardado en
 # alertas_notificadas.error_envio).
-REMITENTE = os.environ.get("MAIL_REMITENTE", "AlgoRio <onboarding@resend.dev>")
+REMITENTE = os.environ.get("MAIL_REMITENTE", "AlgoRio <alertas@algorio.com.ar>")
 URL_API_RESEND = "https://api.resend.com/emails"
+
+# El wordmark de marca, rasterizado (lo genera scripts/generar_logo_mail.py).
+# Va adjunto al mail y referenciado con "cid:", no linkeado a una URL: asi no
+# depende de que la landing este publicada y ademas esquiva el bloqueo de
+# imagenes externas que Gmail aplica por defecto a remitentes desconocidos.
+# Tiene que ser imagen y no texto porque los clientes de correo ignoran
+# @font-face, y con la tipografia de marca fuera de juego el wordmark caeria
+# renderizado en Helvetica.
+ARCHIVO_LOGO = Path(__file__).resolve().parent / "logo_mail.png"
+LOGO_CID = "logo-algorio"
+# Tamaño de despliegue (el PNG esta a 3x, para pantallas retina). Los dos
+# atributos van explicitos porque Outlook no deduce el alto solo y sin eso
+# deforma la imagen. Si se regenera el logo, el script imprime los valores
+# nuevos para copiar aca.
+LOGO_ANCHO = 116
+LOGO_ALTO = 39
 
 # Los colores de la marca, los mismos de :root en frontend/src/index.css. Van
 # duplicados porque un mail no puede usar variables CSS ni una hoja de estilos
@@ -90,10 +108,27 @@ def _fila_dato(etiqueta: str, valor: str, destacado: bool = False) -> str:
     )
 
 
-def construir_html(activo: dict) -> str:
+def _marca(logo_src: Optional[str]) -> str:
+    """El wordmark del encabezado. Con `logo_src` va la imagen; sin ella (por
+    ejemplo si todavia no se genero el PNG) cae al texto, que se ve peor pero
+    no rompe el mail."""
+    if not logo_src:
+        return ('<div style="font-size:24px;font-weight:700;color:#ffffff;'
+                'letter-spacing:-0.3px;">AlgoR&iacute;o</div>')
+    return (
+        f'<img src="{logo_src}" width="{LOGO_ANCHO}" height="{LOGO_ALTO}" alt="AlgoR&iacute;o" '
+        f'style="display:block;border:0;outline:none;text-decoration:none;">'
+    )
+
+
+def construir_html(activo: dict, logo_src: Optional[str] = None) -> str:
     """El mail en HTML. Tablas y estilos en linea a proposito: Outlook y
     Gmail ignoran flexbox, grid y las hojas de estilo, asi que el layout de
-    mail sigue siendo el de 2005 aunque la app use grid."""
+    mail sigue siendo el de 2005 aunque la app use grid.
+
+    `logo_src` es de donde sale el wordmark: "cid:..." cuando el mail se manda
+    de verdad (ver _enviar) o un data: URI en la previsualizacion, que se abre
+    en el navegador y ahi si funciona."""
     severidad = activo["severidad"]
     color = COLOR_SEVERIDAD[severidad]
     umbral = (
@@ -122,8 +157,8 @@ def construir_html(activo: dict) -> str:
                     font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
 
         <tr><td style="background:{MARCA};padding:22px 26px;">
-          <div style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">AlgoR&iacute;o</div>
-          <div style="font-size:12px;color:{MARCA_TEXTO_SUAVE};margin-top:4px;">
+          {_marca(logo_src)}
+          <div style="font-size:12px;color:{MARCA_TEXTO_SUAVE};margin-top:8px;">
             Alerta de nivel &middot; Mi flota
           </div>
         </td></tr>
@@ -218,22 +253,45 @@ def _asunto(activo: dict) -> str:
     )
 
 
+def _adjunto_logo() -> Optional[dict]:
+    """El wordmark como adjunto inline, o None si el PNG no esta generado.
+
+    OJO con "content_id": va en snake_case porque esto le pega directo a la
+    API REST de Resend. El camelCase "contentId" que aparece en varios
+    ejemplos es el de sus SDK, y aca se aceptaria sin error pero se ignora:
+    el logo llegaria como adjunto suelto al pie en vez de embebido, y el
+    encabezado quedaria con la imagen rota."""
+    if not ARCHIVO_LOGO.exists():
+        return None
+    return {
+        "filename": ARCHIVO_LOGO.name,
+        "content": base64.b64encode(ARCHIVO_LOGO.read_bytes()).decode("ascii"),
+        "content_type": "image/png",
+        "content_id": LOGO_CID,
+    }
+
+
 def _enviar(destinatario: str, activo: dict) -> None:
     """Manda el aviso por Resend. Lanza excepcion si no se pudo enviar."""
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key:
         raise RuntimeError("Falta configurar RESEND_API_KEY en el entorno.")
 
+    logo = _adjunto_logo()
+    cuerpo = {
+        "from": REMITENTE,
+        "to": [destinatario],
+        "subject": _asunto(activo),
+        "html": construir_html(activo, logo_src=f"cid:{LOGO_CID}" if logo else None),
+        "text": construir_texto(activo),
+    }
+    if logo:
+        cuerpo["attachments"] = [logo]
+
     respuesta = httpx.post(
         URL_API_RESEND,
         headers={"Authorization": f"Bearer {api_key}"},
-        json={
-            "from": REMITENTE,
-            "to": [destinatario],
-            "subject": _asunto(activo),
-            "html": construir_html(activo),
-            "text": construir_texto(activo),
-        },
+        json=cuerpo,
         timeout=20,
     )
     # raise_for_status() solo dice "403 Forbidden", que no alcanza para saber

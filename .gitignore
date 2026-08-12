@@ -10,3 +10,6 @@ frontend/dist/
 
 # Los datasets hidrologicos viven en Postgres (ver db.py), no en CSV.
 data/
+
+.vercel
+.env*

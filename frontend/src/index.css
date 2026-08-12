@@ -1,13 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:wght@400;500;600;700&display=swap');
+/* Host Grotesk: una sola familia para todo — cuerpo, titulos y el wordmark.
+   Autoalojada (no via CDN de Google): un @import externo bloquea el primer
+   pintado esperando a un tercero y le filtra la IP de cada usuario.
 
-/* Fuente del wordmark "AlgoRío". El archivo dice "medium" en el nombre pero
-   internamente es ExtraBold, asi que se declara para todo el rango y sirve
-   para cualquier peso que pida el diseño.
-   OJO: este archivo trae 187 glifos y NINGUNA vocal acentuada, asi que la "í"
-   de AlgoRío cae al fallback. Por eso se usa solo en el wordmark (variable
-   propia) y no en --fuente-titulo: aplicarla a todos los titulos rompería
-   "Gráficos", "Suscripción", "Yacyretá" y demas. Con un archivo que incluya
-   Latin-1 completo se puede pasar a --fuente-titulo. */
+   Los archivos los genera scripts/preparar_tipografia.py, que lee el peso de
+   adentro de cada TTF en vez de fiarse del nombre: en la descarga original los
+   nombres estan cruzados (el archivo "SemiBold" es en realidad la ExtraBold).
+   Por eso los de acá se llaman por su peso numerico y no por su estilo.
+
+   Solo van los cinco pesos rectos que el diseño usa; no hay una sola italica
+   en el proyecto. */
+
+/* La excepcion: el wordmark "AlgoRio" sigue en Glock Grotesque, que es la
+   tipografia del logo. Se usa unicamente ahi (--fuente-marca), y por eso el
+   logo se escribe sin tilde: este archivo trae 187 glifos y ninguna vocal
+   acentuada, asi que "AlgoRío" dibujaria la "í" con otra tipografia. El resto
+   de la pagina va en Host Grotesk, que si tiene los acentos. */
 @font-face {
   font-family: "Glock Grotesque";
   src: url("/fuentes/glockgrotesque-medium.otf") format("opentype");
@@ -16,8 +23,44 @@
   font-display: swap;
 }
 
-/* Identidad visual "AlgoRío": crema calido + azul marino + celeste, Montserrat
-   (titulos) + Inter (cuerpo). Portado del diseño en claude.ai/design
+@font-face {
+  font-family: "Host Grotesk";
+  src: url("/fuentes/hostgrotesk-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Host Grotesk";
+  src: url("/fuentes/hostgrotesk-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Host Grotesk";
+  src: url("/fuentes/hostgrotesk-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Host Grotesk";
+  src: url("/fuentes/hostgrotesk-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Host Grotesk";
+  src: url("/fuentes/hostgrotesk-800.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Identidad visual "AlgoRío": crema calido + azul marino + celeste, con Host
+   Grotesk para todo. Portado del diseño en claude.ai/design
    (proyecto "AlgoRío monitoring design", AlgoRio Dashboard.dc.html). Es una
    marca propia deliberada, no un tema claro/oscuro generico: no se auto-invierte
    por prefers-color-scheme. */
@@ -44,8 +87,11 @@
   --estable: #6e7781;
   --alerta: #b8790b;
   --evacuacion: #c0392b;
-  --fuente-titulo: "Montserrat", system-ui, sans-serif;
-  --fuente-marca: "Glock Grotesque", "Montserrat", system-ui, sans-serif;
+  --fuente-titulo: "Host Grotesk", system-ui, sans-serif;
+  --fuente-cuerpo: "Host Grotesk", system-ui, sans-serif;
+  /* Solo el wordmark. Host Grotesk queda de respaldo por si el .otf no carga:
+     mejor el logo en la tipografia del resto de la pagina que en Times. */
+  --fuente-marca: "Glock Grotesque", "Host Grotesk", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -53,7 +99,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--fuente-cuerpo);
   background: var(--fondo);
   color: var(--texto);
 }
@@ -83,6 +129,30 @@ h1, h2, h3 {
   justify-content: space-between;
   padding: 3.5rem 3rem;
   gap: 2rem;
+  overflow: hidden;
+  transition:
+    width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    min-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    padding 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease;
+}
+
+/* Se corre para dejar la pantalla libre en el paso de elegir plan. La opacidad
+   se apaga en 0.25s, la mitad de lo que tarda el ancho: asi el contenido ya
+   esta invisible cuando el texto empieza a reacomodarse contra el borde, y se
+   lee como que el panel se va, no como que se aplasta. */
+.login-hero.retraido {
+  width: 0;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-hero {
+    transition: none;
+  }
 }
 
 .login-hero-logo {
@@ -252,6 +322,277 @@ button {
 .boton-google {
   display: flex;
   justify-content: center;
+}
+
+/* La flecha de volver al lado del boton principal, no debajo: es una accion
+   secundaria y ocupando el ancho entero competia con "Crear cuenta". */
+.fila-acciones {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.fila-acciones button[type="submit"] {
+  flex: 1;
+}
+
+/* Anidado bajo .tarjeta-login para ganarle a ".tarjeta-login button", que
+   pinta todos los botones de la tarjeta como el primario azul. */
+.tarjeta-login .boton-volver {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.9rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--borde);
+  color: var(--texto-suave);
+}
+
+.tarjeta-login .boton-volver:hover {
+  background: #fff;
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+/* ---------------------------------------------------- Selector de plan */
+
+/* Esta pantalla entra entera, sin scroll: se fija al alto de la ventana y lo
+   que sobra se recorta. Por eso el resto de las medidas de acá abajo son
+   contenidas — es el unico paso del registro que pelea por alto vertical.
+
+   Va detras de una media query por ancho y no suelto: abajo de ~1000px las
+   tres tarjetas dejan de entrar en fila y se apilan, con lo que el contenido
+   pasa a medir mas que la ventana. Recortarlo ahi dejaba el boton "Continuar"
+   fuera de la pantalla y sin forma de llegar, o sea el registro cortado. En
+   pantallas angostas la pagina scrollea normal. */
+@media (min-width: 1000px) {
+  .pantalla-login.pantalla-planes {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .pantalla-planes .login-form-panel {
+    padding: 1.5rem 2rem;
+    overflow: hidden;
+  }
+}
+
+/* El paso de elegir plan usa la pantalla completa (sin el panel de marca al
+   costado): con los 360px de .tarjeta-login las tres tarjetas no entran en
+   fila. Los botones de abajo siguen angostos y centrados para que la accion
+   principal no quede estirada de lado a lado. */
+.tarjeta-login.tarjeta-planes {
+  max-width: 1040px;
+  gap: 0.85rem;
+}
+
+.tarjeta-planes > button,
+.tarjeta-planes > .mensaje-error,
+.tarjeta-planes > .enlace-alternativo {
+  align-self: center;
+  width: 100%;
+  max-width: 360px;
+}
+
+/* La flecha al lado del titulo, no encima: alineada arriba para que quede a
+   la altura del <h1> y no centrada contra el bloque de dos lineas. */
+.encabezado-paso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.encabezado-paso-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.encabezado-paso-texto h1,
+.encabezado-paso-texto p {
+  margin: 0;
+}
+
+.selector-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* Las tres tarjetas en fila. `flex: 1 1 300px` reparte el ancho en partes
+   iguales mientras entren, y las baja una debajo de otra en pantallas donde
+   300px por tarjeta ya no da: no hace falta media query. */
+.plan-tarjetas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.85rem;
+}
+
+/* Van anidadas bajo .tarjeta-login a proposito: ahi ya existen
+   ".tarjeta-login label" (que trae su propio gap y tipografia) y
+   ".tarjeta-login input" (que le pone padding y borde a los campos de texto).
+   Las dos le ganan por especificidad a un ".plan-opcion" suelto, y dejarian
+   el radio como una caja gigante en vez de un punto. */
+.tarjeta-login .plan-opcion {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.3rem 1.4rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* El borde de la elegida se engrosa con un box-shadow y no subiendo el
+   border-width: cambiar el ancho del borde correria el contenido un pixel al
+   pasar de una opcion a otra. */
+.tarjeta-login .plan-opcion.elegida {
+  border-color: var(--acento);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+
+.tarjeta-login .plan-opcion input[type="radio"] {
+  width: auto;
+  margin-top: 0.15rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  accent-color: var(--acento);
+  flex-shrink: 0;
+}
+
+.selector-plan-nota {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+
+/* El radio y el nombre a la izquierda; el precio se va al margen derecho por
+   el margin-left:auto de .plan-precio. `nowrap` para que el precio no se caiga
+   abajo del nombre cuando la tarjeta se angosta: si no entra, se encoge el
+   nombre, que es lo unico que puede recortarse sin perder informacion. */
+.plan-encabezado {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+}
+
+.plan-encabezado > strong {
+  font-size: 1.15rem;
+  color: var(--marca);
+}
+
+.plan-precio {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.plan-precio strong {
+  font-size: 1.3rem;
+  color: var(--marca);
+}
+
+.plan-precio-lista {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.plan-precio-periodo {
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+}
+
+/* Va debajo del precio y alineada con el, no con el nombre del plan. */
+.plan-nota-precio {
+  align-self: flex-end;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--acento);
+  text-align: right;
+}
+
+.plan-resumen {
+  font-size: 0.87rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+
+.plan-ventajas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--borde);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--texto-suave);
+}
+
+/* Ventanas bajas (portatiles de 13", o el navegador con muchas barras): se
+   recortan los aires y el resumen para que la pantalla siga entrando entera,
+   que es la unica condicion que no se puede negociar acá. */
+@media (max-height: 760px) {
+  .pantalla-planes .login-form-panel {
+    padding: 1rem 2rem;
+  }
+
+  .tarjeta-planes .plan-opcion {
+    padding: 0.9rem 1rem;
+    gap: 0.35rem;
+  }
+
+  .tarjeta-planes .plan-resumen {
+    display: none;
+  }
+
+  .tarjeta-planes .selector-plan-nota {
+    margin-bottom: 0;
+  }
+}
+
+.plan-ventajas span::before {
+  content: "· ";
+  color: var(--acento);
+  font-weight: 700;
+}
+
+/* Aviso de cupo en Mi flota y Rutas: la misma banda para "te quedan N" y
+   para "llegaste al tope". */
+.aviso-cupo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.aviso-cupo.completo {
+  border-left-color: #b8790b;
 }
 
 .enlace-alternativo {
@@ -522,11 +863,78 @@ button {
   gap: 1.25rem;
 }
 
+/* Dos columnas: a la izquierda la vigencia, a la derecha el plan. Son los dos
+   datos de estado de la cuenta y se leen juntos; tenerlos en cajas separadas
+   obligaba a mirar en dos lugares para saber qué tenés y hasta cuándo. */
+/* Las dos columnas se alinean por abajo. Arrancandolas desde arriba, el nombre
+   del plan quedaba a la altura del chip de estado y por encima del "Válida
+   hasta el", que es el dato con el que se lee de a pares. */
 .suscripcion-estado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
   padding: 1.5rem 1.75rem;
   border-radius: 12px;
   background: linear-gradient(150deg, var(--marca-suave) 0%, var(--marca) 70%);
   color: #fff;
+}
+
+/* La columna de la vigencia: no crece más que su contenido, así el bloque del
+   plan se queda pegado al margen derecho aunque el texto de la izquierda sea
+   corto. */
+.suscripcion-estado-vigencia {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 0 1 auto;
+}
+
+.suscripcion-estado-plan {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  margin-left: auto;
+  text-align: right;
+}
+
+.suscripcion-estado-plan-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--marca-texto-tenue);
+}
+
+.suscripcion-estado-plan-nombre {
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+.suscripcion-estado-plan-precio {
+  font-size: 0.9rem;
+  color: var(--marca-texto-suave);
+}
+
+.suscripcion-estado-plan-topes {
+  margin-top: 0.2rem;
+  max-width: 22rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--marca-texto-tenue);
+}
+
+/* En pantallas angostas la columna del plan pasa abajo y alineada a la
+   izquierda: un bloque de texto corto pegado al margen derecho, debajo de
+   otro pegado al izquierdo, se lee como si fueran dos cosas sin relacion. */
+@media (max-width: 720px) {
+  .suscripcion-estado-plan {
+    margin-left: 0;
+    align-items: flex-start;
+    text-align: left;
+  }
 }
 
 .suscripcion-chip {
@@ -572,11 +980,260 @@ button {
   color: var(--marca-texto-suave);
 }
 
+.suscripcion-cambio,
 .suscripcion-incluye {
   padding: 1.5rem 1.75rem;
   border: 1px solid var(--borde);
   border-radius: 12px;
   background: var(--superficie);
+}
+
+.suscripcion-cambio h3 {
+  margin: 0 0 0.35rem;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.suscripcion-cambio-nota {
+  margin: 0 0 1.1rem;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+/* Una tarjeta por plan, en fila. `flex: 1 1 250px` las reparte parejas
+   mientras entren y las apila cuando el ancho ya no da. `align-items:
+   stretch` (heredado) las deja de la misma altura aunque una tenga una
+   ventaja mas que otra. */
+.tarjetas-plan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.tarjeta-plan {
+  flex: 1 1 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* La del plan vigente se marca con el borde de acento, el mismo recurso que
+   usa la opcion elegida en el registro. */
+.tarjeta-plan.actual {
+  border-color: var(--acento);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+
+.tarjeta-plan-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tarjeta-plan-nombre {
+  font-size: 1.15rem;
+  color: var(--marca);
+}
+
+.tarjeta-plan-insignia {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tarjeta-plan-precio {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.tarjeta-plan-precio strong {
+  font-size: 1.3rem;
+  color: var(--marca);
+}
+
+.tarjeta-plan-lista {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.tarjeta-plan-periodo {
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+}
+
+.tarjeta-plan-nota {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--acento);
+}
+
+.tarjeta-plan-resumen {
+  margin: 0.2rem 0 0;
+  font-size: 0.87rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+
+.tarjeta-plan-ventajas {
+  /* margin-bottom:auto empuja el boton al pie: con listas de distinto largo,
+     los botones quedan igual alineados entre las tres tarjetas. */
+  margin: 0.5rem 0 auto;
+  padding: 0.7rem 0 0;
+  border-top: 1px solid var(--borde);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--texto-suave);
+}
+
+.tarjeta-plan-ventajas li::before {
+  content: "· ";
+  color: var(--acento);
+  font-weight: 700;
+}
+
+.tarjeta-plan button {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.tarjeta-plan button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* El modal de confirmacion: bastante mas grande que el resto porque muestra la
+   ficha entera del plan y la fecha de cobro, no un campo suelto. El
+   max-height con scroll propio es la contracara de agrandarlo: en una ventana
+   baja, sin eso, los botones de confirmar y cancelar quedarian fuera de la
+   pantalla y sin forma de llegar.
+
+   Los dos selectores van con ".modal-tarjeta" adelante y no sueltos:
+   ".modal-plan" solo empata en especificidad con ".modal-tarjeta", que esta
+   mas abajo en este archivo y por orden le ganaba, dejando el ancho en los
+   380px del modal comun. */
+.modal-tarjeta.modal-plan {
+  max-width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 2rem 2.1rem;
+  gap: 1.1rem;
+}
+
+.modal-tarjeta.modal-plan h2 {
+  font-size: 1.45rem;
+}
+
+.modal-plan-resumen {
+  padding: 1.3rem 1.5rem;
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.modal-plan-encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.modal-plan-nombre {
+  font-size: 1.5rem;
+  color: var(--marca);
+}
+
+.modal-plan-precio {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.modal-plan-precio strong {
+  font-size: 1.45rem;
+  color: var(--marca);
+}
+
+.modal-plan-lista {
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+}
+
+.modal-plan-periodo {
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+}
+
+.modal-plan-descripcion {
+  margin: 0.5rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+
+.modal-plan-detalle {
+  margin: 0.8rem 0 0;
+  padding: 0.8rem 0 0;
+  border-top: 1px solid var(--borde);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+
+.modal-plan-detalle li::before {
+  content: "· ";
+  color: var(--acento);
+  font-weight: 700;
+}
+
+/* La linea de cuando empieza a correr el monto nuevo: es el dato por el que
+   se abre este modal, asi que va destacada y no como una nota mas. */
+.modal-plan-cobro {
+  margin: 0;
+  padding: 1rem 1.15rem;
+  border-radius: 8px;
+  background: var(--chip-fondo);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--texto);
+}
+
+.modal-plan-nota {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+
+/* El aviso de que el plan nuevo deja topes por debajo de lo ya cargado. */
+.suscripcion-aviso-baja {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid #b8790b;
+  border-radius: 6px;
+  background: rgba(184, 121, 11, 0.08);
+  font-size: 0.85rem;
+  color: var(--texto);
 }
 
 .suscripcion-incluye h3 {

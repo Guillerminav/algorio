@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 
 import { pedirJSON } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import AvisoCupo from "./AvisoCupo.jsx";
 import FormRuta from "./FormRuta.jsx";
 import OverlayCargando from "./OverlayCargando.jsx";
 import TarjetaRuta from "./TarjetaRuta.jsx";
@@ -163,6 +164,8 @@ export default function Rutas() {
         pero solo muestra los niveles del trayecto: sin las características del buque
         no hay con qué comparar el agua disponible.
       </p>
+
+      <AvisoCupo recurso="rutas" usados={rutas.length} singular="ruta" plural="rutas" />
 
       <div className="rutas-plantillas">
         <span className="rutas-plantillas-titulo">Rutas principales</span>

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { formatearNivel, pedirJSON } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { CATEGORIAS_EMBARCACION } from "../embarcaciones.js";
+import AvisoCupo from "./AvisoCupo.jsx";
 import FilaTablaVacia from "./FilaTablaVacia.jsx";
 import FormActivo from "./FormActivo.jsx";
 import OverlayCargando from "./OverlayCargando.jsx";
@@ -99,6 +100,8 @@ export default function MiFlota() {
         cuando llega al máximo (crecida). Si no cargás un máximo propio, se
         usa el umbral de alerta oficial de esa estación.
       </p>
+
+      <AvisoCupo recurso="activos" usados={activos.length} singular="activo" plural="activos" />
 
       <FormActivo
         activoEnEdicion={activoEnEdicion}

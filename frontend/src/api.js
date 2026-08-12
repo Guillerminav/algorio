@@ -81,6 +81,17 @@ export function exportarCSV(nombreArchivo, columnas, filas) {
   URL.revokeObjectURL(url);
 }
 
+// Fecha corta en el orden que se usa en Argentina (dd-mm-aaaa). Devuelve null
+// si el valor no es una fecha, para que quien la muestre decida el texto.
+export function formatearFecha(iso) {
+  if (!iso) return null;
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return null;
+  const dd = String(fecha.getDate()).padStart(2, "0");
+  const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+  return `${dd}-${mm}-${fecha.getFullYear()}`;
+}
+
 export async function pedirJSON(url, opciones) {
   const resp = await fetch(url, opciones);
   if (!resp.ok) {

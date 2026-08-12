@@ -31,6 +31,18 @@ def listar_activos(usuario: str) -> list[dict]:
     return [_fila_a_dict(f) for f in filas]
 
 
+def contar_activos(usuario: str) -> int:
+    """Cuantos tiene cargados. Se usa para el tope por plan: contar en la
+    base y no medir el largo de listar_activos() evita traer todas las filas
+    (con sus veinte columnas) solo para saber cuantas son."""
+    inicializar_db()
+    with conexion() as con:
+        fila = con.execute(
+            "SELECT count(*) AS total FROM activos WHERE usuario = %s", (usuario,)
+        ).fetchone()
+    return fila["total"]
+
+
 def obtener_activo(activo_id: int, usuario: str) -> Optional[dict]:
     inicializar_db()
     with conexion() as con:

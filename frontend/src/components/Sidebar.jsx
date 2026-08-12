@@ -1,6 +1,7 @@
 import React from "react";
 
 import IconoTuerca from "./IconoTuerca.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export const SECCIONES = [
   { id: "dashboard", etiqueta: "Dashboard" },
@@ -13,14 +14,27 @@ export const SECCIONES = [
 
 export const TITULOS_SECCION = Object.fromEntries(SECCIONES.map((s) => [s.id, s.etiqueta]));
 
+// Las secciones que habilita el plan de la cuenta. `suscripcion` es lo
+// que devuelve /api/suscripcion; mientras no llegó (null) se muestran todas
+// para no hacer parpadear la barra al entrar. Esconder no es proteger: el
+// backend rechaza igual los endpoints de una seccion no habilitada.
+export function seccionesVisibles(suscripcion) {
+  const permitidas = suscripcion?.secciones;
+  if (!permitidas) return SECCIONES;
+  return SECCIONES.filter((s) => permitidas.includes(s.id));
+}
+
 export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda }) {
+  const { suscripcion } = useAuth();
+  const secciones = seccionesVisibles(suscripcion);
+
   return (
     <aside className="barra-lateral">
       <div className="marca">
-        <div className="marca-texto">AlgoRío</div>
+        <div className="marca-texto">AlgoRio</div>
       </div>
       <nav className="nav-secciones">
-        {SECCIONES.map((s) => (
+        {secciones.map((s) => (
           <button
             key={s.id}
             type="button"

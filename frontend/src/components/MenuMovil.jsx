@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 
 import IconoTuerca from "./IconoTuerca.jsx";
-import { SECCIONES } from "./Sidebar.jsx";
+import { seccionesVisibles } from "./Sidebar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 // Reemplaza a la barra lateral en pantallas chicas. Un cajon desplegable en
@@ -17,7 +17,8 @@ export default function MenuMovil({
   onVerSuscripcion,
   onAbrirAyuda,
 }) {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, suscripcion } = useAuth();
+  const secciones = seccionesVisibles(suscripcion);
 
   // Con el cajon abierto el fondo no debe scrollear: si no, el dedo mueve la
   // pagina de atras en vez del menu.
@@ -57,7 +58,7 @@ export default function MenuMovil({
     <div className="menu-movil-fondo" onClick={onCerrar}>
       <aside className="menu-movil" onClick={(e) => e.stopPropagation()}>
         <div className="menu-movil-encabezado">
-          <span className="menu-movil-marca">AlgoRío</span>
+          <span className="menu-movil-marca">AlgoRio</span>
           <button type="button" className="menu-movil-cerrar" onClick={onCerrar} aria-label="Cerrar menú">
             ✕
           </button>
@@ -84,7 +85,7 @@ export default function MenuMovil({
         </div>
 
         <nav className="menu-movil-secciones">
-          {SECCIONES.map((s) => (
+          {secciones.map((s) => (
             <button
               key={s.id}
               type="button"

@@ -35,17 +35,28 @@ export default function AppShell() {
   const sinAcceso = suscripcion !== null && suscripcion.tiene_acceso === false;
   const mostrarSuscripcion = sinAcceso || seccionActiva === "suscripcion";
 
+  // El plan puede no habilitar la seccion en la que quedo el estado. Pasa
+  // en dos casos: la suscripcion todavia no habia llegado cuando la barra se
+  // dibujo (ahi se muestran todas las secciones para no hacerla parpadear) y
+  // el usuario alcanzo a hacer click, o cambio de plan con la sesion
+  // abierta. Se cae al dashboard, que lo habilitan las tres.
+  const habilitada =
+    !suscripcion?.secciones ||
+    seccionActiva === "suscripcion" ||
+    suscripcion.secciones.includes(seccionActiva);
+  const seccionVisible = habilitada ? seccionActiva : "dashboard";
+
   return (
     <div className="app">
       <Sidebar
-        seccionActiva={seccionActiva}
+        seccionActiva={seccionVisible}
         onCambiarSeccion={setSeccionActiva}
         onAbrirAyuda={abrirAyuda}
       />
 
       <div className="columna-principal">
         <TopBar
-          titulo={TITULOS[seccionActiva] ?? seccionActiva}
+          titulo={TITULOS[seccionVisible] ?? seccionVisible}
           onEditarPerfil={() => setModalPerfilAbierto(true)}
           onAbrirAyuda={abrirAyuda}
           onVerSuscripcion={() => setSeccionActiva("suscripcion")}
@@ -57,12 +68,12 @@ export default function AppShell() {
             <PantallaSuscripcion onAbrirAyuda={abrirAyuda} />
           ) : (
             <>
-              {seccionActiva === "dashboard" && <Dashboard />}
-              {seccionActiva === "historico" && <Historico />}
-              {seccionActiva === "alertas" && <Alertas />}
-              {seccionActiva === "mapa" && <MapaEstaciones />}
-              {seccionActiva === "flota" && <MiFlota />}
-              {seccionActiva === "rutas" && <Rutas />}
+              {seccionVisible === "dashboard" && <Dashboard />}
+              {seccionVisible === "historico" && <Historico />}
+              {seccionVisible === "alertas" && <Alertas />}
+              {seccionVisible === "mapa" && <MapaEstaciones />}
+              {seccionVisible === "flota" && <MiFlota />}
+              {seccionVisible === "rutas" && <Rutas />}
             </>
           )}
         </main>
@@ -72,7 +83,7 @@ export default function AppShell() {
       <MenuMovil
         abierto={menuMovilAbierto}
         onCerrar={() => setMenuMovilAbierto(false)}
-        seccionActiva={seccionActiva}
+        seccionActiva={seccionVisible}
         onCambiarSeccion={setSeccionActiva}
         onEditarPerfil={() => setModalPerfilAbierto(true)}
         onVerSuscripcion={() => setSeccionActiva("suscripcion")}

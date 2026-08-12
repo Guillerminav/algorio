@@ -86,38 +86,21 @@ const metros = (valor) => (typeof valor === "number" ? `${valor.toFixed(2)} m` :
 // todas solo para el logotipo seria ruido.
 let marca = null;
 
-// El logotipo se dibuja por tramos de tipografia, no de una: Glock Grotesque
-// no trae vocales acentuadas, asi que la "í" de AlgoRío cae en la tipografia
-// de respaldo. Es exactamente lo que ya hace el navegador con font-family en
-// la barra lateral; dibujarlo todo con una sola daria una "í" en caja vacia
-// (o una palabra entera en la fuente equivocada).
-function tramosDeTipografia(cadena) {
-  const tramos = [];
-  for (const caracter of cadena) {
-    const propia = marca.CARACTERES_SOPORTADOS.includes(caracter);
-    const ultimo = tramos[tramos.length - 1];
-    if (ultimo && ultimo.propia === propia) ultimo.texto += caracter;
-    else tramos.push({ propia, texto: caracter });
-  }
-  return tramos;
-}
+// El wordmark va sin tilde ("AlgoRio"), igual que en la app, la landing y los
+// mails: Glock Grotesque no trae vocales acentuadas, y con la tilde la "í"
+// salia de otra tipografia — una letra prestada en el medio del logo.
+const WORDMARK = "AlgoRio";
 
 function dibujarLogotipo(doc, x, y, tamano, color) {
   doc.setFontSize(tamano);
   doc.setDrawColor(color);
   doc.setLineWidth(tamano * 0.008);
-
-  let cursor = x;
-  tramosDeTipografia("AlgoRío").forEach(({ propia, texto: contenido }) => {
-    doc.setFont(propia ? marca.NOMBRE_FUENTE_MARCA : "helvetica", propia ? "normal" : "bold");
-    // La marca va en font-weight 800 y de Glock Grotesque solo existe la
-    // Medium, asi que en la app el navegador la engrosa sintetizando la
-    // negrita. jsPDF no hace eso con una fuente embebida, pero contornear el
-    // texto ademas de rellenarlo da el mismo efecto y empareja el grosor con
-    // el de la "í", que cae en la tipografia de respaldo ya en negrita.
-    doc.text(contenido, cursor, y, propia ? { renderingMode: "fillThenStroke" } : undefined);
-    cursor += doc.getTextWidth(contenido);
-  });
+  doc.setFont(marca.NOMBRE_FUENTE_MARCA, "normal");
+  // El wordmark va en peso 800 y de Glock Grotesque solo existe la Medium, asi
+  // que en la app el navegador lo engrosa sintetizando la negrita. jsPDF no
+  // hace eso con una fuente embebida, pero contornear el texto ademas de
+  // rellenarlo da el mismo efecto.
+  doc.text(WORDMARK, x, y, { renderingMode: "fillThenStroke" });
 }
 
 // El encabezado de marca: banda azul con el isotipo de ondas y la palabra

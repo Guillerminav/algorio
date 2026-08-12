@@ -222,6 +222,14 @@ def inicializar_db() -> None:
             )
             """
         )
+        # La columna `plan` existia sin usar desde antes de que hubiera
+        # licencias. Las cuentas creadas hasta ahora la tienen en NULL y
+        # vienen usando el producto entero sin topes, asi que se migran a
+        # "capitan": normalizarlas al plan por defecto (el mas acotado) les
+        # sacaria Mi flota y Rutas de un dia para el otro, con los activos y
+        # las rutas que ya cargaron adentro.
+        con.execute("UPDATE suscripciones SET plan = 'capitan' WHERE plan IS NULL")
+
         # Mensajes del boton "Ayuda". Se guardan siempre, ademas de mandarse
         # por mail: si el envio falla (falta la API key, se cayo el servicio),
         # el mensaje del usuario no se pierde.

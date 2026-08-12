@@ -15,11 +15,16 @@ function OndasDecorativas() {
 // Panel izquierdo de las pantallas de acceso. Es un componente compartido y
 // no una copia en cada pantalla a proposito: cuando estaba duplicado, login y
 // registro se desincronizaron (registro quedo sin la imagen).
-export default function HeroAutenticacion() {
+//
+// `retraido` lo usa el paso de elegir plan, que necesita la pantalla entera.
+// El panel se achica con una transicion en vez de desmontarse: sacarlo del
+// DOM lo haria desaparecer de golpe, sin nada que animar. Queda con
+// aria-hidden para que el lector de pantalla no lea un panel que no se ve.
+export default function HeroAutenticacion({ retraido = false }) {
   return (
-    <div className="login-hero">
+    <div className={`login-hero${retraido ? " retraido" : ""}`} aria-hidden={retraido}>
       <div className="login-hero-logo">
-        <div className="login-hero-marca">AlgoRío</div>
+        <div className="login-hero-marca">AlgoRio</div>
       </div>
 
       <div className="login-hero-cuerpo">

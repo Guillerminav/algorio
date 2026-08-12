@@ -488,6 +488,18 @@ def listar_rutas(usuario: str) -> list[dict]:
     return [dict(f) for f in filas]
 
 
+def contar_rutas(usuario: str) -> int:
+    """Cuantas tiene guardadas, para el tope por plan. Cuenta en la base
+    en vez de recorrer listar_rutas(): las rutas traen el trayecto entero en
+    JSONB y no hace falta leerlo para contarlas."""
+    inicializar_db()
+    with conexion() as con:
+        fila = con.execute(
+            "SELECT count(*) AS total FROM rutas WHERE usuario = %s", (usuario,)
+        ).fetchone()
+    return fila["total"]
+
+
 def obtener_ruta(ruta_id: int, usuario: str) -> Optional[dict]:
     inicializar_db()
     with conexion() as con:

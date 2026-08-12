@@ -39,21 +39,24 @@ export function AuthProvider({ children }) {
     await refrescarSuscripcion();
   }
 
-  async function registrar({ usuario: usuarioTexto, email, password }) {
+  async function registrar({ usuario: usuarioTexto, email, password, plan }) {
     const perfil = await pedirJSON("/api/registro", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuario: usuarioTexto, email, password }),
+      body: JSON.stringify({ usuario: usuarioTexto, email, password, plan }),
     });
     setUsuario(perfil);
     await refrescarSuscripcion();
   }
 
-  async function loginConGoogle(credential) {
+  // `plan` solo cuenta cuando el token de Google da de alta una cuenta nueva:
+  // desde Registro llega el plan elegido, desde Login llega undefined. Si
+  // la cuenta ya existia, el backend lo ignora.
+  async function loginConGoogle(credential, plan) {
     const perfil = await pedirJSON("/api/login/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential }),
+      body: JSON.stringify({ credential, plan }),
     });
     setUsuario(perfil);
     await refrescarSuscripcion();
@@ -63,6 +66,18 @@ export function AuthProvider({ children }) {
     await pedirJSON("/api/logout", { method: "POST" }).catch(() => {});
     setUsuario(null);
     setSuscripcion(null);
+  }
+
+  // Cambiar de plan devuelve el estado nuevo ya calculado por el backend, asi
+  // que se guarda directo en vez de volver a pedir /api/suscripcion.
+  async function cambiarPlan(plan) {
+    const estado = await pedirJSON("/api/suscripcion/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
+    });
+    setSuscripcion(estado);
+    return estado;
   }
 
   async function actualizarPerfil(cambios) {
@@ -87,6 +102,7 @@ export function AuthProvider({ children }) {
         logout,
         actualizarPerfil,
         refrescarSuscripcion,
+        cambiarPlan,
       }}
     >
       {children}
