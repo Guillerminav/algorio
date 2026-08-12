@@ -127,6 +127,13 @@ export default function Registro({ onIrALogin }) {
 
               <div className="mensaje-error">{error}</div>
               <button type="submit" disabled={!plan}>Continuar</button>
+
+              {/* Tambien aca, no solo en el paso 2: esta es la primera pantalla
+                  del registro, y si el boton de Google solo apareciera despues
+                  de llenar el formulario, nadie que quiera entrar con Google lo
+                  encontraria. El plan ya viene preseleccionado, asi que el alta
+                  igual queda con un plan elegido. */}
+              <BotonGoogle plan={plan} />
             </>
           ) : (
             <>
