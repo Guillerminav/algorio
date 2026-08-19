@@ -154,6 +154,73 @@ La ventana se dibuja con el POI que el mapa ya tiene en su lista, asi que
 aparece sin esperar ninguna consulta; el fetch de la ficha completa recien
 ocurre al tocar "Ver mas".
 
+## Trafico de embarcaciones en tiempo real (AIS)
+
+Los barcos de porte emiten su posicion por AIS y aisstream.io la reparte por
+WebSocket. Para el nauta contesta una pregunta muy concreta: **si viene un
+buque, cuanto falta y por donde va a pasar** — que es lo que decide si cruzas
+ahora o esperas dos minutos.
+
+El recuadro suscripto es el tramo del Parana frente a **Rosario y Granadero
+Baigorria** (`CAJA_ROSARIO` en `backend/ais.py`), que es donde se cruza de
+costa a isla.
+
+**La clave vive en el backend, nunca en el navegador.** aisstream la manda
+DENTRO del mensaje de suscripcion del WebSocket: si el mapa se conectara
+directo, la clave viajaria en el bundle y en la pestaña de red de cualquiera
+que abra la web. Ademas seria una conexion por visitante contra un servicio
+que limita por clave. Por eso `backend/ais.py` mantiene **una sola** conexion
+para todos, guarda las ultimas posiciones en memoria, y el frontend las pide
+por HTTP (`GET /api/embarcaciones`) cada 15 segundos mientras la capa este
+prendida.
+
+En memoria y no en Postgres: una posicion AIS vale minutos, y guardarla seria
+escribir cientos de filas por minuto para leer siempre la ultima y tirar el
+resto — pagando ademas el viaje a Neon en cada lectura. Las posiciones vencen
+solas a los 15 minutos, porque un barco que sale del recuadro deja de reportar
+y su ultimo punto no puede quedar clavado como si siguiera ahi.
+
+Sin `AISSTREAM_API_KEY` no arranca nada y el chip del mapa no aparece: la capa
+es opcional y el resto del mapa funciona igual.
+
+### El estado del stream hoy
+
+La clave **autentica** (con una clave falsa el servidor cierra la conexion al
+instante; con la real la deja abierta y acepta la suscripcion) pero **no
+entrega mensajes**, ni siquiera con un recuadro global, que segun la doc
+deberia dar ~300 por segundo. O sea que el problema no es el recuadro ni el
+codigo. Hay que revisar del lado de aisstream que la cuenta este activada para
+streaming.
+
+## Las dos capas del mapa: lugares y embarcaciones
+
+Los chips de rubro dejaron de llevar cada uno el color de su rubro. Lo que el
+punto distingue ahora no es parador de cabaña —eso lo sigue diciendo el pin—
+sino las **dos capas del mapa**: lo que esta quieto en la costa (celeste) y lo
+que se esta moviendo por el agua (naranja). Prendido = punto lleno; apagado =
+solo el borde.
+
+El pin de un barco es una **flecha, no un circulo** (los circulos son los
+lugares) y apunta hacia donde navega, que es la mitad del dato: un buque a 800
+metros no significa lo mismo si viene hacia vos que si se esta yendo. Cuando no
+informa rumbo se dibuja un rombo, que no apunta a ningun lado — mejor eso que
+una flecha al norte por defecto, que seria mentir.
+
+## Listado de lugares: la alternativa al mapa
+
+El mapa contesta bien "que tengo cerca", pero es malo para dos cosas muy
+reales: buscar por nombre —el parador que te recomendaron y no sabes donde
+queda— y recorrer todo lo que hay cuando los pines se amontonan o quedan fuera
+del encuadre. La seccion **Lugares** (`frontend/src/nauta/ListaLugares.jsx`)
+cubre eso, con busqueda por nombre y filtros por rubro.
+
+Ordena por la distancia que **muestra**, no por la que trajo el backend. Son
+dos numeros distintos: `distancia_km` se calculo cuando se pidio la lista y el
+de la pantalla se recalcula con la posicion actual. Confiar en el orden del
+backend dejaba filas de 2,2 · 7,3 · 3,5 km, que parece un error aunque cada
+numero este bien. Sin ubicacion va alfabetico, que es el unico orden honesto
+que queda, y se avisa por que.
+
 ## Pipeline de datos hidrologicos
 
 Consolida en un unico lugar la informacion no estructurada que publican

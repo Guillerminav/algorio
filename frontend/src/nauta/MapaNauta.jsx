@@ -9,6 +9,7 @@ import {
   TILES_SATELITAL,
   iconoCircular,
 } from "../mapaSatelital.js";
+import CapaEmbarcaciones from "./CapaEmbarcaciones.jsx";
 import CapaReportes from "./CapaReportes.jsx";
 import FichaRapida from "./FichaRapida.jsx";
 import { TIPOS_POI, tipoPoi } from "./constantes.js";
@@ -139,6 +140,10 @@ export default function MapaNauta({ onIrAClima }) {
   const [modoReporte, setModoReporte] = useState(false);
   const [puntoReporte, setPuntoReporte] = useState(null);
   const [pantallaCompleta, setPantallaCompleta] = useState(false);
+  // El trafico AIS es una capa aparte y arranca apagada: son datos que se
+  // piden cada 15 s y la mayoria de las veces uno abre el mapa para otra cosa.
+  const [verNaves, setVerNaves] = useState(false);
+  const [estadoNaves, setEstadoNaves] = useState(null);
 
   // Se resuelve con una capa fija por CSS y no con la Fullscreen API del
   // navegador: esa no existe en Safari de iPhone para elementos que no sean
@@ -262,9 +267,13 @@ export default function MapaNauta({ onIrAClima }) {
 
               {/* Prendido y apagado se distinguen por el punto —lleno o
                   hueco— y por el peso del texto, no pintando el chip entero.
-                  Sobre la imagen satelital, tres chips llenos de color compiten
-                  con los pines, que son lo que hay que mirar. El color del
-                  rubro sigue estando donde sirve: en el punto y en el pin. */}
+                  Sobre la imagen satelital, chips llenos de color competirian
+                  con los pines, que son lo que hay que mirar.
+
+                  Los tres rubros comparten color: lo que el punto distingue acá
+                  no es parador de cabaña, es "lugares" de "embarcaciones", que
+                  son las dos capas del mapa. El color propio de cada rubro
+                  sigue estando en su pin. */}
               {Object.entries(TIPOS_POI).map(([clave, definicion]) => {
                 const activo = tiposActivos.includes(clave);
                 return (
@@ -275,20 +284,47 @@ export default function MapaNauta({ onIrAClima }) {
                     aria-pressed={activo}
                     onClick={() => alternarTipo(clave)}
                   >
-                    <span
-                      className="chip-tipo-punto"
-                      style={activo ? { background: definicion.color } : { borderColor: definicion.color }}
-                      aria-hidden="true"
-                    />
+                    <span className="chip-tipo-punto" aria-hidden="true" />
                     {definicion.etiqueta}
                   </button>
                 );
               })}
 
+              {/* No es un rubro mas: es otra capa del mapa, y por eso va en su
+                  propio color. Solo aparece si el backend tiene el stream
+                  configurado (ver backend/ais.py). */}
+              {estadoNaves?.disponible !== false && (
+                <button
+                  type="button"
+                  className={`chip-tipo chip-naves${verNaves ? " activo" : ""}`}
+                  aria-pressed={verNaves}
+                  onClick={() => setVerNaves((previo) => !previo)}
+                  title="Barcos que están navegando ahora por el tramo"
+                >
+                  <span className="chip-tipo-punto" aria-hidden="true" />
+                  Embarcaciones
+                  {verNaves && estadoNaves?.cantidad > 0 && (
+                    <span className="chip-tipo-cuenta">{estadoNaves.cantidad}</span>
+                  )}
+                </button>
+              )}
             </div>
 
             {modoReporte && (
               <div className="aviso-nauta destacado">Tocá el punto del río donde lo viste.</div>
+            )}
+            {/* Tres situaciones que se ven igual —una lista vacia— y
+                significan cosas distintas. Decir "no hay barcos" cuando en
+                realidad la fuente nunca entrego nada seria afirmar algo que no
+                sabemos, y sobre el agua eso es peor que no decir nada. */}
+            {verNaves && estadoNaves && estadoNaves.cantidad === 0 && (
+              <div className="aviso-nauta">
+                {!estadoNaves.conectado
+                  ? "No pudimos conectarnos al tráfico de embarcaciones ahora."
+                  : estadoNaves.recibioDatos
+                    ? "No hay embarcaciones con AIS en el tramo en este momento."
+                    : "Conectados al servicio de AIS, pero todavía no llegó ninguna posición."}
+              </div>
             )}
             {error && <div className="aviso-nauta error">{error}</div>}
             {permitido === false && (
@@ -324,6 +360,8 @@ export default function MapaNauta({ onIrAClima }) {
             {/* Los avisos van después de los lugares para que queden encima:
                 un tronco cruzado importa más que un parador cercano. */}
             <CapaReportes reportes={reportes} onCambio={cargarReportes} />
+
+            <CapaEmbarcaciones activa={verNaves} onEstado={setEstadoNaves} />
 
             <CapturarPuntoReporte
               activo={modoReporte}

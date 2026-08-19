@@ -10,6 +10,7 @@ import TopBar from "../components/TopBar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import ClimaNauta from "./ClimaNauta.jsx";
 import { ProveedorRio } from "./ContextoRio.jsx";
+import ListaLugares from "./ListaLugares.jsx";
 import MapaNauta from "./MapaNauta.jsx";
 import NivelRio from "./NivelRio.jsx";
 import OnboardingEmbarcacion from "./OnboardingEmbarcacion.jsx";
@@ -21,6 +22,10 @@ import PerfilNauta from "./PerfilNauta.jsx";
 // consultan; el mapa es la app.
 const SECCIONES = [
   { id: "mapa", etiqueta: "Mapa" },
+  // El mapa es lo natural para "qué tengo cerca", pero es malo para buscar por
+  // nombre y para recorrer todo lo que hay cuando los pines se amontonan o
+  // quedan fuera del encuadre. La lista cubre eso.
+  { id: "lugares", etiqueta: "Lugares" },
   { id: "clima", etiqueta: "Clima" },
   { id: "nivel", etiqueta: "Nivel del río" },
   { id: "perfil", etiqueta: "Mi perfil" },
@@ -91,6 +96,9 @@ export default function ShellNauta() {
         <main className={seccionActiva === "mapa" ? "main-mapa" : undefined}>
           {seccionActiva === "mapa" && (
             <MapaNauta onIrAClima={() => setSeccionActiva("clima")} />
+          )}
+          {seccionActiva === "lugares" && (
+            <ListaLugares onVerLugar={(poiId) => setLugarSuelto(poiId)} />
           )}
           {seccionActiva === "clima" && <ClimaNauta />}
           {seccionActiva === "nivel" && <NivelRio />}

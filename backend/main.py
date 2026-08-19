@@ -23,7 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from db import cerrar_pool, inicializar_db
 
-from backend import activos, auth, ayuda, clima, datos, pois, reportes, resenas, rutas, suscripciones
+from backend import activos, ais, auth, ayuda, clima, datos, pois, reportes, resenas, rutas, suscripciones
 from backend import tokens, tramos_navegacion
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -87,7 +87,15 @@ async def ciclo_de_vida(_: FastAPI):
         inicializar_db()
     except Exception as e:  # noqa: BLE001 — arrancar igual es lo que se busca
         print(f"AVISO: no se pudo preparar la base al arrancar: {e}")
+
+    # El stream de trafico AIS: una sola conexion para todos los visitantes,
+    # con la clave del lado del servidor (ver backend/ais.py). Sin
+    # AISSTREAM_API_KEY no arranca nada y el mapa lo refleja.
+    ais.arrancar()
+
     yield
+
+    await ais.detener()
     cerrar_pool()
 
 
@@ -922,6 +930,15 @@ def api_nivel_rio(
         estaciones.sort(key=lambda e: e["distancia_km"])
 
     return estaciones
+
+
+@app.get("/api/embarcaciones")
+def api_embarcaciones(usuario: dict = Depends(usuario_actual)):
+    """Los barcos que estan ahora en el tramo de Rosario, para saber cuando
+    cruzar. Lee del diccionario en memoria que mantiene backend/ais.py: no
+    consulta nada afuera, asi que responde en microsegundos y el mapa la puede
+    pedir cada pocos segundos sin costo."""
+    return ais.estado()
 
 
 @app.get("/api/clima")
