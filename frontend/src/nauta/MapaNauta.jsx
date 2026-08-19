@@ -10,6 +10,7 @@ import {
   iconoCircular,
 } from "../mapaSatelital.js";
 import CapaReportes from "./CapaReportes.jsx";
+import FichaRapida from "./FichaRapida.jsx";
 import { TIPOS_POI, tipoPoi } from "./constantes.js";
 import ModalReporte from "./ModalReporte.jsx";
 import PanelLugar from "./PanelLugar.jsx";
@@ -128,7 +129,11 @@ export default function MapaNauta({ onIrAClima }) {
   const [lugares, setLugares] = useState([]);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
+  // La ventana de abajo se dibuja con el POI de la lista que el mapa ya
+  // tiene, asi que aparece sin esperar ninguna consulta. `ampliado` es el id
+  // de la ficha completa, que si se pide al backend y recien al tocar "Ver mas".
   const [seleccionado, setSeleccionado] = useState(null);
+  const [ampliado, setAmpliado] = useState(null);
   const [tiposActivos, setTiposActivos] = useState(Object.keys(TIPOS_POI));
   const [reportes, setReportes] = useState([]);
   const [modoReporte, setModoReporte] = useState(false);
@@ -193,11 +198,12 @@ export default function MapaNauta({ onIrAClima }) {
       previos.includes(clave) ? previos.filter((t) => t !== clave) : [...previos, clave],
     );
     setSeleccionado(null);
+    setAmpliado(null);
   }
 
   return (
     <div
-      className={`mapa-nauta${modoReporte ? " eligiendo-punto" : ""}${seleccionado ? " con-panel" : ""}${
+      className={`mapa-nauta${modoReporte ? " eligiendo-punto" : ""}${ampliado ? " con-panel" : ""}${
         pantallaCompleta ? " pantalla-completa" : ""
       }`}
     >
@@ -267,6 +273,7 @@ export default function MapaNauta({ onIrAClima }) {
                 onClick={() => {
                   setModoReporte((previo) => !previo);
                   setSeleccionado(null);
+                  setAmpliado(null);
                 }}
               >
                 {modoReporte ? "Cancelar" : "+ Reportar"}
@@ -303,7 +310,7 @@ export default function MapaNauta({ onIrAClima }) {
                 key={lugar.id}
                 position={[lugar.lat, lugar.lon]}
                 icon={iconoCircular(tipoPoi(lugar.tipo).color)}
-                eventHandlers={{ click: () => setSeleccionado(lugar.id) }}
+                eventHandlers={{ click: () => setSeleccionado(lugar) }}
               />
             ))}
 
@@ -327,12 +334,31 @@ export default function MapaNauta({ onIrAClima }) {
             {/* Leaflet mide el contenedor una sola vez: al expandir a pantalla
                 completa hay que pedirle que vuelva a medir, si no dibuja los
                 tiles del tamaño anterior. */}
-            <SincronizarTamano dependencia={`${seleccionado}-${pantallaCompleta}`} />
+            <SincronizarTamano dependencia={`${ampliado}-${pantallaCompleta}`} />
           </MapContainer>
         </div>
       </div>
 
-      {seleccionado && <PanelLugar poiId={seleccionado} onCerrar={() => setSeleccionado(null)} />}
+      {/* Primero la ventana de abajo con lo basico; la ficha completa —con
+          reseñas, carta y horarios— recien detras de "Ver mas". */}
+      {seleccionado && !ampliado && (
+        <FichaRapida
+          lugar={seleccionado}
+          posicion={posicion}
+          onVerMas={() => setAmpliado(seleccionado.id)}
+          onCerrar={() => setSeleccionado(null)}
+        />
+      )}
+
+      {ampliado && (
+        <PanelLugar
+          poiId={ampliado}
+          onCerrar={() => {
+            setAmpliado(null);
+            setSeleccionado(null);
+          }}
+        />
+      )}
 
       {puntoReporte && (
         <ModalReporte

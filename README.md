@@ -100,6 +100,60 @@ los huecos entre controles el mapa se sigue arrastrando.
 El acento azul quedo reservado para los estados activos (el modo "el proximo
 click deja un aviso"). Es lo unico que se sigue pintando entero.
 
+## Como llegar en el rio: distancia y rumbo, no un mapa de calles
+
+El boton "Como llegar" abria Google Maps (web) o la app de mapas del sistema
+(movil). En el rio eso no sirve: no hay calles cargadas, asi que el navegador
+traza una ruta por tierra hasta el punto mas cercano de la costa, o no
+encuentra ninguna. Lo reemplaza lo que mira quien navega desde siempre: **a
+cuanto esta y para que lado**.
+
+La cuenta vive en `frontend/src/nauta/rumbo.js` y `app_movil/src/rumbo.js`
+(haversine para la distancia, rumbo de circulo maximo para la direccion). Estan
+duplicados por el mismo motivo que las constantes del nauta: son dos stacks que
+no pueden compartir modulo. **Ojo con las claves**: en la web los puntos son
+`{lat, lon}` y en la app `{latitude, longitude}`.
+
+La distancia se recalcula en el cliente y no se usa `distancia_km` del backend
+a secas: esa se calculo cuando se pidio la lista, y mientras navegas deja de
+ser cierta. El valor del backend queda de respaldo para cuando todavia no hay
+GPS.
+
+**La aguja apunta relativo a como estas parado**, no al norte: al rumbo se le
+resta la orientacion del aparato, asi que si giras la aguja se queda apuntando
+al parador. Es lo que la hace usable arriba de una lancha — una flecha que
+apunta "al noreste" obliga a saber donde queda el noreste. En la app la
+orientacion sale de `Location.watchHeadingAsync` (ya viene con `expo-location`,
+no hizo falta dependencia nueva); en la web, de `DeviceOrientationEvent`, que
+en iPhone pide permiso con un gesto y por eso aparece un boton "Activar
+brujula" solo cuando el navegador lo exige. Sin sensor cae a **norte arriba**,
+que no es un error sino el modo degradado.
+
+Las coordenadas van a la vista en la ficha completa: son lo que se carga a mano
+en un GPS o un plotter, que es como se navega de verdad.
+
+**La metrica cambio de disparador.** `poi_visitas` con tipo `como_llegar` la
+disparaba aquel boton. Ahora se cuenta cuando la ficha llega a mostrar el
+rumbo, una sola vez por apertura. Es el mismo hecho que le importa al
+comerciante —alguien miro como llegar hasta el— pero el numero no es
+estrictamente comparable con el de antes.
+
+## La ficha rapida: primero lo basico, despues todo
+
+Tocar un pin ya no abre la ficha completa. Primero aparece una ventana abajo
+(`FichaRapida.jsx` en la web, `TarjetaLugar` en el mapa de la app) con nombre,
+rubro, puntaje, si esta abierto, y la distancia con el rumbo. Las reseñas, la
+carta y los horarios completos quedan detras de **"Ver mas"**.
+
+En la web esto ademas arregla un problema de pantalla chica: el panel lateral
+esta bien con mouse y pantalla ancha, pero en un celular tapaba el mapa entero
+para contestar algo que casi siempre se resuelve con dos datos. Medido a 375px,
+la ventana ocupa el 31% del alto.
+
+La ventana se dibuja con el POI que el mapa ya tiene en su lista, asi que
+aparece sin esperar ninguna consulta; el fetch de la ficha completa recien
+ocurre al tocar "Ver mas".
+
 ## Pipeline de datos hidrologicos
 
 Consolida en un unico lugar la informacion no estructurada que publican
@@ -113,6 +167,42 @@ parsean directo, sin pasar por el modelo.
 `backend/` expone esos CSV via una API (FastAPI) y `frontend/` es la interfaz
 de consulta (HTML/CSS/JS simple, sin build ni frameworks), servida por el
 mismo backend.
+
+## Rendimiento: el esquema y el pool
+
+Dos cosas hacian que abrir o guardar cualquier cosa tardara segundos, y las dos
+estaban en la capa de base:
+
+**El esquema se declaraba en cada operacion.** `inicializar_db()` corre 34
+sentencias (CREATE TABLE IF NOT EXISTS, indices, ALTERs de migracion) y estaba
+llamado desde 42 lugares del backend. Medido contra la base real: **2.737 ms por
+llamada**. Ahora se cachea por proceso (`_esquema_listo` en `db.py`, con candado
+porque uvicorn atiende los endpoints sincronicos en un threadpool) y se corre
+una sola vez en el arranque, desde el `lifespan` de FastAPI. Los 42 call sites
+no cambiaron: siguen llamando igual, solo que desde la segunda vez es gratis.
+
+**Cada `conexion()` abria una conexion nueva a Neon y la cerraba.** TCP + TLS +
+autenticacion, **~330 ms por uso**, y un solo request abre varias. Ahora hay un
+pool (`psycopg_pool`), con `check=ConnectionPool.check_connection` porque Neon
+cierra las conexiones ociosas por su cuenta y sin eso el pool entregaria una
+conexion muerta.
+
+El efecto, sobre la base real:
+
+| | Antes | Ahora |
+|---|---|---|
+| `obtener_usuario()` | 2.753 ms | **95 ms** |
+| `estado_de_suscripcion()` | 4.269 ms | **81 ms** |
+
+Lo que queda son ~40 ms de red por viaje a Neon. Por eso
+`_cuenta_y_suscripcion()` junta en una sola consulta lo que antes eran dos
+(`_rol_de` y `_fila_suscripcion`): las paga cada endpoint protegido, porque
+`tiene_acceso()` es una dependency de FastAPI.
+
+**Lo que no arregla el codigo:** el backend corre en el plan free de Render, que
+duerme el servicio tras ~15 min sin trafico y tarda ~50 s en despertar (ver
+`app_movil/src/api.js`). Si a veces la espera es de segundos y otras de casi un
+minuto, eso es lo segundo.
 
 ## Versionado
 

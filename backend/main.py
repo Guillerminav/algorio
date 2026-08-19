@@ -7,6 +7,7 @@ usuario con `python -m backend.crear_usuario` (no hay alta de usuarios desde
 el frontend a proposito).
 """
 import os
+from contextlib import asynccontextmanager
 import secrets
 from pathlib import Path
 from typing import Optional
@@ -19,6 +20,8 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr, Field
 from starlette.middleware.sessions import SessionMiddleware
+
+from db import cerrar_pool, inicializar_db
 
 from backend import activos, auth, ayuda, clima, datos, pois, reportes, resenas, rutas, suscripciones
 from backend import tokens, tramos_navegacion
@@ -66,7 +69,29 @@ ORIGENES_PERMITIDOS = [
     if o.strip()
 ]
 
-app = FastAPI(title="Algorio API")
+@asynccontextmanager
+async def ciclo_de_vida(_: FastAPI):
+    """El esquema y el pool se preparan al arrancar, no en el primer request.
+
+    `inicializar_db()` es idempotente y ahora se cachea por proceso (ver db.py),
+    asi que corre una sola vez igual; hacerlo aca evita que ese segundo y pico
+    se lo coma quien entre primero. Levantar el pool en el arranque hace lo
+    mismo con el handshake de la primera conexion.
+
+    Ninguno de los dos rompe el arranque si falla: si la base no esta
+    disponible el backend igual tiene que levantar para poder responder (y para
+    que Render no lo reinicie en loop). El error vuelve a aparecer, con su
+    mensaje, en el primer request que necesite datos.
+    """
+    try:
+        inicializar_db()
+    except Exception as e:  # noqa: BLE001 — arrancar igual es lo que se busca
+        print(f"AVISO: no se pudo preparar la base al arrancar: {e}")
+    yield
+    cerrar_pool()
+
+
+app = FastAPI(title="Algorio API", lifespan=ciclo_de_vida)
 app.add_middleware(SessionMiddleware, secret_key=SECRETO_SESION, same_site="lax")
 app.add_middleware(
     CORSMiddleware,

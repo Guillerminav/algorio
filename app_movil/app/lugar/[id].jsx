@@ -1,19 +1,21 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
   Linking,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import { estadoApertura, formatearDistancia } from "../../src/api.js";
+import { estadoApertura } from "../../src/api.js";
+import Brujula from "../../src/Brujula.jsx";
 import { Boton, Cargando, Error, Estrellas } from "../../src/componentes.jsx";
+import { distanciaEnTexto, haciaElLugar } from "../../src/rumbo.js";
+import { useUbicacion } from "../../src/useUbicacion.js";
 import { useSesion } from "../../src/sesion.jsx";
 import { CampoTexto as TextInput, Texto as Text } from "../../src/Texto.jsx";
 import { COLORES, tipoPoi } from "../../src/tema.js";
@@ -39,18 +41,10 @@ function AccionesContacto({ lugar, onRegistrar }) {
       emoji: "📞",
       url: `tel:${lugar.telefono}`,
     },
-    {
-      clave: "como_llegar",
-      etiqueta: "Cómo llegar",
-      emoji: "🧭",
-      // El esquema nativo abre la app de mapas del sistema; en Android el
-      // "geo:" con query mantiene el nombre del lugar en el destino.
-      url: Platform.select({
-        ios: `maps://?daddr=${lugar.lat},${lugar.lon}`,
-        android: `geo:${lugar.lat},${lugar.lon}?q=${lugar.lat},${lugar.lon}(${encodeURIComponent(lugar.nombre)})`,
-        default: `https://www.google.com/maps?q=${lugar.lat},${lugar.lon}`,
-      }),
-    },
+    // "Cómo llegar" ya no está acá: abría la app de mapas del sistema, que en
+    // el río no tiene calles cargadas y termina trazando una ruta por tierra
+    // hasta el punto más cercano de la costa — o ninguna. Lo reemplaza el
+    // bloque de rumbo, más abajo.
   ].filter(Boolean);
 
   return (
@@ -146,6 +140,7 @@ export default function FichaLugar() {
   const { id } = useLocalSearchParams();
   const navegacion = useNavigation();
   const { api, usuario } = useSesion();
+  const { posicion } = useUbicacion();
 
   const [lugar, setLugar] = useState(null);
   const [error, setError] = useState("");
@@ -178,6 +173,18 @@ export default function FichaLugar() {
     [api, id],
   );
 
+  // La métrica "cómo llegar" antes la disparaba el botón que abría la app de
+  // mapas. Ese botón ya no existe, así que ahora se cuenta cuando la ficha
+  // llega a mostrar el rumbo — que es el mismo hecho que le importa al
+  // comerciante: alguien miró cómo llegar hasta él. Se cuenta una sola vez por
+  // apertura de la ficha, no en cada movimiento del GPS.
+  const yaContoRumbo = useRef(false);
+  useEffect(() => {
+    if (yaContoRumbo.current || !posicion || !lugar) return;
+    yaContoRumbo.current = true;
+    registrarVisita("como_llegar");
+  }, [posicion, lugar, registrarVisita]);
+
   async function guardarResena(puntaje, comentario) {
     await api(`/api/pois/${id}/resenas`, {
       method: "POST",
@@ -197,7 +204,8 @@ export default function FichaLugar() {
 
   const definicion = tipoPoi(lugar.tipo);
   const apertura = estadoApertura(lugar.horarios);
-  const distancia = formatearDistancia(lugar.distancia_km);
+  const rumbo = haciaElLugar(posicion, lugar);
+  const distancia = rumbo?.texto ?? distanciaEnTexto(lugar.distancia_km);
   const miResena = lugar.resenas.find((r) => r.usuario === usuario?.usuario) ?? null;
   const esMio = lugar.usuario === usuario?.usuario;
 
@@ -240,6 +248,29 @@ export default function FichaLugar() {
       {lugar.descripcion && <Text style={estilos.descripcion}>{lugar.descripcion}</Text>}
 
       <AccionesContacto lugar={lugar} onRegistrar={registrarVisita} />
+
+      {/* Cómo llegar, pero para el agua: a cuánto está y para qué lado. Las
+          coordenadas van a la vista porque son lo que se carga a mano en un
+          GPS o un plotter, que es como se navega de verdad. */}
+      {rumbo ? (
+        <View style={[estilos.tarjeta, estilos.rumbo]}>
+          <Brujula grados={rumbo.grados} letras={rumbo.letras} tamano={78} />
+          <View style={estilos.flex}>
+            <Text style={estilos.rumboDistancia}>{rumbo.texto}</Text>
+            <Text style={estilos.rumboTexto}>rumbo {rumbo.letras} desde donde estás</Text>
+            <Text style={estilos.rumboCoords}>
+              {lugar.lat.toFixed(5)}, {lugar.lon.toFixed(5)}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={estilos.tarjeta}>
+          <Text style={estilos.rumboTexto}>
+            Sin tu ubicación no podemos decirte a cuánto está ni para qué lado
+            queda. Está en {lugar.lat.toFixed(5)}, {lugar.lon.toFixed(5)}.
+          </Text>
+        </View>
+      )}
 
       {lugar.servicios?.length > 0 && (
         <View style={estilos.tarjeta}>
@@ -337,6 +368,12 @@ const estilos = StyleSheet.create({
   nombre: { fontSize: 26, fontWeight: "800", color: COLORES.texto },
   meta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   metaTexto: { fontSize: 14, color: COLORES.textoSuave },
+
+  flex: { flex: 1 },
+  rumbo: { flexDirection: "row", alignItems: "center", gap: 16 },
+  rumboDistancia: { fontSize: 28, fontWeight: "800", color: COLORES.texto },
+  rumboTexto: { fontSize: 14, lineHeight: 20, color: COLORES.textoSuave, marginTop: 2 },
+  rumboCoords: { fontSize: 12, color: COLORES.textoSuave, marginTop: 6, fontVariant: ["tabular-nums"] },
   apertura: { fontSize: 14, fontWeight: "700", marginTop: 2 },
 
   descripcion: { fontSize: 15, lineHeight: 23, color: COLORES.texto },

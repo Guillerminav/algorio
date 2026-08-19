@@ -4,7 +4,9 @@ Reemplaza al SQLite local (backend/usuarios.db) y a los CSV de data/: todo
 lo que antes eran archivos en disco ahora vive en la misma base Postgres,
 necesario porque Vercel/Render corren con filesystem efimero.
 """
+import atexit
 import os
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -12,24 +14,110 @@ from typing import Iterator
 import psycopg
 from dotenv import load_dotenv
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# Pool de conexiones.
+#
+# Antes cada `conexion()` abria una conexion nueva a Neon y la cerraba al
+# salir: TCP + TLS + autenticacion cada vez. Medido contra la base real, eso
+# son ~330 ms POR USO, y un solo request del backend abre varias (resolver la
+# sesion, chequear la suscripcion, la consulta del endpoint). Reusando una
+# conexion ya abierta, la misma consulta baja a ~45 ms.
+#
+# Se crea perezosamente y no al importar el modulo porque `db` lo importan
+# tambien los scripts sueltos y el pipeline, que a veces no tocan la base.
+_pool: ConnectionPool | None = None
+_candado_pool = threading.Lock()
+
+# `max_size` conservador a proposito: el backend corre en el plan free de
+# Render (poca memoria) y Neon tambien limita conexiones. Ocho alcanzan de
+# sobra para el trafico de hoy y dejan margen para el pipeline, que corre
+# aparte y abre las suyas.
+TAMANO_MAX_POOL = int(os.environ.get("POOL_MAX", "8"))
+
+
+def _obtener_pool() -> ConnectionPool:
+    global _pool
+    if _pool is not None:
+        return _pool
+    with _candado_pool:
+        if _pool is None:
+            if not DATABASE_URL:
+                raise RuntimeError("Falta DATABASE_URL en el entorno (ver .env.example).")
+            pool = ConnectionPool(
+                DATABASE_URL,
+                min_size=1,
+                max_size=TAMANO_MAX_POOL,
+                kwargs={"row_factory": dict_row, "autocommit": True},
+                # Neon cierra las conexiones ociosas por su cuenta. Sin este
+                # chequeo, el pool entregaria una conexion muerta y el request
+                # fallaria con "connection is closed" en vez de reconectar.
+                check=ConnectionPool.check_connection,
+                max_idle=120,
+                open=False,
+            )
+            pool.open()
+            # Cerrarlo a mano al terminar el proceso. Sin esto, el __del__ del
+            # pool intenta unir sus hilos ya en el apagado del interprete y
+            # Python 3.14 lo rechaza (PythonFinalizationError): los scripts de
+            # una sola corrida —el CLI de usuarios, el pipeline— terminaban
+            # escupiendo un traceback aunque el trabajo hubiera salido bien.
+            atexit.register(cerrar_pool)
+            _pool = pool
+    return _pool
+
 
 @contextmanager
 def conexion() -> Iterator[psycopg.Connection]:
-    if not DATABASE_URL:
-        raise RuntimeError("Falta DATABASE_URL en el entorno (ver .env.example).")
-    con = psycopg.connect(DATABASE_URL, row_factory=dict_row, autocommit=True)
-    try:
+    """Una conexion del pool. La firma es la de siempre: los ~50 lugares que
+    hacen `with conexion() as con:` no cambian, solo dejan de pagar el
+    handshake."""
+    with _obtener_pool().connection() as con:
         yield con
-    finally:
-        con.close()
 
 
-def inicializar_db() -> None:
+def cerrar_pool() -> None:
+    """Para el apagado ordenado del backend y para los tests."""
+    global _pool
+    with _candado_pool:
+        if _pool is not None:
+            _pool.close()
+            _pool = None
+
+
+# El esquema se declara una sola vez por proceso.
+#
+# `inicializar_db()` corre 34 sentencias (CREATE TABLE IF NOT EXISTS, indices y
+# ALTERs de migracion) y esta llamada desde 42 lugares del backend: estaba
+# corriendo el esquema entero en CADA operacion. Medido contra la base real,
+# 2.737 ms por llamada — o sea que abrir cualquier pantalla pagaba casi tres
+# segundos de re-declarar tablas que ya existian.
+#
+# El candado importa: uvicorn atiende los endpoints sincronicos en un
+# threadpool, asi que dos requests simultaneos pueden entrar juntos la primera
+# vez. Sin el, los dos correrian el DDL completo.
+_esquema_listo = False
+_candado_esquema = threading.Lock()
+
+
+def inicializar_db(forzar: bool = False) -> None:
+    """Crea lo que falte del esquema. Idempotente y, desde la segunda llamada,
+    gratis. `forzar=True` lo vuelve a correr (migraciones, tests)."""
+    global _esquema_listo
+    if _esquema_listo and not forzar:
+        return
+    with _candado_esquema:
+        if _esquema_listo and not forzar:
+            return
+        _crear_esquema()
+        _esquema_listo = True
+
+
+def _crear_esquema() -> None:
     with conexion() as con:
         con.execute(
             """

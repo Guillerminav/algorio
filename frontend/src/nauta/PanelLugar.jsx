@@ -1,13 +1,14 @@
+import Brujula from "./Brujula.jsx";
+import { distanciaEnTexto, haciaElLugar } from "./rumbo.js";
+import { useRio } from "./ContextoRio.jsx";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { formatearFecha, pedirJSON } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   DIAS,
-  enlaceComoLlegar,
   enlaceWhatsApp,
   estadoApertura,
-  formatearDistancia,
   tipoPoi,
 } from "./constantes.js";
 import ModalResena from "./ModalResena.jsx";
@@ -38,12 +39,9 @@ function Acciones({ lugar }) {
       emoji: "📞",
       href: `tel:${lugar.telefono}`,
     },
-    {
-      clave: "como_llegar",
-      etiqueta: "Cómo llegar",
-      emoji: "🧭",
-      href: enlaceComoLlegar(lugar.lat, lugar.lon),
-    },
+    // "Cómo llegar" ya no esta aca: abria Google Maps, que en el rio no tiene
+    // calles cargadas y termina trazando una ruta por tierra hasta el punto
+    // mas cercano de la costa — o ninguna. Lo reemplaza el bloque de rumbo.
   ].filter(Boolean);
 
   return (
@@ -73,6 +71,7 @@ function Acciones({ lugar }) {
  * menú, los horarios y las reseñas.
  */
 export default function PanelLugar({ poiId, onCerrar }) {
+  const { posicion } = useRio();
   const { usuario } = useAuth();
   const [lugar, setLugar] = useState(null);
   const [error, setError] = useState("");
@@ -118,7 +117,10 @@ export default function PanelLugar({ poiId, onCerrar }) {
 
   const definicion = tipoPoi(lugar.tipo);
   const apertura = estadoApertura(lugar.horarios);
-  const distancia = formatearDistancia(lugar.distancia_km);
+  // Se recalcula con la posicion del momento: la `distancia_km` del backend
+  // se calculo cuando se pidio la lista y mientras navegas deja de ser cierta.
+  const rumbo = haciaElLugar(posicion, lugar);
+  const distancia = rumbo?.texto ?? distanciaEnTexto(lugar.distancia_km);
   const miResena = lugar.resenas.find((r) => r.usuario === usuario?.usuario) ?? null;
   const esMio = lugar.usuario === usuario?.usuario;
 
@@ -168,6 +170,27 @@ export default function PanelLugar({ poiId, onCerrar }) {
       {lugar.descripcion && <p className="lugar-descripcion">{lugar.descripcion}</p>}
 
       <Acciones lugar={lugar} />
+
+      {/* Como llegar, pero para el agua: a cuanto esta y para que lado. Las
+          coordenadas van a la vista porque son lo que se carga a mano en un
+          GPS o un plotter, que es como se navega de verdad. */}
+      {rumbo ? (
+        <div className="lugar-rumbo">
+          <Brujula grados={rumbo.grados} letras={rumbo.letras} tamano={72} />
+          <div className="lugar-rumbo-texto">
+            <strong>{rumbo.texto}</strong>
+            <span>rumbo {rumbo.letras} desde donde estás</span>
+            <span className="lugar-rumbo-coords">
+              {lugar.lat.toFixed(5)}, {lugar.lon.toFixed(5)}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <p className="lugar-rumbo-sin-ubicacion">
+          Sin tu ubicación no podemos decirte a cuánto está ni para qué lado queda.
+          Está en {lugar.lat.toFixed(5)}, {lugar.lon.toFixed(5)}.
+        </p>
+      )}
 
       {lugar.servicios?.length > 0 && (
         <div className="lugar-bloque">

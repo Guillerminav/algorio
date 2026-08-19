@@ -171,6 +171,42 @@ def _rol_de(con, usuario: str) -> Optional[str]:
     return fila["rol"] if fila else None
 
 
+def _cuenta_y_suscripcion(con, usuario: str) -> tuple[bool, Optional[str], Optional[dict]]:
+    """El rol y la fila de suscripcion, en UNA sola consulta.
+
+    Devuelve `(existe_la_cuenta, rol, fila_de_suscripcion)`.
+
+    Antes eran dos consultas seguidas (`_rol_de` y `_fila_suscripcion`) y las
+    dos las paga cada endpoint protegido, porque `tiene_acceso()` es una
+    dependency de FastAPI. Contra Neon cada viaje son ~40 ms de red, asi que
+    juntarlas se nota en todas las pantallas a la vez.
+
+    El LEFT JOIN sale de `usuarios` y no de `suscripciones` justamente para
+    poder distinguir los dos casos que el resto de la funcion trata distinto:
+    sin fila = la cuenta no existe; fila con `s.usuario` en NULL = la cuenta
+    existe pero todavia no tiene suscripcion (y hay que crearle la prueba).
+    """
+    fila = con.execute(
+        """
+        SELECT u.rol, s.*
+        FROM usuarios u
+        LEFT JOIN suscripciones s ON s.usuario = u.usuario
+        WHERE u.usuario = %s
+        """,
+        (usuario,),
+    ).fetchone()
+
+    if fila is None:
+        return False, None, None
+
+    datos = dict(fila)
+    rol = datos.pop("rol")
+    # `s.*` viene todo en NULL cuando no hay suscripcion: se distingue por la
+    # clave, que es NOT NULL en su tabla.
+    suscripcion = datos if datos.get("usuario") is not None else None
+    return True, rol, suscripcion
+
+
 def _crear_prueba(con, usuario: str, plan: Optional[str] = None) -> dict:
     """Da de alta la prueba gratis. Arranca desde la fecha de creacion de la
     cuenta (usuarios.creado_en); las cuentas viejas, anteriores a que se
@@ -215,8 +251,13 @@ def estado_de_suscripcion(usuario: str) -> dict:
     """
     inicializar_db()
     with conexion() as con:
-        rol = _rol_de(con, usuario)
-        suscripcion = _fila_suscripcion(con, usuario) or _crear_prueba(con, usuario)
+        existe, rol, suscripcion = _cuenta_y_suscripcion(con, usuario)
+        # La prueba se crea solo si la cuenta existe y todavia no tiene fila.
+        # Sin el `existe`, una cuenta borrada dispararia un INSERT que no
+        # inserta nada (el SELECT interno no encuentra el usuario) y otra
+        # consulta al pedo para descubrir lo mismo.
+        if existe and suscripcion is None:
+            suscripcion = _crear_prueba(con, usuario)
 
         if suscripcion is None:  # el usuario no existe
             return {

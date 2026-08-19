@@ -5675,3 +5675,189 @@ div.barra-viento { cursor: default; }
   .gratis-panel { padding: 1.75rem 1.25rem; }
   .gratis-incluye { padding: 1.25rem; }
 }
+
+/* ===========================================================================
+   FICHA RAPIDA Y RUMBO AL LUGAR
+   ---------------------------------------------------------------------------
+   Al tocar un pin ya no se abre la ficha completa al costado: primero aparece
+   esta ventana abajo con lo basico. Con mouse y pantalla ancha el panel
+   lateral estaba bien, pero en un celular tapaba el mapa entero para
+   contestar algo que casi siempre se resuelve con dos datos — si esta abierto
+   y a cuanto esta.
+
+   El "Como llegar" que abria Google Maps se reemplazo por distancia + brujula:
+   en el rio no hay calles cargadas, asi que el navegador trazaba una ruta por
+   tierra hasta el punto mas cercano de la costa, o ninguna.
+   =========================================================================== */
+
+.ficha-rapida {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 950;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  background: var(--superficie);
+  box-shadow: 0 12px 32px rgba(4, 18, 28, 0.32);
+}
+
+.ficha-rapida-cerrar {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.7rem;
+  padding: 0.2rem;
+  border: none;
+  background: none;
+  color: var(--texto-suave);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.ficha-rapida-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-right: 1.5rem;
+}
+
+.ficha-rapida-emoji { font-size: 1.7rem; line-height: 1; }
+
+.ficha-rapida-titulo { display: flex; flex-direction: column; min-width: 0; }
+.ficha-rapida-titulo strong { font-size: 1.05rem; color: var(--texto); }
+.ficha-rapida-titulo span { font-size: 0.8rem; color: var(--texto-suave); }
+
+.ficha-rapida-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+}
+
+.ficha-rapida-puntaje { display: inline-flex; align-items: center; gap: 0.35rem; }
+.ficha-rapida-abierto { color: var(--subida); font-weight: 600; }
+.ficha-rapida-cerrado { color: var(--bajada); font-weight: 600; }
+
+/* --- El bloque de rumbo, compartido por la ficha rapida y el panel -------- */
+
+.ficha-rapida-rumbo,
+.lugar-rumbo {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem;
+  border: 1px solid var(--borde-suave);
+  border-radius: 12px;
+  background: var(--fondo);
+}
+
+.ficha-rapida-rumbo > div,
+.lugar-rumbo-texto { display: flex; flex-direction: column; min-width: 0; }
+
+.ficha-rapida-rumbo strong,
+.lugar-rumbo-texto strong {
+  font-family: var(--fuente-titulo);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--texto);
+}
+
+.ficha-rapida-rumbo span,
+.lugar-rumbo-texto span { font-size: 0.8rem; color: var(--texto-suave); }
+
+/* Tabulares para que las coordenadas no bailen mientras se mueve el GPS. */
+.lugar-rumbo-coords {
+  margin-top: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-rapida-sin-ubicacion,
+.lugar-rumbo-sin-ubicacion {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+
+.ficha-rapida-vermas {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--acento);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ficha-rapida-vermas:hover { background: var(--acento-hover); }
+
+/* --- La brujula ----------------------------------------------------------- */
+
+.brujula-envoltorio {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.brujula {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--borde);
+  border-radius: 50%;
+  background: var(--superficie);
+  color: var(--acento);
+}
+
+/* Las dos capas que giran ocupan el circulo entero, asi rotan sobre su centro
+   por construccion y el dibujo no se desarma al cambiar el tamaño. */
+.brujula-rosa {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--texto-suave);
+}
+
+.brujula-aguja { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.brujula-letras {
+  position: absolute;
+  bottom: 4px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--texto-suave);
+}
+
+.brujula-permiso {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--acento);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .ficha-rapida { max-width: none; }
+}

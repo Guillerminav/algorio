@@ -5,7 +5,9 @@ import { Texto as Text } from "../../src/Texto.jsx";
 import MapView, { Callout, Marker } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { estadoApertura, formatearDistancia, haceCuanto, vigenciaRestante } from "../../src/api.js";
+import { estadoApertura, haceCuanto, vigenciaRestante } from "../../src/api.js";
+import Brujula from "../../src/Brujula.jsx";
+import { distanciaEnTexto, haciaElLugar } from "../../src/rumbo.js";
 import { Estrellas } from "../../src/componentes.jsx";
 import { embarcacionPorClave } from "../../src/embarcaciones.js";
 import ModalReporte from "../../src/ModalReporte.jsx";
@@ -161,11 +163,23 @@ function ChipsTipo({ activos, onAlternar }) {
   );
 }
 
-/** Tarjeta de abajo cuando se toca un pin. */
-function TarjetaLugar({ lugar, onAbrir, onCerrar }) {
+/**
+ * La ventana de abajo al tocar un pin.
+ *
+ * Muestra lo básico y nada más: nombre, rubro, puntaje, si está abierto y —lo
+ * que de verdad se necesita arriba de una lancha— a cuánto está y para qué
+ * lado. Las reseñas, la carta y los horarios completos quedan detrás de "Ver
+ * más", porque son para cuando ya decidiste ir.
+ */
+function TarjetaLugar({ lugar, posicion, onAbrir, onCerrar }) {
   const definicion = tipoPoi(lugar.tipo);
   const apertura = estadoApertura(lugar.horarios);
-  const distancia = formatearDistancia(lugar.distancia_km);
+  // Se recalcula con la posición del momento y no se usa `distancia_km` del
+  // backend a secas: esa se calculó cuando se pidió la lista, y mientras
+  // navegás deja de ser cierta. El valor del backend queda de respaldo para
+  // cuando todavía no hay GPS.
+  const rumbo = haciaElLugar(posicion, lugar);
+  const distancia = rumbo?.texto ?? distanciaEnTexto(lugar.distancia_km);
 
   return (
     <View style={estilos.tarjeta}>
@@ -206,7 +220,19 @@ function TarjetaLugar({ lugar, onAbrir, onCerrar }) {
           )}
         </View>
 
-        <Text style={estilos.tarjetaVerMas}>Ver el lugar ›</Text>
+        {rumbo && (
+          <View style={estilos.tarjetaRumbo}>
+            <Brujula grados={rumbo.grados} letras={rumbo.letras} tamano={56} />
+            <View style={estilos.flex}>
+              <Text style={estilos.tarjetaRumboDistancia}>{rumbo.texto}</Text>
+              <Text style={estilos.tarjetaRumboTexto}>
+                Navegando al {rumbo.letras} desde donde estás
+              </Text>
+            </View>
+          </View>
+        )}
+
+        <Text style={estilos.tarjetaVerMas}>Ver más ›</Text>
       </Pressable>
     </View>
   );
@@ -499,6 +525,7 @@ export default function PantallaMapa() {
         <SafeAreaView style={estilos.capaInferior} edges={["bottom"]} pointerEvents="box-none">
           <TarjetaLugar
             lugar={seleccionado}
+            posicion={posicion}
             onAbrir={() => abrirLugar(seleccionado)}
             onCerrar={() => setSeleccionado(null)}
           />
@@ -619,5 +646,16 @@ const estilos = StyleSheet.create({
   tarjetaTipo: { fontSize: 13, color: COLORES.textoSuave, marginTop: 1 },
   tarjetaMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 8 },
   tarjetaMetaTexto: { fontSize: 13, color: COLORES.textoSuave },
-  tarjetaVerMas: { marginTop: 10, fontSize: 14, fontWeight: "700", color: COLORES.acento },
+  tarjetaRumbo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORES.bordeSuave,
+  },
+  tarjetaRumboDistancia: { fontSize: 22, fontWeight: "800", color: COLORES.texto },
+  tarjetaRumboTexto: { fontSize: 12.5, color: COLORES.textoSuave, marginTop: 1 },
+  tarjetaVerMas: { marginTop: 12, fontSize: 14, fontWeight: "700", color: COLORES.acento },
 });
