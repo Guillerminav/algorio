@@ -222,7 +222,7 @@ function TarjetaLugar({ lugar, posicion, onAbrir, onCerrar }) {
 
         {rumbo && (
           <View style={estilos.tarjetaRumbo}>
-            <Brujula grados={rumbo.grados} letras={rumbo.letras} tamano={56} />
+            <Brujula grados={rumbo.grados} letras={rumbo.letras} tamano={48} />
             <View style={estilos.flex}>
               <Text style={estilos.tarjetaRumboDistancia}>{rumbo.texto}</Text>
               <Text style={estilos.tarjetaRumboTexto}>
@@ -629,8 +629,8 @@ const estilos = StyleSheet.create({
   // mapa, y ahí el fondo tiene que dejar de competir del todo.
   tarjeta: {
     margin: 12,
-    padding: 16,
-    borderRadius: 20,
+    padding: 14,
+    borderRadius: 18,
     backgroundColor: COLORES.superficie,
     gap: 8,
     ...Platform.select({
@@ -641,21 +641,21 @@ const estilos = StyleSheet.create({
   tarjetaCerrar: { position: "absolute", top: 10, right: 12, zIndex: 1, padding: 4 },
   tarjetaCerrarTexto: { fontSize: 16, color: COLORES.textoSuave },
   tarjetaEncabezado: { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 24 },
-  tarjetaEmoji: { fontSize: 28 },
-  tarjetaNombre: { fontSize: 18, fontWeight: "800", color: COLORES.texto },
+  tarjetaEmoji: { fontSize: 24 },
+  tarjetaNombre: { fontSize: 16.5, fontWeight: "800", color: COLORES.texto },
   tarjetaTipo: { fontSize: 13, color: COLORES.textoSuave, marginTop: 1 },
   tarjetaMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 8 },
   tarjetaMetaTexto: { fontSize: 13, color: COLORES.textoSuave },
   tarjetaRumbo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    marginTop: 12,
-    paddingTop: 12,
+    gap: 12,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: COLORES.bordeSuave,
   },
-  tarjetaRumboDistancia: { fontSize: 22, fontWeight: "800", color: COLORES.texto },
+  tarjetaRumboDistancia: { fontSize: 19, fontWeight: "800", color: COLORES.texto },
   tarjetaRumboTexto: { fontSize: 12.5, color: COLORES.textoSuave, marginTop: 1 },
-  tarjetaVerMas: { marginTop: 12, fontSize: 14, fontWeight: "700", color: COLORES.acento },
+  tarjetaVerMas: { marginTop: 10, fontSize: 14, fontWeight: "700", color: COLORES.acento },
 });

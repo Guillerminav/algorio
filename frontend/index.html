@@ -3,7 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Algorio — Monitoreo y alertas hidrologicas</title>
+
+<!-- Esta identidad es la de app.algorio.com.ar: navegacion recreativa y
+     comercios del rio. La de Pro (pro.algorio.com.ar) la pisa
+     src/producto.js al arrancar, porque una sola build sirve los dos
+     dominios y el HTML estatico solo puede traer un titulo.
+
+     OJO: los que arman la tarjeta de un link compartido (WhatsApp, Slack,
+     Twitter) NO ejecutan JavaScript, asi que leen ESTE titulo para los dos
+     subdominios. Para que Pro comparta con su propia identidad hace falta
+     buildearlo aparte con VITE_PRODUCTO=pro (ver vite.config.js). -->
+<title>AlgoRío — El río en el bolsillo: clima, paradores y avisos</title>
+<meta name="description" content="Gratis para quien sale a navegar: si está picado para tu embarcación, los paradores, cabañas y lanchas-taxi del río con horarios y contacto, y los avisos que dejan otros navegantes.">
+<meta property="og:title" content="AlgoRío — El río en el bolsillo">
+<meta property="og:description" content="Clima calibrado para tu embarcación, paradores del río y avisos de otros navegantes. Gratis.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>

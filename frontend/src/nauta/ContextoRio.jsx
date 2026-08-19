@@ -32,8 +32,12 @@ export function ProveedorRio({ children }) {
   const [buscando, setBuscando] = useState(false);
 
   const [clima, setClima] = useState(null);
+  // Subirlo vuelve a disparar el efecto: es el reintento a mano.
+  const [reintento, setReintento] = useState(0);
   const [cargandoClima, setCargandoClima] = useState(true);
   const [errorClima, setErrorClima] = useState(false);
+
+  const reintentarClima = useCallback(() => setReintento((n) => n + 1), []);
 
   const pedirUbicacion = useCallback(() => {
     if (!navigator.geolocation) {
@@ -59,22 +63,49 @@ export function ProveedorRio({ children }) {
     pedirUbicacion();
   }, [pedirUbicacion]);
 
-  // El pronóstico se pide una sola vez por posición y lo consumen las dos
-  // pantallas. Sin ubicación se usa el centro por defecto, para que el cartel
-  // diga algo en vez de quedar vacío.
+  // El pronóstico se pide una vez por posición y lo consumen las dos pantallas.
+  // Sin ubicación se usa el centro por defecto, para que el cartel diga algo en
+  // vez de quedar vacío.
+  //
+  // REINTENTA, y no es un lujo: antes, si el pedido fallaba una sola vez, el
+  // efecto no se volvía a disparar hasta que cambiara la posición. Un corte de
+  // señal de tres segundos —o el backend reiniciándose— dejaba "Sin datos de
+  // viento" clavado hasta recargar la página. Justo el escenario de alguien en
+  // el agua, que es para quien está hecho esto.
+  //
+  // Los tres intentos suben de 4 a 30 segundos: si a los 45 s no volvió, no
+  // vale seguir golpeando solo, y queda el reintento a mano tocando el cartel.
   useEffect(() => {
     let cancelado = false;
-    const [lat, lon] = posicion ? [posicion.lat, posicion.lon] : CENTRO_POR_DEFECTO;
-    setCargandoClima(true);
-    setErrorClima(false);
-    pedirJSON(`/api/clima?lat=${lat}&lon=${lon}`)
-      .then((d) => !cancelado && setClima(d))
-      .catch(() => !cancelado && setErrorClima(true))
-      .finally(() => !cancelado && setCargandoClima(false));
+    let temporizador;
+    const esperas = [4000, 12000, 30000];
+
+    function pedir(intento = 0) {
+      const [lat, lon] = posicion ? [posicion.lat, posicion.lon] : CENTRO_POR_DEFECTO;
+      setCargandoClima(true);
+      setErrorClima(false);
+      pedirJSON(`/api/clima?lat=${lat}&lon=${lon}`)
+        .then((d) => {
+          if (cancelado) return;
+          setClima(d);
+          setCargandoClima(false);
+        })
+        .catch(() => {
+          if (cancelado) return;
+          setCargandoClima(false);
+          setErrorClima(true);
+          if (intento < esperas.length) {
+            temporizador = setTimeout(() => !cancelado && pedir(intento + 1), esperas[intento]);
+          }
+        });
+    }
+
+    pedir();
     return () => {
       cancelado = true;
+      clearTimeout(temporizador);
     };
-  }, [posicion]);
+  }, [posicion, reintento]);
 
   const valor = useMemo(
     () => ({
@@ -86,8 +117,9 @@ export function ProveedorRio({ children }) {
       clima,
       cargandoClima,
       errorClima,
+      reintentarClima,
     }),
-    [posicion, permitido, buscando, pedirUbicacion, clima, cargandoClima, errorClima],
+    [posicion, permitido, buscando, pedirUbicacion, clima, cargandoClima, errorClima, reintentarClima],
   );
 
   return <ContextoRio.Provider value={valor}>{children}</ContextoRio.Provider>;

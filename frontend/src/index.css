@@ -3985,10 +3985,10 @@ div.barra-viento { cursor: default; }
   font-weight: 700;
 }
 
-/* Reportar no es un filtro: comparte la fila pero se separa con aire. Antes
-   iba con `margin-left: auto` y en una pantalla ancha terminaba a 800px de los
-   chips, sin relación visible con nada. */
-.boton-reportar { margin-left: 0.5rem; }
+/* Reportar no es un filtro sino una acción: abre la fila y se separa de los
+   chips con aire. Antes iba al final y en pantalla angosta —donde la fila
+   scrollea de costado— quedaba fuera de la vista. */
+.boton-reportar { margin-right: 0.35rem; }
 
 .aviso-nauta {
   max-width: 34rem;
@@ -4709,11 +4709,11 @@ div.barra-viento { cursor: default; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   border: 1px solid var(--borde);
-  border-radius: 8px;
+  border-radius: 14px;
   background: var(--superficie);
   color: var(--acento);
   cursor: pointer;
@@ -5437,7 +5437,7 @@ div.barra-viento { cursor: default; }
 }
 
 .mapa-nauta .boton-mi-ubicacion {
-  border-radius: 12px;
+  border-radius: 14px;
   border-color: var(--vidrio-borde);
   background: var(--vidrio-denso);
   -webkit-backdrop-filter: var(--vidrio-desenfoque);
@@ -5690,21 +5690,28 @@ div.barra-viento { cursor: default; }
    tierra hasta el punto mas cercano de la costa, o ninguna.
    =========================================================================== */
 
+/* Va dentro de .mapa-nauta-contenedor, que tiene `z-index: 0` y por lo tanto
+   crea su propio contexto de apilamiento: este 950 solo compite con las otras
+   capas del mapa, nunca con el menu hamburguesa ni con los modales de la
+   pagina. Sacarla de ahi fue justamente lo que la dejaba encima del menu.
+
+   Compacta a proposito: es el primer escalon, no la ficha. Todo lo que no
+   entra en este alto esta detras de "Ver mas". */
 .ficha-rapida {
   position: absolute;
-  left: 0.75rem;
-  right: 0.75rem;
-  bottom: 0.75rem;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: 0.6rem;
   z-index: 950;
-  max-width: 26rem;
+  max-width: 21rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 1rem 1.1rem;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
   border: 1px solid var(--borde);
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--superficie);
-  box-shadow: 0 12px 32px rgba(4, 18, 28, 0.32);
+  box-shadow: 0 10px 26px rgba(4, 18, 28, 0.3);
 }
 
 .ficha-rapida-cerrar {
@@ -5722,14 +5729,14 @@ div.barra-viento { cursor: default; }
 .ficha-rapida-cabecera {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  padding-right: 1.5rem;
+  gap: 0.6rem;
+  padding-right: 1.4rem;
 }
 
-.ficha-rapida-emoji { font-size: 1.7rem; line-height: 1; }
+.ficha-rapida-emoji { font-size: 1.4rem; line-height: 1; }
 
 .ficha-rapida-titulo { display: flex; flex-direction: column; min-width: 0; }
-.ficha-rapida-titulo strong { font-size: 1.05rem; color: var(--texto); }
+.ficha-rapida-titulo strong { font-size: 0.98rem; color: var(--texto); }
 .ficha-rapida-titulo span { font-size: 0.8rem; color: var(--texto-suave); }
 
 .ficha-rapida-meta {
@@ -5751,12 +5758,16 @@ div.barra-viento { cursor: default; }
 .lugar-rumbo {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.75rem;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
   border: 1px solid var(--borde-suave);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--fondo);
 }
+
+/* En la ventana de abajo el numero va mas chico que en la ficha completa: ahi
+   hay lugar, aca cada milimetro es mapa tapado. */
+.ficha-rapida-rumbo strong { font-size: 1.25rem; }
 
 .ficha-rapida-rumbo > div,
 .lugar-rumbo-texto { display: flex; flex-direction: column; min-width: 0; }
@@ -5788,7 +5799,7 @@ div.barra-viento { cursor: default; }
 }
 
 .ficha-rapida-vermas {
-  padding: 0.6rem 1rem;
+  padding: 0.5rem 1rem;
   border: none;
   border-radius: 10px;
   background: var(--acento);
@@ -5860,4 +5871,29 @@ div.barra-viento { cursor: default; }
 
 @media (max-width: 700px) {
   .ficha-rapida { max-width: none; }
+}
+
+/* El ícono acompaña al botón agrandado: a 20px dentro de 48 quedaba nadando.
+   El tamaño viene por atributo en el JSX, así que se pisa desde acá. */
+.mapa-nauta .boton-mi-ubicacion svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Con la ficha rápida abierta, el botón de centrar quedaba DEBAJO de ella y el
+   click caía en "Ver más": el control quedaba inalcanzable justo cuando uno
+   más quiere reubicarse. Se corre para arriba, como hace cualquier mapa con un
+   panel abajo.
+
+   Solo en pantalla angosta: la ficha tiene 21rem de ancho anclada a la
+   izquierda, así que en una ventana ancha no llega al borde derecho y no hay
+   nada que esquivar.
+
+   El desplazamiento es un número acotado, no arbitrario: la ficha tiene una
+   cantidad fija de renglones (cabecera, meta, rumbo y botón) y su caso más
+   alto —con el bloque de rumbo— mide ~14rem. `max-height` lo deja garantizado
+   por si algún día se le agrega contenido. */
+@media (max-width: 700px) {
+  .ficha-rapida { max-height: 15rem; overflow-y: auto; }
+  .mapa-nauta.con-ficha .boton-mi-ubicacion { bottom: 16.5rem; }
 }

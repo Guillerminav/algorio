@@ -204,6 +204,8 @@ export default function MapaNauta({ onIrAClima }) {
   return (
     <div
       className={`mapa-nauta${modoReporte ? " eligiendo-punto" : ""}${ampliado ? " con-panel" : ""}${
+        seleccionado && !ampliado ? " con-ficha" : ""
+      }${
         pantallaCompleta ? " pantalla-completa" : ""
       }`}
     >
@@ -242,6 +244,22 @@ export default function MapaNauta({ onIrAClima }) {
             </div>
 
             <div className="mapa-nauta-filtros">
+              {/* Reportar va PRIMERO: es una acción, y las de al lado son
+                  filtros. Al final de la fila se perdía entre los chips y, en
+                  pantalla angosta —donde la fila scrollea de costado— quedaba
+                  directamente fuera de la vista. */}
+              <button
+                type="button"
+                className={`boton-reportar${modoReporte ? " activo" : ""}`}
+                onClick={() => {
+                  setModoReporte((previo) => !previo);
+                  setSeleccionado(null);
+                  setAmpliado(null);
+                }}
+              >
+                {modoReporte ? "Cancelar" : "+ Reportar"}
+              </button>
+
               {/* Prendido y apagado se distinguen por el punto —lleno o
                   hueco— y por el peso del texto, no pintando el chip entero.
                   Sobre la imagen satelital, tres chips llenos de color compiten
@@ -267,17 +285,6 @@ export default function MapaNauta({ onIrAClima }) {
                 );
               })}
 
-              <button
-                type="button"
-                className={`boton-reportar${modoReporte ? " activo" : ""}`}
-                onClick={() => {
-                  setModoReporte((previo) => !previo);
-                  setSeleccionado(null);
-                  setAmpliado(null);
-                }}
-              >
-                {modoReporte ? "Cancelar" : "+ Reportar"}
-              </button>
             </div>
 
             {modoReporte && (
@@ -336,19 +343,24 @@ export default function MapaNauta({ onIrAClima }) {
                 tiles del tamaño anterior. */}
             <SincronizarTamano dependencia={`${ampliado}-${pantallaCompleta}`} />
           </MapContainer>
+
+          {/* Primero la ventana de abajo con lo basico; la ficha completa —con
+              reseñas, carta y horarios— recien detras de "Ver mas".
+
+              Va DENTRO del contenedor del mapa a proposito: afuera se
+              posicionaba contra el viewport y su z-index escapaba del contexto
+              de apilamiento del mapa, asi que se dibujaba por encima del menu
+              hamburguesa. */}
+          {seleccionado && !ampliado && (
+            <FichaRapida
+              lugar={seleccionado}
+              posicion={posicion}
+              onVerMas={() => setAmpliado(seleccionado.id)}
+              onCerrar={() => setSeleccionado(null)}
+            />
+          )}
         </div>
       </div>
-
-      {/* Primero la ventana de abajo con lo basico; la ficha completa —con
-          reseñas, carta y horarios— recien detras de "Ver mas". */}
-      {seleccionado && !ampliado && (
-        <FichaRapida
-          lugar={seleccionado}
-          posicion={posicion}
-          onVerMas={() => setAmpliado(seleccionado.id)}
-          onCerrar={() => setSeleccionado(null)}
-        />
-      )}
 
       {ampliado && (
         <PanelLugar

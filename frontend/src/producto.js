@@ -74,6 +74,34 @@ function resolver() {
 }
 
 export const PRODUCTO = resolver();
+
+/**
+ * Deja el <title> y las meta acordes al producto que sirve este dominio.
+ *
+ * `index.html` trae la identidad de rio, que es la del dominio principal. Pro
+ * la pisa aca al arrancar.
+ *
+ * LIMITE CONOCIDO: los que arman la tarjeta de un link compartido (WhatsApp,
+ * Slack, Twitter) no ejecutan JavaScript, asi que leen el HTML estatico y ven
+ * la identidad de rio para los dos subdominios. Esto arregla la pestaña del
+ * navegador y el historial, no la tarjeta. Para eso Pro necesita su propia
+ * build con VITE_PRODUCTO=pro.
+ */
+function marcarDocumento() {
+  if (typeof document === "undefined" || PRODUCTO.id === POR_DEFECTO) return;
+
+  document.title = `${PRODUCTO.nombre} — ${PRODUCTO.titulo}`;
+  for (const [selector, valor] of [
+    ['meta[name="description"]', PRODUCTO.bajada],
+    ['meta[property="og:title"]', `${PRODUCTO.nombre} — ${PRODUCTO.titulo}`],
+    ['meta[property="og:description"]', PRODUCTO.bajada],
+  ]) {
+    const etiqueta = document.querySelector(selector);
+    if (etiqueta) etiqueta.setAttribute("content", valor);
+  }
+}
+
+marcarDocumento();
 export const ES_PRO = PRODUCTO.id === "pro";
 export const OTRO_PRODUCTO = ES_PRO ? PRODUCTOS.rio : PRODUCTOS.pro;
 

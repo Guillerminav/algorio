@@ -1,6 +1,7 @@
 import React from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
+import { useRio } from "./ContextoRio.jsx";
 import { CLASE_POR_ESTADO_RIO, embarcacionPorClave, rumbo } from "./constantes.js";
 
 /** Cinco estrellas siempre dibujadas, las llenas en color: se lee de un
@@ -56,6 +57,7 @@ export function Estrellas({ puntaje, tamano = 15, onElegir }) {
  */
 export function BarraViento({ clima, cargando, error, onVerDetalle }) {
   const { usuario } = useAuth();
+  const { reintentarClima } = useRio();
   const embarcacion = embarcacionPorClave(usuario?.tipo_embarcacion);
 
   // El emoji de la embarcación al lado del veredicto: recuerda de un vistazo
@@ -69,16 +71,27 @@ export function BarraViento({ clima, cargando, error, onVerDetalle }) {
       </span>
     ) : null;
 
+  // Mientras carga no hay nada que tocar; cuando falló, sí: el cartel entero es
+  // el botón de reintentar. Es lo primero que uno toca cuando algo no cargó, y
+  // en el agua la señal va y viene todo el tiempo — el reintento automático
+  // (ver ContextoRio) se rinde a los 45 s y a partir de ahí queda este.
   if (cargando || error || !clima) {
-    return (
-      <div className="barra-viento">
+    const contenido = (
+      <>
         <Embarcacion />
         <span className="barra-viento-punto sin-datos" aria-hidden="true" />
         <div className="barra-viento-texto">
           <strong>{cargando ? "Viendo cómo está el río…" : "Sin datos de viento"}</strong>
-          {!cargando && <span>No pudimos consultar el pronóstico ahora.</span>}
+          {!cargando && <span>Tocá para reintentar.</span>}
         </div>
-      </div>
+      </>
+    );
+
+    if (cargando) return <div className="barra-viento">{contenido}</div>;
+    return (
+      <button type="button" className="barra-viento" onClick={reintentarClima}>
+        {contenido}
+      </button>
     );
   }
 
