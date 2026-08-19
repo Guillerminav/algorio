@@ -16,9 +16,11 @@ export default function MenuMovil({
   onEditarPerfil,
   onVerSuscripcion,
   onAbrirAyuda,
+  secciones: seccionesProp,
 }) {
   const { usuario, logout, suscripcion } = useAuth();
-  const secciones = seccionesVisibles(suscripcion);
+  // Igual que en Sidebar: el shell del comerciante pasa sus propias secciones.
+  const secciones = seccionesProp ?? seccionesVisibles(suscripcion);
 
   // Con el cajon abierto el fondo no debe scrollear: si no, el dedo mueve la
   // pagina de atras en vez del menu.

@@ -3,13 +3,49 @@ import React, { useEffect, useState } from "react";
 import { formatearFecha, pedirJSON } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import ModalCambioPlan from "./ModalCambioPlan.jsx";
+import PantallaGratis from "./PantallaGratis.jsx";
 
 const ETIQUETA_ESTADO = {
   activa: { texto: "Suscripción activa", clase: "activa" },
   prueba: { texto: "Prueba gratis", clase: "prueba" },
 };
 
-const INCLUYE = [
+// Que incluye el plan, por rol. Son productos distintos: al dueño de un
+// parador no le dice nada el calado admisible, y a una naviera no le importan
+// las reseñas de los nautas. Antes esta lista era una sola, la del producto de
+// navieras, y el comerciante veia promesas sobre boletines de Prefectura.
+const INCLUYE_COMERCIO = [
+  {
+    titulo: "Tu lugar en el mapa de todos los nautas",
+    detalle: "Kayakistas y lancheros te ven al abrir la app, con tu ubicación exacta sobre la costa y el botón para llegar.",
+  },
+  {
+    titulo: "Ficha completa y siempre al día",
+    detalle: "Menú o servicios con precios, horarios por día, fotos y contacto. Lo cambiás vos, cuando quieras, sin llamar a nadie.",
+  },
+  {
+    titulo: "Contacto directo",
+    detalle: "Botones de WhatsApp y teléfono en tu ficha: el nauta te escribe desde el río sin buscarte en ningún lado.",
+  },
+  {
+    titulo: "Métricas de cuánta gente te miró",
+    detalle: "Cuántos abrieron tu ficha, te escribieron por WhatsApp o pidieron cómo llegar, por día y por período.",
+  },
+  {
+    titulo: "Reseñas y puntaje",
+    detalle: "Lo que dicen de vos los que fueron, con su estrella promedio a la vista de todos.",
+  },
+  {
+    titulo: "Nivel del río y pronóstico",
+    detalle: "El nivel de las estaciones cercanas y el viento de los próximos días, para saber cómo viene el fin de semana.",
+  },
+  {
+    titulo: "Soporte directo",
+    detalle: "Escribinos desde la app cuando algo no cierra y te respondemos.",
+  },
+];
+
+const INCLUYE_NAVIERA = [
   {
     titulo: "Tres fuentes oficiales, un solo panel",
     detalle: "INA, Prefectura Naval y Yacyretá unificados: mismos nombres de estación y río, mismas unidades, sin abrir tres sitios distintos.",
@@ -49,8 +85,20 @@ const INCLUYE = [
   },
 ];
 
+const INCLUYE_POR_ROL = { comercio: INCLUYE_COMERCIO, naviera: INCLUYE_NAVIERA };
+
 // Las secciones que solo traen algunos planes, con el nombre que ve el usuario.
 const ETIQUETA_SECCION = { flota: "Mi flota", rutas: "Rutas" };
+
+// Que ofrece el plan de un comercio. No se deduce de `secciones` como los de
+// naviera: el panel del comerciante es una sola seccion ("mi_comercio") y
+// listarla no le diria nada a nadie.
+const VENTAJAS_COMERCIO = [
+  "Tu lugar publicado en el mapa de la app",
+  "Menú o servicios, horarios, fotos y contacto",
+  "Métricas de cuánta gente te miró",
+  "Reseñas y puntaje de los nautas",
+];
 
 function topeEnTexto(maximo, plural) {
   return maximo === null ? `${plural} sin límite` : `hasta ${maximo} ${plural}`;
@@ -59,6 +107,8 @@ function topeEnTexto(maximo, plural) {
 // Lo que ofrece cada plan, deducido de los datos que manda el backend y no de
 // su nombre: agregar un plan nuevo no obliga a tocar esto.
 function ventajas(plan) {
+  if (plan.rol === "comercio") return VENTAJAS_COMERCIO;
+
   const extras = plan.secciones.filter((s) => ETIQUETA_SECCION[s]).map((s) => ETIQUETA_SECCION[s]);
   if (extras.length === 0) {
     return ["Dashboard, Histórico, Alertas y Mapa", "Exportación a CSV y gráficos en PNG"];
@@ -91,7 +141,7 @@ function Precio({ plan }) {
 }
 
 export default function PantallaSuscripcion({ onAbrirAyuda }) {
-  const { suscripcion, cambiarPlan } = useAuth();
+  const { usuario, suscripcion, cambiarPlan } = useAuth();
   const [planes, setPlanes] = useState([]);
   // Plan que espera confirmación en el modal. Ningún cambio se aplica sin
   // pasar por ahí: cambiar lo que se te cobra no debería poder salir de un
@@ -100,15 +150,31 @@ export default function PantallaSuscripcion({ onAbrirAyuda }) {
   const [guardando, setGuardando] = useState("");
   const [error, setError] = useState("");
 
+  // Filtrado por el rol de la cuenta: los planes de naviera (Vigía, Timonel,
+  // Capitán) son de otro producto y ofrecerselos a un parador no tiene
+  // sentido. El filtro lo hace el backend, que es donde vive la relacion
+  // plan-rol (ver backend/suscripciones.py).
+  const rol = usuario?.rol;
+
+  // Una cuenta que no paga no tiene nada que hacer en esta pantalla: no hay
+  // vencimiento, ni plan que cambiar, ni medio de pago que esperar. El guard
+  // va acá y no en el ruteo de cada shell para que valga en los tres —
+  // ShellNauta, ShellComercio y AppShell montan este mismo componente.
+  //
+  // Se decide por el precio y no por el rol: es el dato que manda el backend
+  // (`limites_de_plan`) y sigue siendo correcto el día que haya otro perfil
+  // gratuito.
+  const esGratis = suscripcion?.precio_usd === 0;
+
   useEffect(() => {
     let vigente = true;
-    pedirJSON("/api/planes")
+    pedirJSON(rol ? `/api/planes?rol=${encodeURIComponent(rol)}` : "/api/planes")
       .then((datos) => vigente && setPlanes(datos.planes))
       .catch(() => vigente && setError("No se pudieron cargar los planes."));
     return () => {
       vigente = false;
     };
-  }, []);
+  }, [rol]);
 
   const planActual = suscripcion?.plan;
 
@@ -149,6 +215,8 @@ export default function PantallaSuscripcion({ onAbrirAyuda }) {
     setError("");
     setPendiente(plan);
   }
+
+  if (esGratis) return <PantallaGratis />;
 
   const vencida = suscripcion?.tiene_acceso === false;
   const etiqueta = vencida
@@ -191,14 +259,18 @@ export default function PantallaSuscripcion({ onAbrirAyuda }) {
                 USD {suscripcion.precio_usd} por mes
               </span>
             )}
-            <span className="suscripcion-estado-plan-topes">
-              {suscripcion.secciones?.includes("flota")
-                ? `Con Mi flota y Rutas · ${topeEnTexto(
-                    suscripcion.max_activos,
-                    "activos"
-                  )}, ${topeEnTexto(suscripcion.max_rutas, "rutas")}`
-                : "Sin Mi flota ni Rutas"}
-            </span>
+            {/* Los topes de activos y rutas solo existen en el producto de
+                navieras; en un comercio no hay nada que contar. */}
+            {rol !== "comercio" && (
+              <span className="suscripcion-estado-plan-topes">
+                {suscripcion.secciones?.includes("flota")
+                  ? `Con Mi flota y Rutas · ${topeEnTexto(
+                      suscripcion.max_activos,
+                      "activos"
+                    )}, ${topeEnTexto(suscripcion.max_rutas, "rutas")}`
+                  : "Sin Mi flota ni Rutas"}
+              </span>
+            )}
           </div>
         )}
       </section>
@@ -271,10 +343,10 @@ export default function PantallaSuscripcion({ onAbrirAyuda }) {
       <section className="suscripcion-incluye">
         <h3>Qué incluye tu plan</h3>
         <ul>
-          {/* Los items sin `seccion` los tienen los tres planes; los demas se
-              muestran solo si el plan de la cuenta habilita esa pantalla, para
-              no prometer lo que este plan no da. */}
-          {INCLUYE.filter(
+          {/* Los items sin `seccion` los tienen todos los planes del rol; los
+              demas se muestran solo si el plan de la cuenta habilita esa
+              pantalla, para no prometer lo que este plan no da. */}
+          {(INCLUYE_POR_ROL[rol] ?? INCLUYE_NAVIERA).filter(
             (item) => !item.seccion || suscripcion?.secciones?.includes(item.seccion)
           ).map((item) => (
             <li key={item.titulo}>

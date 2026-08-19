@@ -8,11 +8,11 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 // (/api/login/google) busca la cuenta por email y, si no existe, la crea -
 // el mismo boton funciona para las dos pantallas sin que el usuario tenga
 // que elegir cual de las dos cosas esta haciendo.
-// `plan` lo pasa la pantalla de Registro con el plan elegido; en Login no
-// se pasa nada. Solo se usa si el alta crea la cuenta.
+// `plan` y `rol` los pasa la pantalla de Registro con lo elegido; en Login no
+// se pasa nada. Solo se usan si el alta crea la cuenta.
 const hayScriptDeGoogle = () => Boolean(window.google?.accounts?.id);
 
-export default function BotonGoogle({ plan }) {
+export default function BotonGoogle({ plan, rol }) {
   const { loginConGoogle } = useAuth();
   const contenedorRef = useRef(null);
   const [error, setError] = useState("");
@@ -41,7 +41,7 @@ export default function BotonGoogle({ plan }) {
     async function manejarCredencial(response) {
       setError("");
       try {
-        await loginConGoogle(response.credential, plan);
+        await loginConGoogle(response.credential, plan, rol);
       } catch (e) {
         setError(e.message || "No se pudo iniciar sesion con Google.");
       }
@@ -55,10 +55,10 @@ export default function BotonGoogle({ plan }) {
       text: "continue_with",
       locale: "es",
     });
-    // `plan` va en las dependencias porque el callback que registra Google se
-    // queda con el valor del momento: sin esto, cambiar de plan despues de
-    // que el boton se dibujo daria de alta la cuenta con la anterior.
-  }, [loginConGoogle, plan, scriptListo]);
+    // `plan` y `rol` van en las dependencias porque el callback que registra
+    // Google se queda con el valor del momento: sin esto, cambiar de plan
+    // despues de que el boton se dibujo daria de alta la cuenta con el anterior.
+  }, [loginConGoogle, plan, rol, scriptListo]);
 
   if (!CLIENT_ID) return null;
 

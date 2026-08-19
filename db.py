@@ -64,6 +64,29 @@ def inicializar_db() -> None:
         con.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_key ON usuarios (email) WHERE email IS NOT NULL"
         )
+
+        # Perfil de la cuenta. El producto se bifurca en tres experiencias sobre
+        # esta misma base: 'recreativo' (nautas, app movil, gratis), 'comercio'
+        # (paradores/alojamientos/lanchas-taxi, panel web) y 'naviera' (el
+        # dashboard de datos hidrologicos que existia desde el principio).
+        #
+        # El default 'naviera' aplica tambien a las filas que ya estaban, y es
+        # el dato correcto y no una suposicion: hasta hoy la unica manera de
+        # tener cuenta era usar ese producto.
+        con.execute(
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT NOT NULL DEFAULT 'naviera'"
+        )
+        # Con que sale al rio el usuario recreativo. No es cosmetico: calibra
+        # los umbrales de viento con los que la app le dice si el rio esta
+        # picado (un kayak se complica con viento que a una lancha no la toca).
+        # Uno solo por cuenta, editable; si algun dia hay que declarar varias,
+        # se promueve a tabla.
+        con.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_embarcacion TEXT")
+        # Habilita la cola de moderacion de POIs. Se otorga a mano por SQL: son
+        # un par de cuentas, no justifica una pantalla de administracion.
+        con.execute(
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_admin BOOLEAN NOT NULL DEFAULT FALSE"
+        )
         con.execute(
             """
             CREATE TABLE IF NOT EXISTS activos (
@@ -242,6 +265,123 @@ def inicializar_db() -> None:
                 creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
                 enviado_por_mail BOOLEAN NOT NULL DEFAULT FALSE,
                 error_envio TEXT
+            )
+            """
+        )
+
+        # Puntos de interes del rio: paradores, alojamientos y lanchas-taxi. Es
+        # la tabla que ven las dos puntas del producto nuevo — el comerciante
+        # carga la suya, el nauta las ve en el mapa.
+        #
+        # `usuario` es el dueño y va con ON DELETE SET NULL: si el comerciante
+        # se da de baja, el lugar sigue existiendo en el mapa (queda huerfano y
+        # se puede reasignar), en vez de desaparecerle al nauta que lo tenia
+        # marcado.
+        #
+        # horarios/menu/servicios/fotos van como JSONB y no como tablas hijas
+        # por la misma razon que rutas.estaciones: nunca se consulta un item de
+        # menu suelto ni el horario de un martes, siempre la ficha entera.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pois (
+                id SERIAL PRIMARY KEY,
+                usuario TEXT REFERENCES usuarios (usuario) ON DELETE SET NULL,
+                tipo TEXT NOT NULL,
+                nombre TEXT NOT NULL,
+                descripcion TEXT,
+                lat DOUBLE PRECISION NOT NULL,
+                lon DOUBLE PRECISION NOT NULL,
+                telefono TEXT,
+                whatsapp TEXT,
+                instagram TEXT,
+                horarios JSONB,
+                menu JSONB,
+                servicios JSONB,
+                fotos JSONB,
+                estado TEXT NOT NULL DEFAULT 'pendiente',
+                motivo_rechazo TEXT,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        # El mapa siempre filtra por estado='aprobado' y despues por caja de
+        # coordenadas; el indice compuesto cubre esa consulta entera.
+        con.execute("CREATE INDEX IF NOT EXISTS pois_estado_idx ON pois (estado)")
+        con.execute("CREATE INDEX IF NOT EXISTS pois_ubicacion_idx ON pois (estado, lat, lon)")
+        # Un comercio por cuenta: el panel del comerciante es "mi comercio", no
+        # una lista. Indice unico parcial para no contar los POIs sin dueño.
+        con.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS pois_usuario_key ON pois (usuario) WHERE usuario IS NOT NULL"
+        )
+
+        # Puntaje y comentario del nauta sobre un lugar. UNIQUE (poi_id,
+        # usuario): una reseña por persona por lugar, que se edita en vez de
+        # acumularse. Sin esa restriccion, el dueño de un parador podria
+        # inflarse el promedio dejandose veinte reseñas.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS poi_resenas (
+                id SERIAL PRIMARY KEY,
+                poi_id INTEGER NOT NULL REFERENCES pois (id) ON DELETE CASCADE,
+                usuario TEXT NOT NULL REFERENCES usuarios (usuario) ON DELETE CASCADE,
+                puntaje SMALLINT NOT NULL CHECK (puntaje BETWEEN 1 AND 5),
+                comentario TEXT,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (poi_id, usuario)
+            )
+            """
+        )
+
+        # Lo que los nautas ven en el rio y avisan al resto: un yacare, un banco
+        # de arena que se movio, un tronco a la deriva, basura.
+        #
+        # Son efimeros por diseño y esa es la diferencia con los POIs. Un banco
+        # de arena se corre con la proxima creciente y un tronco se va con la
+        # correntada: un aviso sin fecha de vencimiento se convierte, en dos
+        # meses, en un mapa lleno de peligros que ya no estan, y eso es peor
+        # que no tener nada — el nauta deja de creerle.
+        #
+        # `vence_en` es el corazon: en vez de preguntar "sigue vigente?" se
+        # pregunta "hoy es anterior a esa fecha?". No hace falta ningun cron
+        # para que desaparezcan; es el mismo criterio que suscripciones.
+        #
+        # `usuario` va con ON DELETE SET NULL: si alguien se da de baja, el
+        # aviso de que hay un tronco en el paso sigue sirviendo a los demas.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reportes (
+                id SERIAL PRIMARY KEY,
+                usuario TEXT REFERENCES usuarios (usuario) ON DELETE SET NULL,
+                tipo TEXT NOT NULL,
+                detalle TEXT,
+                severidad TEXT NOT NULL DEFAULT 'comentario',
+                comentario TEXT,
+                lat DOUBLE PRECISION NOT NULL,
+                lon DOUBLE PRECISION NOT NULL,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                vence_en TIMESTAMPTZ NOT NULL
+            )
+            """
+        )
+        # El mapa siempre filtra por "no vencido" y despues por caja de
+        # coordenadas; el indice compuesto cubre esa consulta entera.
+        con.execute("CREATE INDEX IF NOT EXISTS reportes_vigencia_idx ON reportes (vence_en, lat, lon)")
+
+        # Interes medido: cuanta gente abrio la ficha o toco "WhatsApp".
+        # Agregado por dia y tipo (una fila por combinacion, con contador) y no
+        # un log fila-por-click: es exactamente lo que muestra la pantalla del
+        # comerciante ("50 personas te clickearon este fin de semana") y no
+        # crece sin control con el uso.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS poi_visitas (
+                poi_id INTEGER NOT NULL REFERENCES pois (id) ON DELETE CASCADE,
+                fecha DATE NOT NULL,
+                tipo TEXT NOT NULL,
+                cantidad INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (poi_id, fecha, tipo)
             )
             """
         )

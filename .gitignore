@@ -8,6 +8,22 @@ backend/.session_secret
 frontend/node_modules/
 frontend/dist/
 
+# App movil (Expo). Las carpetas nativas se regeneran con `expo prebuild`.
+app_movil/node_modules/
+app_movil/.expo/
+app_movil/dist/
+app_movil/ios/
+app_movil/android/
+
+# Basura que deja npx si se corre un comando de Expo desde la raiz en vez de
+# desde app_movil/. La raiz es un proyecto de Python: no tiene package.json
+# propio, y el que aparece ahi (con "expo" como unica dependencia) no lo usa
+# nada. Se puede borrar sin miedo junto con node_modules/ y .expo/.
+/package.json
+/package-lock.json
+/node_modules/
+/.expo/
+
 # Los datasets hidrologicos viven en Postgres (ver db.py), no en CSV.
 data/
 

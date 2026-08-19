@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 
+import ModeracionPois from "../admin/ModeracionPois.jsx";
 import Alertas from "./Alertas.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Historico from "./Historico.jsx";
@@ -10,17 +11,17 @@ import MenuMovil from "./MenuMovil.jsx";
 import ModalPerfil from "./ModalPerfil.jsx";
 import PantallaSuscripcion from "./PantallaSuscripcion.jsx";
 import Rutas from "./Rutas.jsx";
-import Sidebar, { TITULOS_SECCION } from "./Sidebar.jsx";
+import Sidebar, { TITULOS_SECCION, seccionesVisibles } from "./Sidebar.jsx";
 import TopBar from "./TopBar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 // "suscripcion" no esta en la barra de navegacion (no es una seccion mas del
 // producto): se llega desde el menu de perfil, o automaticamente cuando el
 // acceso vencio.
-const TITULOS = { ...TITULOS_SECCION, suscripcion: "Suscripción" };
+const TITULOS = { ...TITULOS_SECCION, suscripcion: "Suscripción", moderacion: "Moderación" };
 
 export default function AppShell() {
-  const { suscripcion } = useAuth();
+  const { usuario, suscripcion } = useAuth();
   const [seccionActiva, setSeccionActiva] = useState("dashboard");
   const [modalPerfilAbierto, setModalPerfilAbierto] = useState(false);
   const [modalAyudaAbierto, setModalAyudaAbierto] = useState(false);
@@ -43,12 +44,23 @@ export default function AppShell() {
   const habilitada =
     !suscripcion?.secciones ||
     seccionActiva === "suscripcion" ||
+    seccionActiva === "moderacion" ||
     suscripcion.secciones.includes(seccionActiva);
   const seccionVisible = habilitada ? seccionActiva : "dashboard";
+
+  // La cola de moderacion de comercios no depende del plan ni del rol, sino
+  // del permiso de la cuenta: quien aprueba paradores puede tener cualquier
+  // tipo de cuenta. Antes solo existia dentro del panel del comerciante, asi
+  // que un aprobador con cuenta de naviera no tenia forma de llegar.
+  const secciones = [
+    ...seccionesVisibles(suscripcion),
+    ...(usuario?.es_admin ? [{ id: "moderacion", etiqueta: "Moderación" }] : []),
+  ];
 
   return (
     <div className="app">
       <Sidebar
+        secciones={secciones}
         seccionActiva={seccionVisible}
         onCambiarSeccion={setSeccionActiva}
         onAbrirAyuda={abrirAyuda}
@@ -74,6 +86,7 @@ export default function AppShell() {
               {seccionVisible === "mapa" && <MapaEstaciones />}
               {seccionVisible === "flota" && <MiFlota />}
               {seccionVisible === "rutas" && <Rutas />}
+              {seccionVisible === "moderacion" && <ModeracionPois />}
             </>
           )}
         </main>
@@ -83,6 +96,7 @@ export default function AppShell() {
       <MenuMovil
         abierto={menuMovilAbierto}
         onCerrar={() => setMenuMovilAbierto(false)}
+        secciones={secciones}
         seccionActiva={seccionVisible}
         onCambiarSeccion={setSeccionActiva}
         onEditarPerfil={() => setModalPerfilAbierto(true)}

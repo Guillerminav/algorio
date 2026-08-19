@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
+import { PRODUCTO } from "../producto.js";
 import BotonGoogle from "./BotonGoogle.jsx";
-import HeroAutenticacion from "./HeroAutenticacion.jsx";
+import CruceProducto from "./CruceProducto.jsx";
+import PantallaMarca from "./PantallaMarca.jsx";
 
 export default function Login({ onIrARegistro }) {
   const { login } = useAuth();
@@ -26,48 +28,52 @@ export default function Login({ onIrARegistro }) {
   }
 
   return (
-    <div className="pantalla-login">
-      <HeroAutenticacion />
+    <PantallaMarca>
+      <form className="tarjeta-vidrio" onSubmit={manejarSubmit}>
+        {/* El título dice de qué producto es este dominio, y no un "Iniciar
+            sesión" genérico: es lo único que le avisa a alguien que entró por
+            el link equivocado antes de que pruebe su contraseña tres veces. */}
+        <h1>Entrar a {PRODUCTO.nombre}</h1>
+        <p className="tarjeta-vidrio-bajada">{PRODUCTO.bajada}</p>
 
-      <div className="login-form-panel">
-        <form className="tarjeta-login" onSubmit={manejarSubmit}>
-          <h1>Iniciar sesión</h1>
-          <p>Ingresá con tu usuario y contraseña.</p>
-          <label>
-            Usuario
-            <input
-              type="text"
-              autoComplete="username"
-              required
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-            />
-          </label>
-          <label>
-            Contraseña
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <div className="mensaje-error">{error}</div>
-          <button type="submit" disabled={enviando}>
-            {enviando ? "Ingresando…" : "Ingresar"}
+        <label>
+          Usuario
+          <input
+            type="text"
+            autoComplete="username"
+            required
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
+          />
+        </label>
+        <label>
+          Contraseña
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+
+        <div className="mensaje-error">{error}</div>
+
+        <button type="submit" className="boton-vidrio-primario" disabled={enviando}>
+          {enviando ? "Ingresando…" : "Ingresar"}
+        </button>
+
+        <BotonGoogle />
+
+        <p className="enlace-alternativo">
+          ¿Aún no tenés una cuenta?{" "}
+          <button type="button" className="enlace-boton" onClick={onIrARegistro}>
+            Registrarse
           </button>
+        </p>
+      </form>
 
-          <BotonGoogle />
-
-          <p className="enlace-alternativo">
-            ¿Aún no tenés una cuenta?{" "}
-            <button type="button" className="enlace-boton" onClick={onIrARegistro}>
-              Registrarse
-            </button>
-          </p>
-        </form>
-      </div>
-    </div>
+      <CruceProducto />
+    </PantallaMarca>
   );
 }

@@ -1,4 +1,106 @@
-# Algorio — pipeline de datos hidrologicos
+# Algorio
+
+## Tres perfiles, un solo backend
+
+AlgoRío atiende a tres publicos distintos sobre la **misma base y el mismo
+backend**. Lo que se bifurca es la experiencia, segun `usuarios.rol`:
+
+| Rol | Quien es | Donde vive | Cobro |
+| --- | --- | --- | --- |
+| `recreativo` | El nauta: kayak, lancha, velero, tabla | App (`app_movil/app/(tabs)/`) **y** web (`frontend/src/nauta/`) | Gratis |
+| `comercio` | Parador, cabaña o lancha-taxi | App (`app_movil/app/(comercio)/`) **y** web (`frontend/src/comercio/`) | Suscripcion |
+| `naviera` | Naviera, terminal, servicio fluvial | Solo web (`frontend/src/components/`) | Suscripcion |
+
+Los dos perfiles de rio existen en los dos lados, con la misma cuenta y los
+mismos datos: el comerciante que carga su ficha desde el celular la ve igual en
+la web, y la reseña que el nauta deja en el navegador le llega a su panel. Son
+dos interfaces sobre los mismos datos, no un producto y su folleto.
+
+La naviera es la excepcion y es deliberado: su producto son tablas densas de
+niveles, calado por estacion y rutas con punto critico, que se leen en pantalla
+ancha y se exportan. En la app ve una pantalla que la manda a la web.
+
+El rol se elige al registrarse y decide que shell monta el frontend
+(`frontend/src/App.jsx`). Las cuentas anteriores a esta division quedaron en
+`naviera`, que es lo que eran: hasta entonces la unica forma de tener cuenta
+era usar el dashboard de datos hidrologicos.
+
+El punto de encuentro entre los perfiles son los **POIs** (tabla `pois`): el
+comerciante carga su ficha, un admin la aprueba, y recien ahi aparece en el
+mapa del nauta. El nauta la puntua y toca "WhatsApp"; el comerciante ve esos
+numeros en su panel.
+
+Sobre el mismo mapa va una segunda capa, los **reportes** (tabla `reportes`):
+avisos que deja un nauta sobre un punto —un yacare, un banco de arena que se
+corrio, un tronco a la deriva, basura— con severidad (comentario / advertencia
+/ alerta) y **fecha de vencimiento** (24 h, 48 h o una semana).
+
+Que venzan es la diferencia de fondo con los POIs, no un detalle: un parador
+esta donde esta, pero un tronco se va con la correntada. Un aviso sin caducidad
+convierte el mapa, en dos meses, en una lista de peligros que ya no existen — y
+eso es peor que no tener nada, porque el nauta deja de creerle. No hay cron: se
+filtra por `vence_en > now()`, igual que el acceso por suscripcion. Tampoco
+pasan por moderacion, porque un banco avisado hoy y aprobado el martes ya no le
+sirve a nadie; el control es que el autor lo borra o lo renueva.
+
+```
+algorio/
+├── backend/      FastAPI — compartido por los tres perfiles (Render)
+├── frontend/     React/Vite — perfiles COMERCIO y NAVIERA (Vercel)
+├── app_movil/    Expo/React Native — perfil RECREATIVO (ver su README)
+└── data_pipeline/  scraping + extraccion de boletines hidrologicos
+```
+
+**Autenticacion.** La web usa la cookie de sesion firmada y le alcanza porque
+llama a `/api` relativo y Vercel lo reescribe al backend: mismo origen. La app
+movil pega directo al dominio de Render, cross-origin, asi que manda
+`Authorization: Bearer <token>` (ver `backend/tokens.py`). `usuario_actual()`
+en `backend/main.py` acepta las dos y devuelve lo mismo, asi que ningun
+endpoint necesita saber por cual entro el usuario.
+
+**Moderacion.** Los POIs nacen en `estado = 'pendiente'` y no se ven en el
+mapa hasta que una cuenta con `usuarios.es_admin` los aprueba. El permiso se
+otorga a mano:
+
+```sql
+UPDATE usuarios SET es_admin = TRUE WHERE usuario = 'tu_usuario';
+```
+
+## La UI del nauta: vidrio sobre el mapa
+
+Vale para las dos interfaces del perfil recreativo, la web
+(`frontend/src/nauta/`) y la app (`app_movil/`), y por eso se documenta aca y
+no en una sola de las dos.
+
+Todo lo que se apoya sobre la imagen satelital —el cartel del rio, los filtros
+de rubro, los botones sueltos, los avisos— se dibuja en vidrio translucido con
+desenfoque, no en color liso: en la web con `backdrop-filter` y las variables
+`--vidrio-*` de `frontend/src/index.css`; en la app con `src/Vidrio.jsx`
+(`expo-blur`) y `VIDRIO` de `src/tema.js`.
+
+El vidrio va **oscuro** en los dos lados. El satelital es oscuro y saturado, y
+un vidrio claro encima levanta el fondo hasta que el texto oscuro pierde
+contraste justo donde el rio es mas claro; con vidrio oscuro y texto blanco el
+contraste no depende de que hay abajo. La opacidad (0.55 / 0.72) es la que
+sostiene la legibilidad cuando el desenfoque no esta disponible.
+
+**El semaforo es un punto, no una franja.** El cartel del rio muestra tres
+lecturas separadas: navegabilidad (el veredicto de `backend/clima.py`, lo unico
+en negrita), viento (el numero, abajo y mas chico) y direccion (la flecha
+apuntando al origen, en su propia columna). Antes la barra entera se pintaba de
+verde, ambar o rojo: gritaba lo mismo un dia de 30 km/h que uno de 60, y encima
+tapaba el mapa, que es lo que la persona vino a mirar.
+
+**En la web la capa flota sobre el mapa**, no arriba de el. Antes la barra, los
+filtros y los avisos estaban apilados en la columna y empujaban el mapa hacia
+abajo — en un celular se llevaban la mitad del alto. Ahora van en `.capa-mapa`,
+que no recibe el mouse y se lo devuelve a cada control uno por uno, asi que en
+los huecos entre controles el mapa se sigue arrastrando.
+
+El acento azul quedo reservado para los estados activos (el modo "el proximo
+click deja un aviso"). Es lo unico que se sigue pintando entero.
+
+## Pipeline de datos hidrologicos
 
 Consolida en un unico lugar la informacion no estructurada que publican
 distintos organismos hidrologicos de la region (EBY/Yacyreta, Itaipu, INA
@@ -202,20 +304,58 @@ de React, no cambia la URL) — ver estructura abajo. `usuario` (perfil +
 preferencia de unidades) vive en `AuthContext`; cada seccion pide sus propios
 datos con un hook chico (`useFetchLista`) al montarse.
 
-## Dominios
-
-Son dos apps separadas, cada una con su repo y su proyecto de Vercel, bajo el
-mismo dominio:
+## Dominios: dos webs, un backend, una base
 
 | URL | Que atiende |
 | --- | --- |
-| `algorio.com.ar` | La landing (repo `algorio_landing`) |
-| `app.algorio.com.ar` | Este sistema (`frontend/`) |
-| `app.algorio.com.ar/api/*` | Proxeado al backend en Render (`frontend/vercel.json`) |
+| `algorio.com.ar` | La landing recreativa (repo `algorio_landing`) |
+| `algorio.com.ar/pro/` | La landing de Pro, misma build |
+| `app.algorio.com.ar` | **AlgoRío** — perfiles `recreativo` y `comercio` |
+| `pro.algorio.com.ar` | **AlgoRío Pro** — perfil `naviera` |
+| `<sub>.algorio.com.ar/api/*` | Proxeado al backend en Render (`frontend/vercel.json`) |
 
-El backend nunca se expone directo: `/api/*` sale del mismo origen que la app
-porque Vercel lo reescribe hacia Render. Por eso no hace falta CORS y la
-cookie de sesion viaja como cookie propia del dominio.
+Los dos subdominios salen del **mismo `frontend/`**. Lo que se separo es la
+interfaz, no la identidad: sigue habiendo una sola tabla `usuarios`, una sola
+de `suscripciones` y un solo pipeline de datos hidrologicos, que los dos
+consultan (`/api/nivel-rio` lo usa tanto el kayakista como el dashboard de la
+naviera). Separar las bases habria obligado a replicar el historico en las dos.
+
+**Que dominio es cual lo decide `frontend/src/producto.js`, por hostname.** Es
+por hostname y no por variable de build a proposito: funciona igual si los dos
+dominios apuntan al mismo proyecto de Vercel o si son dos proyectos. Si algun
+dia son dos y se quiere podar mas el bundle, `VITE_PRODUCTO` le gana al
+hostname. En local, `?producto=pro` sirve para mirar el otro producto contra el
+mismo `npm run dev` (solo en dev; en produccion se ignora).
+
+Los shells se cargan con `React.lazy`, asi que cada dominio se descarga solo el
+suyo aunque el build sea el mismo: `app.` no baja `AppShell` ni recharts ni
+jspdf, que son ~900 KB de Pro.
+
+**El rol y el dominio tienen que coincidir.** Antes habia un solo dominio y el
+default de `ShellSegunRol` era `AppShell`, "porque es lo que era toda cuenta
+antes de que existieran los roles". Ese default ya no sirve: en `app.` montaria
+el producto equivocado. Ahora el rol que no pertenece a este dominio no cae en
+ningun shell — `CuentaDeOtroProducto` explica y ofrece el link al otro.
+
+**Las sesiones son independientes.** `SessionMiddleware` va sin `domain=`, asi
+que la cookie es host-only y cada subdominio guarda la suya: entrar en uno no
+entra en el otro. Es deliberado (son dos publicos que no se solapan). Si algun
+dia se quiere una sola sesion, el cambio es agregarle
+`domain=".algorio.com.ar"` a ese middleware en `backend/main.py`.
+
+Para el navegador el backend nunca se expone directo: `/api/*` sale del mismo
+origen que la app porque Vercel lo reescribe hacia Render.
+
+**Al agregar un subdominio nuevo hay que acordarse de Google**: el Client ID de
+OAuth valida el origen, asi que `pro.algorio.com.ar` tiene que estar en los
+*Authorized JavaScript origins* de Google Cloud Console y `VITE_GOOGLE_CLIENT_ID`
+definida en su proyecto de Vercel. Si falta, el boton de Google no aparece y no
+es obvio por que.
+
+La app movil es la excepcion: no tiene ese reverse proxy delante y le pega
+directo a `algorio-backend.onrender.com` con token Bearer. Por eso el backend
+ahora sí monta `CORSMiddleware`, con la lista explicita de origenes de la env
+var `ORIGENES_CORS` (React Native no aplica CORS, pero `expo start --web` sí).
 
 ## Estructura
 
@@ -229,11 +369,17 @@ algorio/
 │   ├── sources/                # un modulo de funciones por fuente (arquitectura plugin)
 │   └── storage/                # guardado por fuente + unificacion al historico
 ├── backend/
-│   ├── main.py               # API (FastAPI): auth, datos, activos + sirve el frontend
-│   ├── auth.py                # usuarios en SQLite, hash de contraseñas, preferencias
-│   ├── activos.py              # CRUD de "Mi flota" (embarcaciones/dragas/muelles/tramos)
-│   ├── crear_usuario.py         # CLI para dar de alta un usuario (getpass, no via web)
-│   └── datos.py                # lectura de los CSV, normalizacion, umbrales y alertas
+│   ├── main.py               # API (FastAPI): auth, datos, activos, POIs + sirve el frontend
+│   ├── auth.py                # usuarios, hash de contraseñas, rol y preferencias
+│   ├── tokens.py               # token Bearer para la app movil (itsdangerous)
+│   ├── activos.py               # CRUD de "Mi flota" (embarcaciones/dragas/muelles/tramos)
+│   ├── pois.py                   # paradores/cabañas/lanchas-taxi: alta, moderacion, metricas
+│   ├── reportes.py                # avisos efimeros del rio (vencen solos, sin cron)
+│   ├── resenas.py                  # puntajes y comentarios de los nautas
+│   ├── clima.py                    # Open-Meteo + veredicto de "¿esta picado?" por embarcacion
+│   ├── suscripciones.py             # planes por rol y control de acceso
+│   ├── crear_usuario.py              # CLI para dar de alta un usuario (getpass, no via web)
+│   └── datos.py                       # lectura de los CSV, normalizacion, umbrales y alertas
 ├── frontend/                    # app de React (Vite) — ver "Frontend" arriba para como buildearla
 │   ├── package.json
 │   ├── vite.config.js            # proxy /api/* -> backend en modo dev (npm run dev)
@@ -250,14 +396,39 @@ algorio/
 │       │   └── AuthContext.jsx              # usuario, login/logout/actualizarPerfil
 │       ├── hooks/
 │       │   └── useFetchLista.js               # pedir una lista a la API con estado de carga/error
-│       └── components/
-│           ├── Login.jsx, AppShell.jsx, Sidebar.jsx, TopBar.jsx,
-│           │   PerfilMenu.jsx, ModalPerfil.jsx        # shell + autenticacion
+│       ├── comercio/                           # PERFIL COMERCIO — shell propio
+│       │   ├── ShellComercio.jsx                 # layout + estado de la ficha
+│       │   ├── AltaComercio.jsx                   # asistente de alta en 3 pasos
+│       │   ├── MapaUbicacion.jsx                   # Leaflet satelital, pin arrastrable
+│       │   ├── MiComercio.jsx, EditorCarta.jsx,
+│       │   │   EditorHorarios.jsx                    # edicion de la ficha
+│       │   ├── MetricasComercio.jsx                   # clicks recibidos (recharts)
+│       │   └── ResenasComercio.jsx                     # lo que dicen los nautas
+│       ├── nauta/                              # PERFIL RECREATIVO — version web
+│       │   ├── ShellNauta.jsx                    # layout + onboarding de embarcacion
+│       │   ├── MapaNauta.jsx                      # satelital, pines por rubro, capa de vidrio encima
+│       │   ├── PanelLugar.jsx                      # ficha: menu, horarios, contacto, reseñas
+│       │   ├── ClimaNauta.jsx                       # 48 h de viento y rafagas
+│       │   ├── PerfilNauta.jsx                       # embarcacion + mis reseñas
+│       │   └── constantes.js                          # embarcaciones, rubros, horarios
+│       ├── admin/
+│       │   └── ModeracionPois.jsx                        # cola de aprobacion (solo es_admin)
+│       ├── mapaSatelital.js                               # capa Esri + pin, compartido
+│       └── components/                                     # PERFIL NAVIERA + comunes
+│           ├── Login.jsx, Registro.jsx, SelectorRol.jsx,
+│           │   AppShell.jsx, Sidebar.jsx, TopBar.jsx        # shell + autenticacion
 │           ├── Dashboard.jsx, DashboardGeneral.jsx,
 │           │   TablaIna.jsx, TablaPrefectura.jsx, TablaYacyreta.jsx
 │           ├── Alertas.jsx
 │           ├── MapaEstaciones.jsx                        # Leaflet + clustering + panel lateral
 │           └── MiFlota.jsx, FormActivo.jsx                # CRUD de "Mi flota"
+├── app_movil/                # PERFILES RECREATIVO y COMERCIO — Expo (ver app_movil/README.md)
+│   ├── app/
+│   │   ├── index.jsx           # rutea por rol al abrir la app
+│   │   ├── (tabs)/              # nauta: mapa, clima, perfil
+│   │   ├── (comercio)/           # comerciante: ficha, metricas, reseñas, cuenta
+│   │   └── comercio/              # alta, horarios, carta y ubicacion (pantallas sueltas)
+│   └── src/                     # sesion con token, cliente HTTP, tema, ubicacion
 └── data/
     ├── per_source/            # dataset_<fuente>.csv
     └── historical/             # dataset_historico_largo.csv

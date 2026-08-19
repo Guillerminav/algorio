@@ -7,6 +7,16 @@ import { pedirJSON } from "../api.js";
 // las tienen los tres, y enumerarlas en cada tarjeta seria ruido.
 const ETIQUETA_SECCION = { flota: "Mi flota", rutas: "Rutas" };
 
+// Que ofrece el plan de un comercio. No se deduce de `secciones` como los de
+// naviera: el panel del comerciante es una sola seccion ("mi_comercio") y
+// listarla asi no le diria nada a nadie.
+const VENTAJAS_COMERCIO = [
+  "Tu lugar publicado en el mapa de la app",
+  "Menú, horarios, fotos y contacto",
+  "Métricas de cuánta gente te miró",
+  "Reseñas y puntaje de los nautas",
+];
+
 function limiteEnTexto(maximo, singular, plural) {
   return `Hasta ${maximo} ${maximo === 1 ? singular : plural}`;
 }
@@ -15,6 +25,8 @@ function limiteEnTexto(maximo, singular, plural) {
 // topes; aca solo se traduce a texto. Se decide por los datos y no por el
 // nombre del plan, asi agregar uno nuevo no obliga a tocar esto.
 function ventajas(plan) {
+  if (plan.rol === "comercio") return VENTAJAS_COMERCIO;
+
   const extras = plan.secciones
     .filter((s) => ETIQUETA_SECCION[s])
     .map((s) => ETIQUETA_SECCION[s]);
@@ -55,7 +67,10 @@ function Precio({ plan }) {
   );
 }
 
-export default function SelectorPlan({ valor, onCambiar }) {
+// `rol` acota el catalogo al perfil que se esta dando de alta: los planes de
+// naviera no le sirven a un parador. El filtro lo hace el backend, que es
+// donde vive la relacion plan-rol (ver backend/suscripciones.py).
+export default function SelectorPlan({ valor, onCambiar, rol }) {
   const [planes, setPlanes] = useState([]);
   const [diasPrueba, setDiasPrueba] = useState(null);
   const [error, setError] = useState("");
@@ -63,7 +78,7 @@ export default function SelectorPlan({ valor, onCambiar }) {
   useEffect(() => {
     let vigente = true;
     // /api/planes no pide sesion: se consulta justamente antes de tener una.
-    pedirJSON("/api/planes")
+    pedirJSON(rol ? `/api/planes?rol=${encodeURIComponent(rol)}` : "/api/planes")
       .then((datos) => {
         if (!vigente) return;
         setPlanes(datos.planes);
@@ -71,7 +86,7 @@ export default function SelectorPlan({ valor, onCambiar }) {
         // Se preselecciona el primero para que el formulario nunca se mande
         // sin plan; si no, el backend lo bajaria al mas acotado sin que el
         // usuario haya elegido nada.
-        if (!valor && datos.planes.length) {
+        if (datos.planes.length) {
           onCambiar(datos.planes[0]);
         }
       })
@@ -79,10 +94,11 @@ export default function SelectorPlan({ valor, onCambiar }) {
     return () => {
       vigente = false;
     };
-    // Solo al montar: si `valor` estuviera en las dependencias, elegir un
-    // plan volveria a pedir la lista.
+    // Se vuelve a pedir cuando cambia el rol (el usuario volvio atras y eligio
+    // otro perfil). `valor` no va en las dependencias: elegir un plan no debe
+    // disparar otra consulta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rol]);
 
   if (error) return <div className="mensaje-error">{error}</div>;
   if (!planes.length) return null;

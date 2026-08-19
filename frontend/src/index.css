@@ -92,6 +92,34 @@
   /* Solo el wordmark. Host Grotesk queda de respaldo por si el .otf no carga:
      mejor el logo en la tipografia del resto de la pagina que en Times. */
   --fuente-marca: "Glock Grotesque", "Host Grotesk", system-ui, sans-serif;
+
+  /* El vidrio de lo que flota ARRIBA del mapa del nauta. No es un color mas de
+     la paleta: es la unica superficie de la app que se apoya sobre imagen
+     satelital, y por eso se define aparte.
+
+     Va oscuro y no claro por una razon concreta: el satelital es oscuro y
+     saturado (agua, monte, sombras), y un vidrio claro encima levanta el fondo
+     hasta que el texto oscuro pierde contraste justo donde el rio es mas
+     claro. Con vidrio oscuro y texto blanco el contraste no depende de que hay
+     abajo.
+
+     La opacidad es la que hace el trabajo cuando `backdrop-filter` no esta
+     disponible (Firefox con la preferencia apagada, navegadores viejos): con
+     0.55 el texto se lee igual aunque el desenfoque no llegue a aplicarse. */
+  --vidrio: rgba(9, 26, 40, 0.55);
+  --vidrio-denso: rgba(9, 26, 40, 0.72);
+  --vidrio-borde: rgba(255, 255, 255, 0.16);
+  --vidrio-texto: #ffffff;
+  --vidrio-texto-suave: rgba(255, 255, 255, 0.68);
+  --vidrio-separador: rgba(255, 255, 255, 0.14);
+  --vidrio-desenfoque: blur(14px) saturate(140%);
+
+  /* Los mismos verdes/ambares/rojos de la paleta, subidos de luminosidad: los
+     de arriba estan pensados para texto sobre crema y sobre vidrio oscuro
+     quedan apagados. */
+  --vidrio-calmo: #4fd08a;
+  --vidrio-picado: #f0b429;
+  --vidrio-muy-picado: #ff6b52;
 }
 
 * { box-sizing: border-box; }
@@ -114,160 +142,200 @@ h1, h2, h3 {
 
 /* ---------------------------------------------------------------- Login */
 
-.pantalla-login {
-  display: flex;
-  min-height: 100vh;
-}
+/* ===========================================================================
+   PANTALLAS DE ACCESO (login, registro, cruce entre productos)
+   ---------------------------------------------------------------------------
+   Fondo de marca a sangre con las tarjetas de vidrio encima.
 
-.login-hero {
-  width: 44%;
-  min-width: 380px;
-  background: var(--marca);
-  color: #fff;
+   Reemplaza al layout de dos columnas de antes (panel azul a la izquierda,
+   formulario a la derecha). Ese se rompia en el celular y no por un ajuste que
+   faltara: en mobile pasaba a `flex-direction: column`, y el panel "retraido"
+   colapsaba `width: 0` — que en una columna NO colapsa el alto. Quedaban
+   ~850px de panel invisible empujando el formulario fuera de la pantalla.
+
+   Aca el fondo es una capa, no una columna. No hay nada que colapsar.
+   =========================================================================== */
+
+.pantalla-marca {
+  position: relative;
+  /* dvh y no vh: en el navegador del celular, 100vh incluye la barra de
+     direcciones que despues se retrae, asi que el contenido queda cortado por
+     abajo. El vh queda de respaldo para los navegadores sin dvh. */
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 3.5rem 3rem;
-  gap: 2rem;
+  gap: 1.5rem;
+  padding: 1.75rem 1.5rem 2rem;
   overflow: hidden;
-  transition:
-    width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    min-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    padding 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.25s ease;
+  background:
+    radial-gradient(110% 120% at 12% 0%, rgba(79, 179, 217, 0.22), transparent 55%),
+    linear-gradient(165deg, var(--marca-suave) 0%, var(--marca) 55%, #082539 100%);
+  color: #fff;
 }
 
-/* Se corre para dejar la pantalla libre en el paso de elegir plan. La opacidad
-   se apaga en 0.25s, la mitad de lo que tarda el ancho: asi el contenido ya
-   esta invisible cuando el texto empieza a reacomodarse contra el borde, y se
-   lee como que el panel se va, no como que se aplasta. */
-.login-hero.retraido {
-  width: 0;
-  min-width: 0;
-  padding-left: 0;
-  padding-right: 0;
-  opacity: 0;
+.pantalla-marca-ondas {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 55%;
+  pointer-events: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .login-hero {
-    transition: none;
-  }
+.pantalla-marca-encabezado,
+.pantalla-marca-cuerpo,
+.pantalla-marca-pie {
+  position: relative;
+  z-index: 1;
 }
 
-.login-hero-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-}
-
-.login-hero-marca {
+.pantalla-marca-wordmark {
   font-family: var(--fuente-marca);
   font-weight: 800;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   letter-spacing: -0.01em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
-.login-hero-cuerpo {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.login-hero-titulo {
+/* El "Pro" no va en la tipografia del logo: el wordmark es uno solo para los
+   dos productos y lo que cambia es la etiqueta que tiene al lado. */
+.pantalla-marca-sufijo {
+  margin-left: 0.4rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 6px;
+  background: var(--acento);
+  color: #fff;
   font-family: var(--fuente-titulo);
+  font-size: 0.62em;
   font-weight: 700;
-  font-size: 1.9rem;
-  line-height: 1.25;
-  max-width: 26rem;
-  margin: 0;
+  letter-spacing: 0.02em;
 }
 
-.login-hero-texto {
-  font-size: 0.95rem;
-  color: var(--marca-texto-suave);
-  max-width: 24rem;
-  line-height: 1.6;
-}
-
-.login-hero-imagen {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  border-radius: 14px;
-  background:
-    radial-gradient(120% 140% at 15% 0%, rgba(79, 179, 217, 0.35), transparent 55%),
-    linear-gradient(160deg, #0f4066 0%, #0b3252 60%, #082539 100%);
-  position: relative;
-  overflow: hidden;
-}
-
-.login-hero-imagen svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.login-hero-footer {
-  font-size: 0.8rem;
-  color: var(--marca-texto-tenue);
-  border-top: 1px solid var(--marca-borde);
-  padding-top: 1rem;
-}
-
-.login-form-panel {
+/* El cuerpo se centra en el espacio que sobra entre el encabezado y el pie.
+   Cuando el contenido es mas alto que la ventana la pagina scrollea normal:
+   no hay `overflow: hidden` ni alto fijo en el medio, que es lo que antes
+   dejaba el boton "Continuar" fuera de alcance. */
+.pantalla-marca-cuerpo {
   flex: 1;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  padding: 2rem;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
 }
 
-.tarjeta-login {
+.pantalla-marca-angosto .tarjeta-vidrio,
+.pantalla-marca-angosto .cruce-producto { max-width: 27rem; }
+
+/* 58rem y no menos: es lo que hace falta para que las TRES tarjetas de plan
+   de Pro entren en una fila (3 x 15rem + los gaps + el padding de la tarjeta).
+   Con menos, la tercera se cae a un segundo renglon y el paso deja de entrar
+   en una pantalla de portatil. El paso de perfil, que tiene dos tarjetas, usa
+   el mismo ancho y le sobra. */
+.pantalla-marca-ancho .tarjeta-vidrio,
+.pantalla-marca-ancho .cruce-producto { max-width: 58rem; }
+
+.pantalla-marca-pie {
+  font-size: 0.78rem;
+  color: var(--marca-texto-tenue);
+  text-align: center;
+}
+
+/* --- La tarjeta de vidrio ------------------------------------------------- */
+
+.tarjeta-vidrio {
   width: 100%;
-  max-width: 360px;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  padding: 1.75rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 18px;
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  box-shadow: 0 18px 48px rgba(4, 18, 28, 0.4);
 }
 
-.tarjeta-login h1 {
+.tarjeta-vidrio h1 {
   margin: 0;
   font-weight: 800;
-  font-size: 1.5rem;
-  color: var(--marca);
+  font-size: 1.4rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--vidrio-texto);
 }
 
-.tarjeta-login p {
+.tarjeta-vidrio > p,
+.tarjeta-vidrio-bajada {
   margin: -0.6rem 0 0;
-  color: var(--texto-suave);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--vidrio-texto-suave);
 }
 
-.tarjeta-login label {
+.tarjeta-vidrio label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   text-align: left;
-  font-size: 0.8rem;
-  color: var(--texto-suave);
-  font-weight: 500;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--vidrio-texto-suave);
 }
 
-.tarjeta-login input {
+.tarjeta-vidrio input {
   padding: 0.7rem 0.8rem;
-  border: 1px solid var(--borde);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--texto);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--vidrio-texto);
+  font-family: inherit;
   font-size: 0.95rem;
+}
+
+.tarjeta-vidrio input:focus {
+  outline: none;
+  border-color: var(--acento-claro);
+  box-shadow: 0 0 0 3px rgba(79, 179, 217, 0.25);
+}
+
+/* Chrome pinta los campos autocompletados con su propio fondo claro y texto
+   oscuro, que sobre vidrio oscuro queda como un bloque blanco con el texto
+   invisible. No se puede sobreescribir `background` (el navegador la ignora):
+   la unica via es un inset box-shadow que tape el fondo del user-agent. */
+.tarjeta-vidrio input:-webkit-autofill,
+.tarjeta-vidrio input:-webkit-autofill:hover,
+.tarjeta-vidrio input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--vidrio-texto);
+  -webkit-box-shadow: inset 0 0 0 1000px #123449;
+  caret-color: var(--vidrio-texto);
 }
 
 button {
   font-family: inherit;
 }
 
-.tarjeta-login button,
+.boton-vidrio-primario {
+  padding: 0.8rem 1rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+
+.boton-vidrio-primario:hover { background: var(--acento-hover); }
+.boton-vidrio-primario:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .modal-botones button[type="submit"],
 .form-activo-botones button[type="submit"] {
   padding: 0.7rem 1rem;
@@ -280,7 +348,6 @@ button {
   cursor: pointer;
 }
 
-.tarjeta-login button:hover,
 .modal-botones button[type="submit"]:hover,
 .form-activo-botones button[type="submit"]:hover {
   background: var(--acento-hover);
@@ -292,15 +359,14 @@ button {
   min-height: 1.1em;
 }
 
+/* Sobre vidrio oscuro el rojo de la paleta (pensado para texto sobre crema)
+   queda ilegible: dentro de la tarjeta va el tono subido de luminosidad. */
+.tarjeta-vidrio .mensaje-error { color: var(--vidrio-muy-picado); font-weight: 600; }
+
 .mensaje-ok {
   color: var(--subida);
   font-size: 0.85rem;
   min-height: 1.1em;
-}
-
-.tarjeta-login button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
 }
 
 .separador-o {
@@ -319,6 +385,10 @@ button {
   background: var(--borde);
 }
 
+.tarjeta-vidrio .separador-o { color: var(--vidrio-texto-suave); }
+.tarjeta-vidrio .separador-o::before,
+.tarjeta-vidrio .separador-o::after { background: var(--vidrio-separador); }
+
 .boton-google {
   display: flex;
   justify-content: center;
@@ -335,69 +405,10 @@ button {
   flex: 1;
 }
 
-/* Anidado bajo .tarjeta-login para ganarle a ".tarjeta-login button", que
-   pinta todos los botones de la tarjeta como el primario azul. */
-.tarjeta-login .boton-volver {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.9rem;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--borde);
-  color: var(--texto-suave);
-}
+/* --- Encabezado de paso --------------------------------------------------- */
 
-.tarjeta-login .boton-volver:hover {
-  background: #fff;
-  border-color: var(--acento);
-  color: var(--acento);
-}
-
-/* ---------------------------------------------------- Selector de plan */
-
-/* Esta pantalla entra entera, sin scroll: se fija al alto de la ventana y lo
-   que sobra se recorta. Por eso el resto de las medidas de acá abajo son
-   contenidas — es el unico paso del registro que pelea por alto vertical.
-
-   Va detras de una media query por ancho y no suelto: abajo de ~1000px las
-   tres tarjetas dejan de entrar en fila y se apilan, con lo que el contenido
-   pasa a medir mas que la ventana. Recortarlo ahi dejaba el boton "Continuar"
-   fuera de la pantalla y sin forma de llegar, o sea el registro cortado. En
-   pantallas angostas la pagina scrollea normal. */
-@media (min-width: 1000px) {
-  .pantalla-login.pantalla-planes {
-    height: 100vh;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .pantalla-planes .login-form-panel {
-    padding: 1.5rem 2rem;
-    overflow: hidden;
-  }
-}
-
-/* El paso de elegir plan usa la pantalla completa (sin el panel de marca al
-   costado): con los 360px de .tarjeta-login las tres tarjetas no entran en
-   fila. Los botones de abajo siguen angostos y centrados para que la accion
-   principal no quede estirada de lado a lado. */
-.tarjeta-login.tarjeta-planes {
-  max-width: 1040px;
-  gap: 0.85rem;
-}
-
-.tarjeta-planes > button,
-.tarjeta-planes > .mensaje-error,
-.tarjeta-planes > .enlace-alternativo {
-  align-self: center;
-  width: 100%;
-  max-width: 360px;
-}
-
-/* La flecha al lado del titulo, no encima: alineada arriba para que quede a
-   la altura del <h1> y no centrada contra el bloque de dos lineas. */
+/* La flecha al lado del titulo, no encima: alineada arriba para que quede a la
+   altura del <h1> y no centrada contra el bloque de dos lineas. */
 .encabezado-paso {
   display: flex;
   align-items: flex-start;
@@ -408,6 +419,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  min-width: 0;
 }
 
 .encabezado-paso-texto h1,
@@ -415,72 +427,185 @@ button {
   margin: 0;
 }
 
-.selector-plan {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin: 0;
+.tarjeta-vidrio .boton-volver {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
   padding: 0;
-  border: none;
-}
-
-/* Las tres tarjetas en fila. `flex: 1 1 300px` reparte el ancho en partes
-   iguales mientras entren, y las baja una debajo de otra en pantallas donde
-   300px por tarjeta ya no da: no hace falta media query. */
-.plan-tarjetas {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0.85rem;
-}
-
-/* Van anidadas bajo .tarjeta-login a proposito: ahi ya existen
-   ".tarjeta-login label" (que trae su propio gap y tipografia) y
-   ".tarjeta-login input" (que le pone padding y borde a los campos de texto).
-   Las dos le ganan por especificidad a un ".plan-opcion" suelto, y dejarian
-   el radio como una caja gigante en vez de un punto. */
-.tarjeta-login .plan-opcion {
-  flex: 1 1 300px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1.3rem 1.4rem;
-  border: 1px solid var(--borde);
-  border-radius: 12px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 10px;
+  color: var(--vidrio-texto-suave);
   cursor: pointer;
 }
 
-/* El borde de la elegida se engrosa con un box-shadow y no subiendo el
-   border-width: cambiar el ancho del borde correria el contenido un pixel al
-   pasar de una opcion a otra. */
-.tarjeta-login .plan-opcion.elegida {
-  border-color: var(--acento);
-  box-shadow: inset 0 0 0 1px var(--acento);
+.tarjeta-vidrio .boton-volver:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--vidrio-texto);
 }
 
-.tarjeta-login .plan-opcion input[type="radio"] {
+/* --- Elegir perfil (solo en el dominio con mas de un rol) ----------------- */
+
+.selector-rol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  /* Un <fieldset> trae `min-width: min-content` de fabrica y no se achica por
+     debajo de su contenido: sin esto desborda en pantallas angostas. */
+  min-width: 0;
+}
+
+.tarjeta-rol {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.tarjeta-rol:hover { background: rgba(255, 255, 255, 0.12); }
+
+.tarjeta-rol.elegida {
+  border-color: var(--acento-claro);
+  background: rgba(79, 179, 217, 0.16);
+  box-shadow: inset 0 0 0 1px var(--acento-claro);
+}
+
+/* El radio se oculta pero sigue existiendo: es lo que hace que las flechas del
+   teclado recorran las opciones y que el lector de pantalla las anuncie como
+   un grupo. El estado se ve en el borde de la tarjeta. */
+.tarjeta-rol input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.tarjeta-rol input[type="radio"]:focus-visible + .tarjeta-rol-cabecera {
+  outline: 2px solid var(--acento-claro);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.tarjeta-rol-cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.tarjeta-rol-cabecera strong {
+  font-size: 1rem;
+  color: var(--vidrio-texto);
+}
+
+.tarjeta-rol-precio {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--acento-claro);
+  white-space: nowrap;
+}
+
+.tarjeta-rol-resumen {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--vidrio-texto-suave);
+}
+
+.tarjeta-rol-ventajas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--vidrio-separador);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--vidrio-texto-suave);
+}
+
+.tarjeta-rol-ventajas span::before {
+  content: "· ";
+  color: var(--acento-claro);
+  font-weight: 700;
+}
+
+/* --- Elegir plan (solo en Pro) -------------------------------------------- */
+
+.selector-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.selector-plan-nota {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--vidrio-texto-suave);
+}
+
+/* `auto-fit` con `minmax` reparte las tarjetas en fila mientras entren y las
+   apila cuando no: no hace falta media query. El `min()` es lo que impide que
+   en un celular la columna pida 15rem y desborde. */
+.plan-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.tarjeta-vidrio .plan-opcion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.tarjeta-vidrio .plan-opcion:hover { background: rgba(255, 255, 255, 0.12); }
+
+.tarjeta-vidrio .plan-opcion.elegida {
+  border-color: var(--acento-claro);
+  background: rgba(79, 179, 217, 0.16);
+  box-shadow: inset 0 0 0 1px var(--acento-claro);
+}
+
+.tarjeta-vidrio .plan-opcion input[type="radio"] {
   width: auto;
-  margin-top: 0.15rem;
+  margin: 0;
   padding: 0;
   border: none;
   border-radius: 0;
   background: none;
-  accent-color: var(--acento);
+  accent-color: var(--acento-claro);
   flex-shrink: 0;
 }
 
-.selector-plan-nota {
-  margin: 0 0 0.35rem;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--texto-suave);
-}
-
-/* El radio y el nombre a la izquierda; el precio se va al margen derecho por
-   el margin-left:auto de .plan-precio. `nowrap` para que el precio no se caiga
-   abajo del nombre cuando la tarjeta se angosta: si no entra, se encoge el
-   nombre, que es lo unico que puede recortarse sin perder informacion. */
+/* El radio y el nombre a la izquierda; el precio al margen derecho. `nowrap`
+   para que el precio no se caiga abajo del nombre cuando la tarjeta se
+   angosta: si no entra se encoge el nombre, que es lo unico que puede
+   recortarse sin perder informacion. */
 .plan-encabezado {
   display: flex;
   align-items: baseline;
@@ -489,8 +614,8 @@ button {
 }
 
 .plan-encabezado > strong {
-  font-size: 1.15rem;
-  color: var(--marca);
+  font-size: 1rem;
+  color: var(--vidrio-texto);
 }
 
 .plan-precio {
@@ -505,77 +630,120 @@ button {
 }
 
 .plan-precio strong {
-  font-size: 1.3rem;
-  color: var(--marca);
+  font-size: 1.15rem;
+  color: var(--vidrio-texto);
 }
 
 .plan-precio-lista {
-  font-size: 0.85rem;
-  color: var(--texto-suave);
+  font-size: 0.8rem;
+  color: var(--vidrio-texto-suave);
 }
 
 .plan-precio-periodo {
-  font-size: 0.72rem;
-  color: var(--texto-suave);
+  font-size: 0.7rem;
+  color: var(--vidrio-texto-suave);
 }
 
 /* Va debajo del precio y alineada con el, no con el nombre del plan. */
 .plan-nota-precio {
   align-self: flex-end;
   font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--acento);
+  font-weight: 700;
+  color: var(--acento-claro);
   text-align: right;
 }
 
 .plan-resumen {
-  font-size: 0.87rem;
+  font-size: 0.85rem;
   line-height: 1.45;
-  color: var(--texto-suave);
+  color: var(--vidrio-texto-suave);
 }
 
 .plan-ventajas {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  margin-top: 0.35rem;
+  margin-top: 0.3rem;
   padding-top: 0.6rem;
-  border-top: 1px solid var(--borde);
-  font-size: 0.82rem;
+  border-top: 1px solid var(--vidrio-separador);
+  font-size: 0.8rem;
   line-height: 1.4;
-  color: var(--texto-suave);
-}
-
-/* Ventanas bajas (portatiles de 13", o el navegador con muchas barras): se
-   recortan los aires y el resumen para que la pantalla siga entrando entera,
-   que es la unica condicion que no se puede negociar acá. */
-@media (max-height: 760px) {
-  .pantalla-planes .login-form-panel {
-    padding: 1rem 2rem;
-  }
-
-  .tarjeta-planes .plan-opcion {
-    padding: 0.9rem 1rem;
-    gap: 0.35rem;
-  }
-
-  .tarjeta-planes .plan-resumen {
-    display: none;
-  }
-
-  .tarjeta-planes .selector-plan-nota {
-    margin-bottom: 0;
-  }
+  color: var(--vidrio-texto-suave);
 }
 
 .plan-ventajas span::before {
   content: "· ";
-  color: var(--acento);
+  color: var(--acento-claro);
   font-weight: 700;
 }
 
-/* Aviso de cupo en Mi flota y Rutas: la misma banda para "te quedan N" y
-   para "llegaste al tope". */
+/* --- Campos del ultimo paso ----------------------------------------------- */
+
+.campos-registro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* --- El puente al otro producto ------------------------------------------- */
+
+/* Alguien que llega a app.algorio.com.ar buscando calado de buques tiene que
+   poder darse cuenta ACA, antes de crear la cuenta con el rol equivocado: el
+   rol no se cambia solo desde la interfaz. */
+.cruce-producto {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  background: var(--vidrio);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.cruce-producto:hover {
+  background: var(--vidrio-denso);
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+.cruce-producto-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cruce-producto-texto strong { font-size: 0.92rem; }
+
+.cruce-producto-texto > span {
+  font-size: 0.78rem;
+  color: var(--vidrio-texto-suave);
+}
+
+.cruce-producto svg {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--acento-claro);
+}
+
+/* --- Entraste por el dominio equivocado ----------------------------------- */
+
+.pantalla-cruce { text-align: center; }
+.pantalla-cruce .boton-vidrio-primario { text-decoration: none; }
+
+.pantalla-cruce-nota {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--vidrio-texto-suave);
+}
+
+/* --- Aviso de cupo (Mi flota y Rutas) ------------------------------------- */
+
 .aviso-cupo {
   display: flex;
   flex-wrap: wrap;
@@ -602,20 +770,33 @@ button {
   color: var(--texto-suave);
 }
 
-.tarjeta-login button.enlace-boton {
+.tarjeta-vidrio .enlace-alternativo { color: var(--vidrio-texto-suave); }
+
+.tarjeta-vidrio button.enlace-boton {
   display: inline;
   padding: 0;
   background: none;
   border: none;
-  color: var(--acento);
+  color: var(--acento-claro);
   font-size: inherit;
   font-weight: 700;
   cursor: pointer;
 }
 
-.tarjeta-login button.enlace-boton:hover {
+.tarjeta-vidrio button.enlace-boton:hover {
   background: none;
   text-decoration: underline;
+}
+
+/* --- Mobile --------------------------------------------------------------- */
+
+@media (max-width: 560px) {
+  .pantalla-marca { padding: 1.25rem 1rem 1.5rem; gap: 1.1rem; }
+  .tarjeta-vidrio { padding: 1.35rem 1.15rem; border-radius: 16px; gap: 0.85rem; }
+  .tarjeta-vidrio h1 { font-size: 1.22rem; }
+  .pantalla-marca-wordmark { font-size: 1.3rem; }
+  .tarjeta-rol,
+  .tarjeta-vidrio .plan-opcion { padding: 0.95rem 1rem; }
 }
 
 /* ------------------------------------------------------------- App shell */
@@ -2848,28 +3029,2649 @@ tr.fila-critica {
   }
 }
 
+/* ===========================================================================
+   Panel del comerciante (perfil "comercio")
+   ---------------------------------------------------------------------------
+   Reusa el esqueleto del dashboard de navieras (.app, .barra-lateral,
+   .columna-principal, .barra-superior) y agrega solo lo propio: el asistente
+   de alta, los editores de ficha/carta/horarios, las metricas y las reseñas.
+   Las variables de marca de :root ya estan definidas arriba y no se repiten.
+   =========================================================================== */
+
+.panel-comercio {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 860px;
+}
+
+/* --- Estado de publicacion ------------------------------------------------ */
+
+.banner-estado {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin-bottom: 1.25rem;
+}
+
+.banner-estado.pendiente {
+  background: #fdf6e7;
+  border-color: #e8d5a8;
+  color: #6b4d0c;
+}
+
+.banner-estado.rechazado {
+  background: #fdefed;
+  border-color: #f0c3bc;
+  color: #8a2b1d;
+}
+
+.aviso-revision {
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  background: #fdf6e7;
+  border: 1px solid #e8d5a8;
+  color: #6b4d0c;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.chip-publicacion {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.chip-publicacion.estado-aprobado { background: var(--subida); }
+.chip-publicacion.estado-pendiente { background: var(--alerta); }
+.chip-publicacion.estado-rechazado { background: var(--evacuacion); }
+
+/* --- Campos agrupados ----------------------------------------------------- */
+
+.grupo-campos {
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 1.1rem 1.15rem 1.25rem;
+  margin: 0;
+  background: var(--superficie);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.grupo-campos legend {
+  padding: 0 0.45rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--texto);
+}
+
+.grupo-campos .descripcion {
+  margin-bottom: 0;
+}
+
+.panel-comercio label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.panel-comercio input[type="text"],
+.panel-comercio input[type="tel"],
+.panel-comercio input[type="url"],
+.panel-comercio input[type="time"],
+.panel-comercio textarea {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--texto);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.panel-comercio textarea {
+  resize: vertical;
+}
+
+/* Los tres campos de contacto entran en fila en desktop y se apilan solos en
+   pantallas angostas. */
+.fila-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+}
+
+.panel-comercio > .fila-acciones,
+.alta-comercio .fila-acciones {
+  margin-top: 0.25rem;
+}
+
+.panel-comercio .fila-acciones button:not(.boton-secundario),
+.alta-comercio .fila-acciones button:not(.boton-secundario) {
+  flex: 0 0 auto;
+  padding: 0.65rem 1.4rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.panel-comercio .fila-acciones button:not(.boton-secundario):hover:not(:disabled),
+.alta-comercio .fila-acciones button:not(.boton-secundario):hover:not(:disabled) {
+  background: var(--acento-hover);
+}
+
+.panel-comercio .fila-acciones button:disabled,
+.alta-comercio .fila-acciones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Selector de rubro ---------------------------------------------------- */
+
+.opciones-rubro {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.opcion-rubro {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.9rem 1rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.opcion-rubro:hover {
+  border-color: var(--acento-claro);
+}
+
+.opcion-rubro.elegida {
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+}
+
+.opcion-rubro input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.opcion-rubro strong {
+  font-size: 0.95rem;
+}
+
+.opcion-rubro span {
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+  line-height: 1.45;
+}
+
+/* --- Servicios ------------------------------------------------------------ */
+
+.chips-servicios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip-servicio {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip-servicio:hover {
+  border-color: var(--acento-claro);
+}
+
+.chip-servicio.activo {
+  border-color: var(--acento);
+  background: var(--acento);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* --- Mapa de ubicacion ---------------------------------------------------- */
+
+.mapa-ubicacion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.mapa-ubicacion-acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mapa-ubicacion-coords {
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+.mapa-contenedor-ubicacion {
+  height: 340px;
+  border-radius: 10px;
+  border: 1px solid var(--borde);
+}
+
+/* El pin del comercio. Es un divIcon (ver MapaUbicacion.jsx): el icono por
+   defecto de Leaflet carga PNG por una ruta relativa que el build rompe. */
+.marcador-comercio span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--acento);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+/* --- Asistente de alta ---------------------------------------------------- */
+
+.alta-comercio {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1.25rem;
+  background: var(--fondo);
+}
+
+.alta-comercio-tarjeta {
+  width: 100%;
+  max-width: 680px;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  padding: 2rem 2rem 2.25rem;
+}
+
+.alta-comercio-tarjeta h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.5rem;
+}
+
+.alta-comercio-tarjeta form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.alta-comercio-tarjeta label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.alta-comercio-tarjeta input[type="text"],
+.alta-comercio-tarjeta input[type="tel"],
+.alta-comercio-tarjeta input[type="url"],
+.alta-comercio-tarjeta textarea {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.alta-comercio-tarjeta textarea {
+  resize: vertical;
+}
+
+.alta-comercio-progreso {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+
+.alta-comercio-punto {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--borde);
+}
+
+.alta-comercio-punto.activo {
+  background: var(--acento);
+}
+
+.alta-comercio-nota {
+  margin: 1.25rem 0 0;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--borde-suave);
+}
+
+/* --- Fotos ---------------------------------------------------------------- */
+
+.lista-fotos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lista-fotos li {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem;
+  border: 1px solid var(--borde-suave);
+  border-radius: 8px;
+}
+
+.lista-fotos img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.lista-fotos-url {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fila-agregar {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.fila-agregar input {
+  flex: 1;
+}
+
+.boton-quitar {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.boton-quitar:hover {
+  background: #fdefed;
+  color: var(--evacuacion);
+}
+
+/* --- Editor de carta ------------------------------------------------------ */
+
+.tarjeta-seccion {
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 1rem 1.1rem 1.1rem;
+  background: var(--superficie);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tarjeta-seccion-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.entrada-titulo {
+  flex: 1;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.lista-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lista-items li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lista-items li input:first-child {
+  flex: 1;
+}
+
+.entrada-precio {
+  width: 110px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarjeta-seccion .boton-secundario,
+.panel-comercio > .boton-secundario {
+  align-self: flex-start;
+}
+
+/* --- Horarios ------------------------------------------------------------- */
+
+.tabla-horarios td:first-child {
+  font-weight: 500;
+}
+
+.tabla-horarios input[type="time"] {
+  width: 130px;
+}
+
+.tabla-horarios input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--acento);
+  cursor: pointer;
+}
+
+/* --- Metricas ------------------------------------------------------------- */
+
+.selector-rango {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.chip-rango {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip-rango:hover {
+  border-color: var(--acento-claro);
+}
+
+.chip-rango.activo {
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.tarjetas-metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem;
+}
+
+.tarjeta-metrica {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.tarjeta-metrica-numero {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarjeta-metrica-etiqueta {
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+  line-height: 1.4;
+}
+
+.grafico-metricas {
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 1rem 0.5rem 0.5rem;
+  background: var(--superficie);
+}
+
+/* --- Reseñas -------------------------------------------------------------- */
+
+.estrellas {
+  color: var(--borde);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.estrellas .estrella.llena {
+  color: var(--alerta);
+}
+
+.resumen-resenas {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.resumen-resenas-numero {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.resumen-resenas-cantidad {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.lista-resenas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lista-resenas li {
+  padding: 0.9rem 1.05rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.resena-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.resena-fecha {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.resena-comentario {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--texto);
+}
+
+/* --- Moderacion ----------------------------------------------------------- */
+
+.lista-moderacion {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lista-moderacion li {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.moderacion-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+.moderacion-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.chip-estado-tipo {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--chip-fondo);
+  color: var(--acento);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.moderacion-descripcion {
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
+  color: var(--texto-suave);
+  line-height: 1.55;
+}
+
+.moderacion-meta {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.moderacion-meta a {
+  color: var(--acento);
+}
+
+.moderacion-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.moderacion-acciones button:not(.boton-secundario) {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.moderacion-acciones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Pantalla de descarga (nauta que entra por la web) -------------------- */
+
+.pantalla-descarga {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  background: var(--marca);
+}
+
+.pantalla-descarga-tarjeta {
+  width: 100%;
+  max-width: 520px;
+  background: var(--superficie);
+  border-radius: 16px;
+  padding: 2.25rem 2rem;
+}
+
+.pantalla-descarga-tarjeta .marca-texto {
+  font-family: var(--fuente-marca);
+  font-size: 1.6rem;
+  color: var(--marca);
+  margin-bottom: 1.5rem;
+}
+
+.pantalla-descarga-tarjeta h1 {
+  margin: 0 0 0.65rem;
+  font-size: 1.45rem;
+}
+
+.lista-beneficios {
+  margin: 0 0 1.5rem;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--texto);
+}
+
+.pantalla-descarga-tarjeta .fila-acciones {
+  justify-content: flex-start;
+}
+
 @media (max-width: 760px) {
-  .pantalla-login {
+  .alta-comercio {
+    padding: 1.5rem 1rem;
+  }
+
+  .alta-comercio-tarjeta {
+    padding: 1.5rem 1.25rem 1.75rem;
+  }
+
+  .mapa-contenedor-ubicacion {
+    height: 260px;
+  }
+
+  .lista-moderacion li {
     flex-direction: column;
   }
 
-  .login-hero {
+  .moderacion-acciones {
+    flex-direction: row;
     width: 100%;
-    min-width: 0;
-    padding: 2rem 1.5rem;
-    gap: 1.25rem;
+  }
+}
+
+/* ===========================================================================
+   Nauta recreativo (perfil "recreativo") — versión web
+   ---------------------------------------------------------------------------
+   Los mismos datos que la app móvil (app_movil/), otra interfaz: acá hay
+   pantalla ancha y mouse, así que la ficha de un lugar va en un panel al
+   costado del mapa en vez de un cajón que sube desde abajo.
+   =========================================================================== */
+
+/* En la sección del mapa el <main> no scrollea: el mapa ocupa el alto
+   disponible y quien scrollea es el panel lateral. */
+.app-nauta .main-mapa {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* --- El cartel del río, sobre el mapa -------------------------------------- */
+
+/* Vidrio neutro, no una franja verde/ámbar/roja a lo ancho. El semáforo pasó a
+   un punto de color: la franja gritaba lo mismo un día de 30 km/h que uno de
+   60, y encima tapaba el mapa, que es lo que la persona vino a mirar. */
+.barra-viento {
+  flex: 1;
+  min-width: 0;
+  /* Sin tope, en una pantalla ancha el cartel cruza los 1200px enteros y
+     vuelve a ser la franja que justamente se sacó. Con el tope queda una
+     tarjeta arriba a la izquierda y el resto del ancho es mapa. */
+  max-width: 30rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.85rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
+}
+
+/* Mientras carga o falla el pronóstico es un <div>, no un <button>: no hay
+   detalle al que ir. */
+div.barra-viento { cursor: default; }
+
+.barra-viento-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* La navegabilidad: lo único en negrita, porque es la respuesta a la pregunta
+   con la que alguien abre esto un sábado a la mañana. */
+.barra-viento-texto strong {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* El viento crudo: abajo y más chico. Solo no dice nada — 20 km/h es una tarde
+   tranquila en una lancha y un problema serio en un kayak. */
+.barra-viento-texto span {
+  font-size: 0.8rem;
+  color: var(--vidrio-texto-suave);
+}
+
+.barra-viento-punto {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+/* Los tonos subidos de luminosidad: sobre vidrio oscuro, el ámbar y el verde
+   de la paleta (pensados para texto sobre crema) quedan apagados. */
+.barra-viento-punto.calmo { background: var(--vidrio-calmo); }
+.barra-viento-punto.picado { background: var(--vidrio-picado); }
+.barra-viento-punto.muy-picado { background: var(--vidrio-muy-picado); }
+.barra-viento-punto.sin-datos { background: rgba(255, 255, 255, 0.5); }
+
+.barra-viento-flecha {
+  flex: 0 0 auto;
+  color: var(--vidrio-texto-suave);
+  font-size: 1.5rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+/* --- La capa que flota sobre el mapa -------------------------------------- */
+
+/* Todo lo que antes vivía apilado ARRIBA del mapa ahora va SOBRE él. El mapa
+   es la pantalla: empujarlo hacia abajo con una barra, una fila de filtros y
+   dos avisos le comía la mitad del alto en un celular.
+
+   La capa no recibe el mouse y se lo devuelve a cada control, uno por uno: en
+   los huecos entre controles el mapa se sigue arrastrando como si la capa no
+   existiera. Por eso el `pointer-events: auto` va en la lista de abajo y no en
+   `.capa-mapa > *`, que reactivaría también las filas enteras y sus gaps. */
+.capa-mapa {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  pointer-events: none;
+}
+
+.capa-mapa .barra-viento,
+.capa-mapa .chip-tipo,
+.capa-mapa .boton-reportar,
+.capa-mapa .boton-expandir-mapa,
+.capa-mapa .aviso-nauta {
+  pointer-events: auto;
+}
+
+.capa-mapa-fila {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* --- Mapa ----------------------------------------------------------------- */
+
+.mapa-nauta {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.mapa-nauta-columna {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mapa-nauta-filtros {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.chip-tipo {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 999px;
+  background: var(--vidrio);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto-suave);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(4, 18, 28, 0.22);
+}
+
+.chip-tipo:hover {
+  border-color: rgba(255, 255, 255, 0.36);
+  color: var(--vidrio-texto);
+}
+
+/* Prendido y apagado se distinguen por el punto (lleno o hueco) y el peso del
+   texto, no pintando el chip entero. Sobre imagen satelital, tres chips llenos
+   de color compiten con los pines, que son lo que hay que mirar. */
+.chip-tipo.activo {
+  background: var(--vidrio-denso);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--vidrio-texto);
+  font-weight: 700;
+}
+
+/* Reportar no es un filtro: comparte la fila pero se separa con aire. Antes
+   iba con `margin-left: auto` y en una pantalla ancha terminaba a 800px de los
+   chips, sin relación visible con nada. */
+.boton-reportar { margin-left: 0.5rem; }
+
+.aviso-nauta {
+  max-width: 34rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--vidrio-borde);
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
+}
+
+/* El del modo reporte es el único que se tiñe: avisa de un modo activo — el
+   próximo click en el mapa deja un aviso — y eso hay que verlo sin buscarlo. */
+.aviso-nauta.destacado {
+  background: var(--acento);
+  border-color: var(--acento);
+  font-weight: 600;
+}
+
+.aviso-nauta.error { color: var(--vidrio-muy-picado); font-weight: 600; }
+
+.mapa-nauta-contenedor {
+  flex: 1;
+  /* Más alto que antes: la barra y los filtros ya no le sacan lugar arriba,
+     pero sí le tapan los primeros ~110px, así que el mínimo tiene que dejar
+     mapa visible por debajo de la capa. */
+  min-height: 420px;
+  display: flex;
+}
+
+.mapa-nauta-contenedor .mapa-contenedor {
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid var(--borde);
+}
+
+/* Pin de un lugar. El span lo dibuja iconoCircular() en src/mapaSatelital.js,
+   que pasa el color del rubro por style; acá va todo lo demás. Comparte
+   estilo con el pin del comerciante a propósito: es el mismo objeto. */
+.marcador-poi span,
+.marcador-comercio span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+.marcador-comercio span { background: var(--acento); }
+
+/* "Acá estás": más chico y con halo, para no confundirlo con un parador. */
+.marcador-yo span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--acento);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(29, 111, 165, 0.3);
+}
+
+/* --- Panel de la ficha ---------------------------------------------------- */
+
+.panel-lugar {
+  position: relative;
+  width: 380px;
+  flex: 0 0 380px;
+  overflow-y: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lugar-fotos {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  margin: -0.25rem 0 0.25rem;
+}
+
+.lugar-fotos img {
+  width: 200px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.lugar-tipo { font-size: 0.8rem; font-weight: 700; }
+
+.lugar-nombre {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.25;
+  padding-right: 1.5rem;
+}
+
+.lugar-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.lugar-apertura { font-size: 0.9rem; font-weight: 700; }
+.lugar-apertura.abierto { color: var(--subida); }
+.lugar-apertura.cerrado { color: var(--evacuacion); }
+
+.lugar-descripcion {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--texto);
+}
+
+.acciones-lugar { display: flex; gap: 0.5rem; }
+
+.accion-lugar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.7rem 0.4rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.accion-lugar:hover { border-color: var(--acento); color: var(--acento); }
+.accion-lugar-emoji { font-size: 1.25rem; }
+
+.lugar-bloque {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--borde-suave);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lugar-bloque h3 { margin: 0; font-size: 0.95rem; font-weight: 800; }
+
+.chip-servicio-lectura {
+  display: inline-block;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: var(--chip-fondo);
+  color: var(--acento);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.lugar-menu-seccion { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.lugar-menu-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.lugar-horario-fila {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+}
+
+.lugar-horario-valor { color: var(--texto-suave); }
+
+/* Panel de una ficha abierta desde "mis reseñas", fuera del mapa. */
+.capa-lugar-suelto {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(11, 50, 82, 0.45);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.capa-lugar-suelto .panel-lugar {
+  max-width: 420px;
+  flex: 0 0 auto;
+  border-radius: 0;
+  border-right: none;
+  height: 100%;
+}
+
+/* --- Estrellas ------------------------------------------------------------ */
+
+.estrellas-elegibles { display: inline-flex; gap: 2px; }
+
+.estrellas-elegibles .estrella {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font-size: inherit;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--borde);
+}
+
+.estrellas-elegibles .estrella.llena { color: var(--alerta); }
+
+/* --- Modal de reseña ------------------------------------------------------ */
+
+.fondo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(11, 50, 82, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.modal-resena {
+  width: 100%;
+  max-width: 440px;
+  background: var(--superficie);
+  border-radius: 14px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.modal-resena h3 { margin: 0; font-size: 1.25rem; text-align: center; }
+
+.modal-resena-estrellas { display: flex; justify-content: center; padding: 0.25rem 0; }
+
+.modal-resena label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.modal-resena textarea {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.modal-resena .fila-acciones { justify-content: flex-end; }
+
+.modal-resena .fila-acciones button:not(.boton-secundario) {
+  padding: 0.6rem 1.3rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-resena .fila-acciones button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- Clima ---------------------------------------------------------------- */
+
+.clima-nauta {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 720px;
+}
+
+.clima-veredicto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: 14px;
+  color: #fff;
+}
+
+.clima-veredicto.calmo { background: var(--subida); }
+.clima-veredicto.picado { background: var(--alerta); }
+.clima-veredicto.muy-picado { background: var(--evacuacion); }
+.clima-veredicto.sin-datos { background: var(--estable); }
+
+.clima-veredicto strong { font-size: 1.5rem; font-weight: 800; }
+.clima-veredicto-detalle { font-size: 0.95rem; color: rgba(255, 255, 255, 0.92); }
+
+.clima-veredicto-nota {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 0.35rem;
+}
+
+.clima-tarjeta {
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+  padding: 1.1rem 1.25rem;
+}
+
+.clima-tarjeta h3 { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 800; }
+
+.clima-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.clima-dato { display: flex; flex-direction: column; gap: 0.1rem; }
+
+.clima-dato-valor {
+  font-size: 1.7rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.clima-dato-unidad { font-size: 0.85rem; font-weight: 600; color: var(--texto-suave); }
+.clima-dato-etiqueta { font-size: 0.82rem; color: var(--texto-suave); }
+
+.clima-encabezado,
+.clima-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clima-encabezado {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--borde-suave);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--texto-suave);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.clima-encabezado-viento { background: none !important; }
+
+.clima-fila { padding: 0.22rem 0; }
+
+.clima-fila-hora {
+  width: 44px;
+  flex: 0 0 44px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.clima-fila-barra-fondo {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--borde-suave);
+  overflow: hidden;
+}
+
+.clima-fila-barra { display: block; height: 100%; border-radius: 4px; }
+.clima-fila-barra.calmo { background: var(--subida); }
+.clima-fila-barra.picado { background: var(--alerta); }
+.clima-fila-barra.muy-picado { background: var(--evacuacion); }
+.clima-fila-barra.sin-datos { background: var(--estable); }
+
+.clima-fila-viento {
+  width: 62px;
+  flex: 0 0 62px;
+  text-align: right;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.clima-fila-rafaga { color: var(--texto-suave); }
+
+.clima-fila-direccion {
+  width: 34px;
+  flex: 0 0 34px;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+/* --- Perfil y onboarding -------------------------------------------------- */
+
+.perfil-nauta {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 720px;
+}
+
+.tarjeta-nauta {
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tarjeta-nauta h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+.tarjeta-nauta .descripcion { margin: 0; }
+
+.tarjeta-app { background: var(--chip-fondo); border-color: var(--acento-claro); }
+
+.grilla-embarcaciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+}
+
+.tarjeta-embarcacion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1rem 0.5rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tarjeta-embarcacion:hover:not(:disabled) { border-color: var(--acento-claro); }
+.tarjeta-embarcacion:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.tarjeta-embarcacion.elegida {
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+}
+
+.tarjeta-embarcacion-emoji { font-size: 1.8rem; line-height: 1; }
+.tarjeta-embarcacion-texto { font-size: 0.85rem; font-weight: 600; }
+.tarjeta-embarcacion.elegida .tarjeta-embarcacion-texto { color: var(--acento); }
+
+.onboarding-nauta {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  background: var(--marca);
+}
+
+.onboarding-nauta-tarjeta {
+  width: 100%;
+  max-width: 560px;
+  background: var(--superficie);
+  border-radius: 16px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.onboarding-nauta-tarjeta h1 { margin: 0; font-size: 1.6rem; }
+
+.onboarding-nauta-tarjeta .fila-acciones button {
+  flex: 1;
+  padding: 0.75rem 1.4rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.onboarding-nauta-tarjeta .fila-acciones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Angosto -------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  /* El panel deja de ser una columna al lado y pasa a taparlo todo: en un
+     celular no hay ancho para las dos cosas. */
+  .mapa-nauta { flex-direction: column; }
+
+  .mapa-nauta.con-panel .mapa-nauta-columna { display: none; }
+
+  .panel-lugar {
+    width: 100%;
+    flex: 1 1 auto;
+    max-height: none;
   }
 
-  .login-hero-imagen,
-  .login-hero-footer {
-    display: none;
+  .capa-lugar-suelto .panel-lugar { max-width: none; width: 100%; }
+
+  .app-nauta .main-mapa { overflow: auto; }
+
+  .mapa-nauta-contenedor { min-height: 380px; }
+}
+
+/* --- Mapa del nauta a pantalla completa ----------------------------------- */
+
+/* El botón flotante se posiciona contra este contenedor. Sin esto se anclaría
+   al primer ancestro posicionado que encuentre, que expandido es la capa fija
+   y sin expandir el viewport: en los dos casos, lejos del mapa. */
+.mapa-nauta-contenedor {
+  position: relative;
+}
+
+/* Capa fija en vez de la Fullscreen API del navegador: esa no existe en el
+   Safari de iPhone para elementos que no sean <video>, que es justo el caso de
+   alguien mirando el mapa desde el celular. Además así la barra de viento y
+   los filtros siguen encima del mapa en vez de desaparecer. */
+.mapa-nauta.pantalla-completa {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  margin: 0;
+  padding: 0.75rem;
+  gap: 0.75rem;
+  background: var(--fondo);
+}
+
+.mapa-nauta.pantalla-completa .mapa-nauta-contenedor {
+  min-height: 0;
+}
+
+/* Expandido, el mapa se lleva la pantalla y el panel de la ficha queda como
+   una columna angosta al costado. */
+.mapa-nauta.pantalla-completa .panel-lugar {
+  width: 340px;
+  flex: 0 0 340px;
+}
+
+@media (max-width: 900px) {
+  .mapa-nauta.pantalla-completa {
+    padding: 0.5rem;
   }
 
-  .login-hero-titulo {
-    font-size: 1.4rem;
+  /* Con la ficha abierta en pantalla angosta el mapa ya se oculta (regla de
+     arriba), así que el panel ocupa todo. */
+  .mapa-nauta.pantalla-completa .panel-lugar {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+}
+
+/* --- Clima: encabezado, flecha de viento y corte de dia ------------------- */
+
+/* Ocupa el mismo carril que la barra de las filas, pero es un span comun: la
+   clase .clima-fila-barra-fondo mide 8px de alto con overflow oculto (es la
+   pista de la barra), y usarla en el encabezado recortaba "Viento" a una
+   franja de dos pixeles. */
+.clima-encabezado-viento {
+  flex: 1;
+  background: none;
+  height: auto;
+  overflow: visible;
+}
+
+/* La flecha se centra en su carril y hereda el color del texto suave. */
+.clima-fila-direccion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--texto-suave);
+}
+
+.clima-fila-direccion svg {
+  /* La rotacion sale del centro del glifo, si no la flecha "orbita" en vez de
+     girar sobre si misma. */
+  transform-origin: 50% 50%;
+}
+
+.clima-separador-dia {
+  margin: 0.7rem 0 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--borde);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--texto-suave);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* El primero va pegado al encabezado, sin la linea ni el aire de arriba. */
+.clima-tarjeta .clima-separador-dia:first-of-type {
+  margin-top: 0.35rem;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* --- Arreglos de apilamiento y desborde ----------------------------------- */
+
+/* Leaflet reparte z-index altos entre sus capas internas: 400 para los tiles,
+   600 para los marcadores, 800 para los popups y 1000 para los controles de
+   zoom. Sin un contexto de apilamiento propio, esos numeros compiten de igual
+   a igual con el resto de la pagina y le ganan a la barra superior (z-index
+   15), que es sticky: al scrollear, los botones + y - del mapa se dibujaban
+   encima del titulo de la seccion.
+
+   Un z-index numerico —aunque sea 0— crea el contexto y encierra toda esa
+   numeracion adentro del mapa, que pasa a apilarse como una sola capa. Aplica
+   a los tres mapas del producto (estaciones, comercio y nauta). */
+.mapa-contenedor {
+  position: relative;
+  z-index: 0;
+}
+
+/* Los hijos de un contenedor flex no se achican por debajo de su contenido
+   por defecto (min-width: auto), asi que un texto largo sin espacios —una URL,
+   un mail, el nombre de un parador— estira la fila y se sale de la tarjeta en
+   vez de cortarse. */
+.panel-comercio,
+.panel-lugar,
+.tarjeta-nauta,
+.clima-tarjeta,
+.tarjeta-metrica,
+.lista-resenas li,
+.lista-moderacion li,
+.moderacion-datos,
+.tarjeta-seccion {
+  min-width: 0;
+}
+
+.tarjeta-metrica-etiqueta,
+.moderacion-meta,
+.moderacion-descripcion,
+.resena-comentario,
+.lugar-descripcion,
+.lugar-menu-item,
+.suscripcion-estado-plan-topes {
+  overflow-wrap: anywhere;
+}
+
+/* El nombre del lugar y el del autor de una reseña pueden ser largos: que
+   corten en varias lineas antes que empujar la tarjeta. */
+.lugar-nombre,
+.resena-encabezado strong,
+.moderacion-encabezado strong {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* El mail del dueño en la cola de moderacion es lo mas largo que aparece ahi. */
+.moderacion-meta span,
+.moderacion-meta a {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* --- Registro: los dos grupos de perfiles --------------------------------- */
+
+/* Los perfiles de río (nauta y comercio) y el de navegación comercial son dos
+   productos distintos que comparten backend. En una sola fila de tres
+   tarjetas, la naviera parecía "el plan grande" del mismo producto. */
+.selector-rol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.grupo-rol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.grupo-rol-encabezado h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--acento);
+}
+
+.grupo-rol-encabezado p {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+/* El grupo de navegación comercial se separa con una línea: es el corte real
+   entre los dos productos. */
+.grupo-rol + .grupo-rol {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--borde);
+}
+
+/* --- Botón de centrar en mi ubicación ------------------------------------- */
+
+/* Va abajo a la derecha, lejos del zoom de Leaflet (arriba a la izquierda) y
+   del botón de pantalla completa (arriba a la derecha). El z-index es alto
+   dentro del mapa, que ahora es su propio contexto de apilamiento (ver
+   .mapa-contenedor), así que no se escapa hacia la barra superior. */
+.boton-mi-ubicacion {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 1.75rem;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--acento);
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+}
+
+.boton-mi-ubicacion:hover {
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+}
+
+/* --- Nivel del río -------------------------------------------------------- */
+
+.nivel-rio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 760px;
+}
+
+.lista-estaciones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tarjeta-estacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.tarjeta-estacion-datos {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tarjeta-estacion-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-estacion-encabezado strong {
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
+.tarjeta-estacion-meta {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+}
+
+.tarjeta-estacion-nivel {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+
+.tarjeta-estacion-valor {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chip-nivel {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.chip-nivel.normal { background: var(--subida); }
+.chip-nivel.precaucion { background: var(--alerta); }
+.chip-nivel.alerta { background: var(--evacuacion); }
+
+@media (max-width: 560px) {
+  .tarjeta-estacion {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 
-  .login-form-panel {
-    padding: 2rem 1.5rem 3rem;
+  .tarjeta-estacion-nivel {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.6rem;
   }
+}
+
+/* --- Embarcación en la barra de viento ------------------------------------ */
+
+/* Recuerda de un vistazo que ese "picado" es el umbral de TU embarcación y no
+   uno genérico. Sin él, dos personas en la misma orilla ven carteles distintos
+   sin nada en pantalla que lo explique. */
+.barra-viento-embarcacion {
+  flex: 0 0 auto;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+/* --- Chips de rubro: un solo color de selección --------------------------- */
+
+/* La geometría del chip. Lo que decide prendido/apagado está más arriba, con
+   el resto del vidrio: acá quedó solo la caja, porque el relleno azul que
+   tenía esta regla le ganaba por orden a la versión de vidrio. */
+.chip-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* El mismo punto que identifica al rubro hace de casilla de verificación:
+   lleno cuando está prendido, hueco cuando no. El color lo pone MapaNauta.jsx
+   por `style` — de fondo si está activo, de borde si no. */
+.chip-tipo-punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1.5px solid transparent;
+}
+
+/* --- Botón de mi ubicación ------------------------------------------------ */
+
+.boton-mi-ubicacion:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Punto de aviso cuando el navegador negó la ubicación: el botón sigue estando
+   y se puede volver a intentar, pero se avisa que hoy no la tenemos. */
+.boton-mi-ubicacion-punto {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--alerta);
+}
+
+/* --- Aviso de aprobador --------------------------------------------------- */
+
+.aviso-aprobador {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--acento-claro);
+  border-radius: 10px;
+  background: var(--chip-fondo);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--texto);
+}
+
+.chip-aprobador {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ===========================================================================
+   Reportes del río
+   ---------------------------------------------------------------------------
+   Avisos efímeros que deja un nauta sobre un punto: un yacaré, un banco de
+   arena que se corrió, un tronco a la deriva. Se distinguen de los comercios
+   a propósito — un parador es un destino, un tronco es algo que hay que
+   esquivar.
+   =========================================================================== */
+
+/* --- Botón y modo de colocación ------------------------------------------- */
+
+.boton-reportar {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 999px;
+  background: var(--vidrio);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(4, 18, 28, 0.22);
+}
+
+.boton-reportar:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* El acento se reserva para el modo activo: cuando el botón se pone azul, el
+   próximo click en el mapa deja un aviso. */
+.boton-reportar.activo {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: #fff;
+}
+
+/* Con el modo activo el cursor deja de ser una mano de arrastre: lo que se
+   espera del próximo click es marcar un punto, no mover el mapa. */
+.mapa-nauta.eligiendo-punto .leaflet-container,
+.mapa-nauta.eligiendo-punto .leaflet-grab {
+  cursor: crosshair;
+}
+
+/* --- Pin del reporte ------------------------------------------------------ */
+
+/* Gota con el emoji del tipo adentro y el borde del color de la severidad.
+   Los lugares son círculos de color liso (.marcador-poi): la diferencia de
+   forma es lo que permite distinguirlos de un vistazo, sin leer nada. */
+.marcador-reporte span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 8%;
+  background: var(--superficie);
+  border: 2.5px solid var(--acento);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+  transform: rotate(-45deg);
+}
+
+.marcador-reporte i {
+  font-style: normal;
+  font-size: 15px;
+  line-height: 1;
+  /* Contrarresta la rotación de la gota, para que el emoji quede derecho. */
+  transform: rotate(45deg);
+}
+
+/* --- Popup del reporte ---------------------------------------------------- */
+
+.popup-reporte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 180px;
+}
+
+.popup-reporte-severidad {
+  align-self: flex-start;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.popup-reporte strong {
+  font-size: 0.95rem;
+}
+
+.popup-reporte p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--texto);
+}
+
+.popup-reporte-meta {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+}
+
+/* Que se vea cuánto le queda es lo que sostiene la confianza en esta capa:
+   deja claro que lo que está en el mapa es reciente. */
+.popup-reporte-vigencia {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  font-style: italic;
+}
+
+.popup-reporte-borrar {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  background: var(--superficie);
+  color: var(--bajada);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.popup-reporte-borrar:hover {
+  border-color: var(--bajada);
+}
+
+/* --- Formulario del reporte ----------------------------------------------- */
+
+.modal-reporte {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--superficie);
+  border-radius: 14px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal-reporte h3 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.modal-reporte-punto {
+  margin: -0.75rem 0 0;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.modal-reporte label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.modal-reporte input[type="text"],
+.modal-reporte textarea {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.grilla-tipos-reporte {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 0.5rem;
+}
+
+.tarjeta-tipo-reporte {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.75rem 0.4rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tarjeta-tipo-reporte:hover {
+  border-color: var(--acento-claro);
+}
+
+.tarjeta-tipo-reporte.elegida {
+  border-color: var(--acento);
+  background: var(--chip-fondo);
+  color: var(--acento);
+}
+
+.tarjeta-tipo-reporte-emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.grupo-reporte {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grupo-reporte legend {
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.opciones-severidad {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.5rem;
+}
+
+.opcion-severidad {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.opcion-severidad.elegida {
+  background: var(--fondo);
+}
+
+.opcion-severidad strong {
+  font-size: 0.88rem;
+  color: var(--texto);
+}
+
+.opcion-severidad span:last-child {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  line-height: 1.35;
+}
+
+.punto-severidad {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.opciones-duracion {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.chip-duracion {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip-duracion.activo {
+  border-color: var(--acento);
+  background: var(--acento);
+  color: #fff;
+  font-weight: 600;
+}
+
+.nota-duracion {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.modal-reporte .fila-acciones {
+  justify-content: flex-end;
+}
+
+.modal-reporte .fila-acciones button:not(.boton-secundario) {
+  padding: 0.6rem 1.3rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--acento);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-reporte .fila-acciones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Mis reportes (en el perfil) ------------------------------------------ */
+
+.lista-mis-reportes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.lista-mis-reportes li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+}
+
+.lista-mis-reportes li.vencido {
+  opacity: 0.65;
+  background: var(--fondo);
+}
+
+.mi-reporte-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+.mi-reporte-titulo {
+  font-size: 0.92rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mi-reporte-meta {
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+}
+
+.mi-reporte-acciones {
+  display: flex;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.mi-reporte-acciones button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mi-reporte-acciones button:hover {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+/* --- Apilamiento: los modales por encima de todo ------------------------- */
+
+/* El botón de pantalla completa vive dentro del mapa con z-index 1000 (lo
+   necesita para ganarle a los controles de Leaflet), pero su contenedor no
+   creaba contexto de apilamiento, así que ese 1000 competía con el resto de la
+   página y le ganaba a los modales. Al abrir el formulario de reporte, el botón
+   quedaba flotando encima del diálogo.
+
+   Se arregla por los dos lados: el contenedor del mapa encierra su numeración,
+   y los modales suben a un rango propio, por arriba de cualquier capa del mapa
+   (incluida la de pantalla completa, que está en 70). */
+.mapa-nauta-contenedor {
+  z-index: 0;
+}
+
+.fondo-modal {
+  z-index: 2000;
+}
+
+.capa-lugar-suelto {
+  z-index: 1500;
+}
+
+/* --- Fotos: que un link largo no estire la tarjeta ----------------------- */
+
+/* La URL ya tenía `text-overflow: ellipsis`, pero no servía: un hijo de flex no
+   se achica por debajo de su contenido (min-width: auto), así que el link
+   empujaba la fila y aparecía scroll horizontal en toda la página en vez de
+   cortarse con puntos suspensivos. */
+.lista-fotos li {
+  min-width: 0;
+}
+
+.lista-fotos-url {
+  min-width: 0;
+}
+
+/* Lo mismo para el campo donde se pega el link. */
+.fila-agregar {
+  min-width: 0;
+}
+
+.fila-agregar input {
+  min-width: 0;
+}
+
+/* --- Rumbo del viento en el cartel del mapa ------------------------------ */
+
+/* De dónde sopla, como veleta: la flecha apunta al origen. Es la primera
+   pregunta después de "cuánto sopla" y decide por qué orilla conviene ir. */
+.barra-viento-rumbo {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 2rem;
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--vidrio-separador);
+  color: var(--vidrio-texto);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.barra-viento-rumbo > span { color: var(--vidrio-texto-suave); }
+
+.barra-viento-rumbo svg {
+  transform-origin: 50% 50%;
+}
+
+/* --- El mapa dentro del panel del comerciante --------------------------- */
+
+/* Mismo criterio que en el shell del nauta: en la sección del mapa el <main>
+   no scrollea, el mapa toma el alto disponible y quien scrollea es el panel
+   lateral de la ficha. */
+.app-comercio .main-mapa {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .app-comercio .main-mapa {
+    overflow: auto;
+  }
+}
+
+/* --- Los fieldset no se achican solos ------------------------------------ */
+
+/* Un <fieldset> trae de fábrica `min-width: min-content` en todos los
+   navegadores, y no lo hereda de nada: no se achica por debajo de su
+   contenido aunque su contenedor sea más angosto. Con una URL de foto larga,
+   el recuadro "Fotos" se estiraba a 1056 px dentro de un panel de 860 y
+   aparecía scroll horizontal en toda la página.
+
+   `min-width: 0` es la única forma de desactivarlo. Hay que ponerlo en el
+   fieldset mismo — dárselo al padre no alcanza, que es lo que fallaba antes. */
+.grupo-campos,
+.grupo-reporte,
+.selector-plan,
+.selector-rol {
+  min-width: 0;
+}
+
+/* Y que la URL efectivamente se corte con puntos suspensivos en vez de
+   empujar la fila. */
+.lista-fotos,
+.lista-fotos li {
+  max-width: 100%;
+}
+
+/* ===========================================================================
+   MAPA DEL NAUTA: los controles sobre el satelital
+   ---------------------------------------------------------------------------
+   El resto de los controles del mapa —los que no viven en .capa-mapa porque
+   los posiciona Leaflet o porque son botones sueltos— pasan al mismo vidrio.
+   Van scopeados bajo .mapa-nauta a propósito: .boton-expandir-mapa lo comparte
+   el mapa de estaciones de la naviera (components/MapaEstaciones.jsx), que
+   está sobre fondo crema y ahí el vidrio oscuro no tendría sentido.
+   =========================================================================== */
+
+.mapa-nauta .boton-expandir-mapa {
+  /* Antes flotaba absoluto arriba a la derecha; ahora es un hermano de la
+     barra dentro de la fila, así que vuelve al flujo normal. */
+  position: static;
+  z-index: auto;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  border-color: var(--vidrio-borde);
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
+}
+
+.mapa-nauta .boton-expandir-mapa:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: var(--vidrio-texto);
+}
+
+.mapa-nauta .boton-mi-ubicacion {
+  border-radius: 12px;
+  border-color: var(--vidrio-borde);
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+  box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
+}
+
+.mapa-nauta .boton-mi-ubicacion:hover {
+  background: var(--vidrio-denso);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* El zoom de Leaflet se va abajo a la izquierda. De fábrica va arriba a la
+   izquierda, que ahora es exactamente donde arranca el cartel del río: los dos
+   pelearían por el mismo rincón y el zoom quedaría tapado. */
+.mapa-nauta .leaflet-top.leaflet-left {
+  top: auto;
+  bottom: 0;
+}
+
+.mapa-nauta .leaflet-control-zoom {
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
+}
+
+.mapa-nauta .leaflet-control-zoom a {
+  border-color: var(--vidrio-separador);
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto);
+}
+
+.mapa-nauta .leaflet-control-zoom a:hover {
+  background: rgba(9, 26, 40, 0.85);
+  color: var(--vidrio-texto);
+}
+
+/* El emoji de la embarcación, un punto más chico: el cartel nuevo es compacto
+   y a 1.5rem se comía la altura de las dos líneas de texto. */
+.mapa-nauta .barra-viento-embarcacion { font-size: 1.3rem; }
+
+@media (max-width: 700px) {
+  /* En pantalla angosta el botón queda solo con el ícono: "Pantalla completa"
+     al lado del cartel del río no entra, y es la etiqueta la que sobra. */
+  .mapa-nauta .boton-expandir-etiqueta { display: none; }
+
+  /* Los filtros pasan a scrollear de costado en vez de partirse en dos
+     renglones, igual que en la app. Cada renglón que suma la capa es mapa que
+     se tapa, que es justo lo que se estaba tratando de recuperar. */
+  .capa-mapa .mapa-nauta-filtros {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    pointer-events: auto;
+    scrollbar-width: none;
+    /* El scroll se lleva el desbordamiento de la sombra de los chips; el
+       padding se lo devuelve. */
+    padding: 0.25rem 0;
+  }
+
+  .capa-mapa .mapa-nauta-filtros::-webkit-scrollbar { display: none; }
+  .capa-mapa .chip-tipo,
+  .capa-mapa .boton-reportar { flex: 0 0 auto; }
+
+  .capa-mapa { padding: 0.6rem; gap: 0.45rem; }
+  .mapa-nauta .barra-viento-embarcacion { font-size: 1.15rem; }
+  .barra-viento-texto strong { font-size: 0.92rem; }
+}
+
+/* ===========================================================================
+   SUSCRIPCION DE UNA CUENTA GRATIS (perfil recreativo)
+   ---------------------------------------------------------------------------
+   El nauta no paga y no vence, asi que no ve la pantalla de planes: ve esta.
+   Comparte el lenguaje visual del resto de la seccion (panel oscuro arriba,
+   tarjetas claras abajo) para que no se lea como una pantalla de otra app.
+   =========================================================================== */
+
+.gratis {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* El panel de marca, con las ondas. Mismo degrade que .suscripcion-estado: es
+   el mismo lugar de la interfaz, solo que con otro contenido adentro. */
+.gratis-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 2.25rem 1.75rem;
+  border-radius: 12px;
+  background:
+    radial-gradient(110% 130% at 10% 0%, rgba(79, 179, 217, 0.2), transparent 55%),
+    linear-gradient(150deg, var(--marca-suave) 0%, var(--marca) 70%);
+  color: #fff;
+}
+
+.gratis-ondas {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 65%;
+  pointer-events: none;
+}
+
+.gratis-panel-cuerpo {
+  position: relative;
+  z-index: 1;
+  max-width: 44rem;
+}
+
+.gratis-etiqueta {
+  display: inline-block;
+  padding: 0.28rem 0.7rem;
+  border: 1px solid var(--marca-borde);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--marca-texto-suave);
+}
+
+/* La palabra que importa. Grande de verdad: es la respuesta a la pregunta con
+   la que alguien entra a esta pantalla, y no hay nada mas que leer si no
+   quiere. */
+.gratis-precio {
+  margin: 0.9rem 0 0;
+  font-family: var(--fuente-titulo);
+  font-size: clamp(3rem, 9vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.gratis-nota {
+  margin: 0.9rem 0 0;
+  max-width: 34rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--marca-texto-suave);
+}
+
+/* La leyenda: mas chica que la nota y separada por una linea. Es el porque, no
+   el que — por eso no compite con "Gratis" ni con la explicacion de arriba. */
+.gratis-leyenda {
+  margin: 1.4rem 0 0;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--marca-borde);
+  max-width: 38rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #fff;
+}
+
+.gratis-leyenda span {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--marca-texto-tenue);
+}
+
+/* --- Que incluye ---------------------------------------------------------- */
+
+/* Misma caja que .suscripcion-incluye: es la misma lista en el mismo lugar de
+   la pantalla, solo que con el contenido del perfil recreativo. */
+.gratis-incluye {
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.gratis-incluye h3 {
+  margin: 0 0 1.1rem;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--marca);
+}
+
+/* Dos columnas cuando hay ancho: a pantalla completa, una sola deja lineas
+   larguisimas y cuesta leerlas. */
+.gratis-incluye ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem 2rem;
+}
+
+.gratis-incluye li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.gratis-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--chip-fondo);
+  color: var(--acento);
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.gratis-incluye strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--texto);
+  margin-bottom: 0.15rem;
+}
+
+.gratis-incluye p {
+  margin: 0;
+  font-size: 0.87rem;
+  color: var(--texto-suave);
+  line-height: 1.55;
+}
+
+@media (max-width: 700px) {
+  .gratis-panel { padding: 1.75rem 1.25rem; }
+  .gratis-incluye { padding: 1.25rem; }
 }

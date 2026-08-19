@@ -16,6 +16,35 @@ ITERACIONES_PBKDF2 = 200_000
 UNIDADES_NIVEL_VALIDAS = {"m", "ft"}
 UNIDADES_CAUDAL_VALIDAS = {"m3s", "ft3s"}
 
+# Los tres perfiles del producto. El mismo backend y la misma base, tres
+# experiencias distintas: 'recreativo' es el nauta (app movil, gratis),
+# 'comercio' el parador/alojamiento/lancha-taxi (panel web), 'naviera' el
+# dashboard de datos hidrologicos de siempre.
+ROLES_VALIDOS = {"recreativo", "comercio", "naviera"}
+
+# El rol de una cuenta que no eligio ninguno. Es 'naviera' porque es lo que
+# era toda cuenta antes de que el producto se bifurcara: un cliente viejo que
+# no manda el campo tiene que seguir entrando donde entraba.
+ROL_POR_DEFECTO = "naviera"
+
+# Con que sale al rio el usuario recreativo. La lista vive en el backend
+# (y no solo en la app) para que el calculo de "¿esta picado?" pueda
+# apoyarse en ella; ver backend/clima.py.
+TIPOS_EMBARCACION_VALIDOS = {
+    "kayak", "canoa", "sup", "lancha", "semirrigido", "velero", "moto_agua", "otro",
+}
+
+
+def rol_valido(rol: Optional[str]) -> str:
+    """Normaliza lo que venga de afuera a un rol real."""
+    return rol if rol in ROLES_VALIDOS else ROL_POR_DEFECTO
+
+
+def tipo_embarcacion_valido(tipo: Optional[str]) -> Optional[str]:
+    """A diferencia del rol, aca None es un valor legitimo (todavia no eligio)
+    y por eso no hay default: solo se descarta lo que no esta en la lista."""
+    return tipo if tipo in TIPOS_EMBARCACION_VALIDOS else None
+
 
 def _hashear_password(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac(
@@ -23,7 +52,14 @@ def _hashear_password(password: str, salt: str) -> str:
     ).hex()
 
 
-def crear_usuario(usuario: str, password: str, nombre_completo: str, email: Optional[str] = None) -> None:
+def crear_usuario(
+    usuario: str,
+    password: str,
+    nombre_completo: str,
+    email: Optional[str] = None,
+    rol: Optional[str] = None,
+    tipo_embarcacion: Optional[str] = None,
+) -> None:
     """Crea un usuario nuevo. Lanza psycopg.errors.UniqueViolation si el usuario
     o el email ya existen."""
     inicializar_db()
@@ -31,8 +67,12 @@ def crear_usuario(usuario: str, password: str, nombre_completo: str, email: Opti
     password_hash = _hashear_password(password, salt)
     with conexion() as con:
         con.execute(
-            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash, email) VALUES (%s, %s, %s, %s, %s)",
-            (usuario, nombre_completo, salt, password_hash, email),
+            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash, email, rol, tipo_embarcacion) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (
+                usuario, nombre_completo, salt, password_hash, email,
+                rol_valido(rol), tipo_embarcacion_valido(tipo_embarcacion),
+            ),
         )
 
 
@@ -50,15 +90,16 @@ def _generar_username_unico(con, base: str) -> str:
     return candidato
 
 
-def crear_usuario_google(email: str, nombre_completo: str) -> dict:
+def crear_usuario_google(email: str, nombre_completo: str, rol: Optional[str] = None) -> dict:
     """Da de alta (o, si ya existe por email, no deberia llamarse) una cuenta
     sin contraseña local: solo se puede ingresar con "Continuar con Google"."""
     inicializar_db()
     with conexion() as con:
         usuario = _generar_username_unico(con, email.split("@")[0])
         con.execute(
-            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash, email) VALUES (%s, %s, NULL, NULL, %s)",
-            (usuario, nombre_completo, email),
+            "INSERT INTO usuarios (usuario, nombre_completo, salt, password_hash, email, rol) "
+            "VALUES (%s, %s, NULL, NULL, %s, %s)",
+            (usuario, nombre_completo, email, rol_valido(rol)),
         )
     return obtener_usuario(usuario)
 
@@ -82,7 +123,8 @@ def obtener_usuario(usuario: str) -> Optional[dict]:
     inicializar_db()
     with conexion() as con:
         fila = con.execute(
-            "SELECT usuario, nombre_completo, email, unidad_nivel, unidad_caudal, creado_en "
+            "SELECT usuario, nombre_completo, email, unidad_nivel, unidad_caudal, creado_en, "
+            "rol, tipo_embarcacion, es_admin "
             "FROM usuarios WHERE usuario = %s",
             (usuario,),
         ).fetchone()
@@ -103,6 +145,7 @@ def actualizar_perfil(
     password_nueva: Optional[str] = None,
     unidad_nivel: Optional[str] = None,
     unidad_caudal: Optional[str] = None,
+    tipo_embarcacion: Optional[str] = None,
 ) -> dict:
     """Actualiza nombre, contraseña y/o preferencias de unidades. Para cambiar
     la contraseña hay que mandar password_actual correcta. Devuelve el perfil
@@ -111,6 +154,11 @@ def actualizar_perfil(
         raise ValueError(f"unidad_nivel debe ser una de {UNIDADES_NIVEL_VALIDAS}.")
     if unidad_caudal is not None and unidad_caudal not in UNIDADES_CAUDAL_VALIDAS:
         raise ValueError(f"unidad_caudal debe ser una de {UNIDADES_CAUDAL_VALIDAS}.")
+    # Este si se valida contra la lista y se rechaza: es un valor que la app
+    # manda desde una grilla cerrada, no algo que el usuario escriba. Si llega
+    # otra cosa, es un bug del cliente y conviene que se note.
+    if tipo_embarcacion is not None and tipo_embarcacion not in TIPOS_EMBARCACION_VALIDOS:
+        raise ValueError(f"tipo_embarcacion debe ser uno de {TIPOS_EMBARCACION_VALIDOS}.")
 
     inicializar_db()
     with conexion() as con:
@@ -141,5 +189,11 @@ def actualizar_perfil(
 
         if unidad_caudal:
             con.execute("UPDATE usuarios SET unidad_caudal = %s WHERE usuario = %s", (unidad_caudal, usuario))
+
+        if tipo_embarcacion:
+            con.execute(
+                "UPDATE usuarios SET tipo_embarcacion = %s WHERE usuario = %s",
+                (tipo_embarcacion, usuario),
+            )
 
     return obtener_usuario(usuario)

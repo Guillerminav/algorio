@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
+import { ES_PRO, PRODUCTO } from "../producto.js";
 import BotonGoogle from "./BotonGoogle.jsx";
-import HeroAutenticacion from "./HeroAutenticacion.jsx";
+import CruceProducto from "./CruceProducto.jsx";
+import PantallaMarca from "./PantallaMarca.jsx";
 import SelectorPlan from "./SelectorPlan.jsx";
+import SelectorRol, { ROL_POR_CLAVE } from "./SelectorRol.jsx";
 
 function FlechaAtras() {
   return (
@@ -23,17 +26,32 @@ function FlechaAtras() {
   );
 }
 
-// El alta va en dos pasos y el plan va primero, no despues de los datos. No es
-// solo cuestion de largo de pantalla: el alta con Google crea la cuenta de un
-// click, asi que si el plan se eligiera al final, quien entra por Google
-// nunca pasaria por esa decision y arrancaria con el plan por defecto sin
-// haberlo pedido. Eligiendo primero, las dos vias de alta llevan el plan.
+const PASO_ROL = "rol";
 const PASO_PLAN = "plan";
 const PASO_DATOS = "datos";
 
+// Los pasos que ve cada dominio. Separar los productos simplificó el alta: los
+// dos quedaron en dos pasos, y por motivos opuestos.
+//
+// - En Pro el rol es siempre `naviera`, así que no hay nada que elegir: el
+//   primer paso desaparece y arranca por el plan, que es el único perfil del
+//   producto que elige entre varios.
+// - En el de río hay dos perfiles pero ninguno elige plan (el nauta tiene uno
+//   solo y gratis, el comercio uno solo): se elige perfil y se pasa a los
+//   datos.
+//
+// Antes, con los tres roles en una sola web, esto tenía que calcularse en
+// tiempo real y el encabezado decía "Paso 1 de 3" o "de 2" según lo que
+// hubieras tocado dos pantallas antes.
+const PASOS = ES_PRO ? [PASO_PLAN, PASO_DATOS] : [PASO_ROL, PASO_DATOS];
+
 export default function Registro({ onIrALogin }) {
   const { registrar } = useAuth();
-  const [paso, setPaso] = useState(PASO_PLAN);
+  const [indicePaso, setIndicePaso] = useState(0);
+  // En Pro el rol no se pregunta: es el único que sirve en este dominio. El
+  // backend lo valida igual (auth.py: rol_valido), así que esto es la interfaz
+  // ahorrando una pantalla vacía, no un permiso que se da de más.
+  const [rol, setRol] = useState(ES_PRO ? "naviera" : "");
   const [plan, setPlan] = useState("");
   const [planEtiqueta, setPlanEtiqueta] = useState("");
   const [usuario, setUsuario] = useState("");
@@ -42,21 +60,21 @@ export default function Registro({ onIrALogin }) {
   const [repetirPassword, setRepetirPassword] = useState("");
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [heroRetraido, setHeroRetraido] = useState(false);
 
-  // El panel azul arranca visible y recien despues del primer pintado se
-  // retrae. Si se renderizara ya retraido, el navegador no tendria un estado
-  // anterior contra el cual interpolar y no habria animacion, solo un salto.
-  // El mismo efecto lo trae de vuelta al pasar al formulario de datos.
-  useEffect(() => {
-    const id = setTimeout(() => setHeroRetraido(paso === PASO_PLAN), 40);
-    return () => clearTimeout(id);
-  }, [paso]);
+  const paso = PASOS[indicePaso];
+  const esUltimo = indicePaso === PASOS.length - 1;
 
-  function continuar(evento) {
+  function avanzar(evento) {
     evento.preventDefault();
     setError("");
-    setPaso(PASO_DATOS);
+    setIndicePaso((i) => i + 1);
+  }
+
+  // Desde el primer paso, "atrás" es salir del registro y volver al login.
+  function retroceder() {
+    setError("");
+    if (indicePaso === 0) onIrALogin();
+    else setIndicePaso((i) => i - 1);
   }
 
   async function crearCuenta(evento) {
@@ -76,7 +94,7 @@ export default function Registro({ onIrALogin }) {
     setError("");
     setEnviando(true);
     try {
-      await registrar({ usuario: usuario.trim(), email: email.trim(), password, plan });
+      await registrar({ usuario: usuario.trim(), email: email.trim(), password, plan, rol });
     } catch (e) {
       setError(e.status === 400 ? e.message : "No se pudo crear la cuenta. Intenta de nuevo.");
     } finally {
@@ -84,138 +102,141 @@ export default function Registro({ onIrALogin }) {
     }
   }
 
+  const titulo = {
+    [PASO_ROL]: `¿Cómo vas a usar ${PRODUCTO.nombre}?`,
+    [PASO_PLAN]: "Elegí tu plan",
+    [PASO_DATOS]: "Creá tu cuenta",
+  }[paso];
+
+  const bajada = {
+    [PASO_ROL]: "De esto depende lo que vas a ver.",
+    [PASO_PLAN]: "Elegí con qué querés arrancar. No se paga nada ahora.",
+    [PASO_DATOS]: ES_PRO
+      ? `Plan ${planEtiqueta || "—"}.`
+      : `${ROL_POR_CLAVE[rol]?.etiqueta ?? ""}.`,
+  }[paso];
+
   return (
-    <div className={`pantalla-login${paso === PASO_PLAN ? " pantalla-planes" : ""}`}>
-      {/* En el paso del plan el panel de marca se corre: se come casi la mitad
-          del ancho, y las tres tarjetas necesitan la pantalla entera para
-          entrar en fila. Vuelve en el paso de los datos, que es un formulario
-          angosto. Siempre montado, para que la transicion tenga que animar. */}
-      <HeroAutenticacion retraido={heroRetraido} />
+    // Los pasos de tarjetas necesitan más ancho que el formulario de datos.
+    <PantallaMarca ancho={paso === PASO_DATOS ? "angosto" : "ancho"}>
+      <form className="tarjeta-vidrio" onSubmit={esUltimo ? crearCuenta : avanzar}>
+        <div className="encabezado-paso">
+          <button
+            type="button"
+            className="boton-volver"
+            onClick={retroceder}
+            aria-label={indicePaso === 0 ? "Volver al inicio de sesión" : "Volver al paso anterior"}
+            title={indicePaso === 0 ? "Volver al inicio de sesión" : "Volver"}
+          >
+            <FlechaAtras />
+          </button>
+          <div className="encabezado-paso-texto">
+            <h1>{titulo}</h1>
+            <p>
+              Paso {indicePaso + 1} de {PASOS.length} — {bajada}
+            </p>
+          </div>
+        </div>
 
-      <div className="login-form-panel">
-        <form
-          className={`tarjeta-login${paso === PASO_PLAN ? " tarjeta-planes" : ""}`}
-          onSubmit={paso === PASO_PLAN ? continuar : crearCuenta}
-        >
-          {paso === PASO_PLAN ? (
-            <>
-              {/* La flecha va pegada al titulo y no arriba de todo: desde este
-                  paso "atras" es salir del registro, asi que vuelve al login. */}
-              <div className="encabezado-paso">
-                <button
-                  type="button"
-                  className="boton-volver"
-                  onClick={onIrALogin}
-                  aria-label="Volver al inicio de sesión"
-                  title="Volver al inicio de sesión"
-                >
-                  <FlechaAtras />
-                </button>
-                <div className="encabezado-paso-texto">
-                  <h1>Elegí tu plan</h1>
-                  <p>Paso 1 de 2 — elegí con qué querés arrancar.</p>
-                </div>
-              </div>
+        {paso === PASO_ROL && (
+          <SelectorRol
+            valor={rol}
+            onCambiar={(elegido) => {
+              setRol(elegido.rol);
+              // El plan elegido antes puede no existir para el rol nuevo.
+              setPlan("");
+              setPlanEtiqueta("");
+            }}
+          />
+        )}
 
-              <SelectorPlan
-                valor={plan}
-                onCambiar={(elegido) => {
-                  setPlan(elegido.plan);
-                  setPlanEtiqueta(elegido.etiqueta);
-                }}
+        {paso === PASO_PLAN && (
+          <SelectorPlan
+            rol={rol}
+            valor={plan}
+            onCambiar={(elegido) => {
+              setPlan(elegido.plan);
+              setPlanEtiqueta(elegido.etiqueta);
+            }}
+          />
+        )}
+
+        {paso === PASO_DATOS && (
+          <div className="campos-registro">
+            <label>
+              Email
+              <input
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
+            </label>
+            <label>
+              Nombre de usuario
+              <input
+                type="text"
+                autoComplete="username"
+                required
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
+              />
+            </label>
+            <label>
+              Contraseña
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+            <label>
+              Repetir contraseña
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={repetirPassword}
+                onChange={(e) => setRepetirPassword(e.target.value)}
+              />
+            </label>
+          </div>
+        )}
 
-              <div className="mensaje-error">{error}</div>
-              <button type="submit" disabled={!plan}>Continuar</button>
+        <div className="mensaje-error">{error}</div>
 
-              {/* Tambien aca, no solo en el paso 2: esta es la primera pantalla
-                  del registro, y si el boton de Google solo apareciera despues
-                  de llenar el formulario, nadie que quiera entrar con Google lo
-                  encontraria. El plan ya viene preseleccionado, asi que el alta
-                  igual queda con un plan elegido. */}
-              <BotonGoogle plan={plan} />
-            </>
-          ) : (
-            <>
-              <h1>Crear cuenta</h1>
-              <p>Paso 2 de 2 — plan {planEtiqueta}.</p>
+        <button
+          type="submit"
+          className="boton-vidrio-primario"
+          disabled={
+            enviando ||
+            (paso === PASO_ROL && !rol) ||
+            (paso === PASO_PLAN && !plan)
+          }
+        >
+          {esUltimo ? (enviando ? "Creando cuenta…" : "Crear cuenta") : "Continuar"}
+        </button>
 
-              <label>
-                Email
-                <input
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label>
-                Nombre de usuario
-                <input
-                  type="text"
-                  autoComplete="username"
-                  required
-                  value={usuario}
-                  onChange={(e) => setUsuario(e.target.value)}
-                />
-              </label>
-              <label>
-                Contraseña
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              <label>
-                Repetir contraseña
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  value={repetirPassword}
-                  onChange={(e) => setRepetirPassword(e.target.value)}
-                />
-              </label>
+        {/* Google también antes del último paso: si solo apareciera después de
+            llenar el formulario, nadie que quiera entrar con Google lo
+            encontraría. El rol y el plan ya vienen elegidos de los pasos
+            anteriores, así que el alta queda igual de completa. */}
+        {paso !== PASO_ROL && <BotonGoogle plan={plan} rol={rol} />}
 
-              <div className="mensaje-error">{error}</div>
+        <p className="enlace-alternativo">
+          ¿Ya tenés una cuenta?{" "}
+          <button type="button" className="enlace-boton" onClick={onIrALogin}>
+            Iniciar sesión
+          </button>
+        </p>
+      </form>
 
-              <div className="fila-acciones">
-                <button
-                  type="button"
-                  className="boton-volver"
-                  onClick={() => {
-                    setError("");
-                    setPaso(PASO_PLAN);
-                  }}
-                  aria-label="Volver a los planes"
-                  title="Volver a los planes"
-                >
-                  <FlechaAtras />
-                </button>
-                <button type="submit" disabled={enviando}>
-                  {enviando ? "Creando cuenta…" : "Crear cuenta"}
-                </button>
-              </div>
-
-              {/* Da de alta con el mismo plan que se eligio en el paso 1. */}
-              <BotonGoogle plan={plan} />
-            </>
-          )}
-
-          <p className="enlace-alternativo">
-            ¿Ya tenés una cuenta?{" "}
-            <button type="button" className="enlace-boton" onClick={onIrALogin}>
-              Iniciar sesión
-            </button>
-          </p>
-        </form>
-      </div>
-    </div>
+      <CruceProducto />
+    </PantallaMarca>
   );
 }

@@ -24,9 +24,12 @@ export function seccionesVisibles(suscripcion) {
   return SECCIONES.filter((s) => permitidas.includes(s.id));
 }
 
-export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda }) {
+// `secciones` permite que otro shell (el del comerciante) reuse esta barra con
+// su propia navegacion. Sin el prop se comporta como siempre: las secciones del
+// producto de navieras que habilite el plan de la cuenta.
+export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda, secciones: seccionesProp }) {
   const { suscripcion } = useAuth();
-  const secciones = seccionesVisibles(suscripcion);
+  const secciones = seccionesProp ?? seccionesVisibles(suscripcion);
 
   return (
     <aside className="barra-lateral">

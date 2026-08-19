@@ -39,24 +39,25 @@ export function AuthProvider({ children }) {
     await refrescarSuscripcion();
   }
 
-  async function registrar({ usuario: usuarioTexto, email, password, plan }) {
+  async function registrar({ usuario: usuarioTexto, email, password, plan, rol }) {
     const perfil = await pedirJSON("/api/registro", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuario: usuarioTexto, email, password, plan }),
+      body: JSON.stringify({ usuario: usuarioTexto, email, password, plan, rol }),
     });
     setUsuario(perfil);
     await refrescarSuscripcion();
   }
 
-  // `plan` solo cuenta cuando el token de Google da de alta una cuenta nueva:
-  // desde Registro llega el plan elegido, desde Login llega undefined. Si
-  // la cuenta ya existia, el backend lo ignora.
-  async function loginConGoogle(credential, plan) {
+  // `plan` y `rol` solo cuentan cuando el token de Google da de alta una cuenta
+  // nueva: desde Registro llegan los elegidos, desde Login llegan undefined. Si
+  // la cuenta ya existia, el backend los ignora — volver a entrar no cambia ni
+  // el plan ni el perfil de una cuenta.
+  async function loginConGoogle(credential, plan, rol) {
     const perfil = await pedirJSON("/api/login/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential, plan }),
+      body: JSON.stringify({ credential, plan, rol }),
     });
     setUsuario(perfil);
     await refrescarSuscripcion();

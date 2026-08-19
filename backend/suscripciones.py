@@ -34,8 +34,40 @@ SECCIONES_BASE = ("dashboard", "historico", "alertas", "mapa")
 # la landing puedan salir del mismo numero. `precio_usd` en None es "a
 # consultar" (no hay tarifa publicada); `precio_lista_usd` es el precio tachado
 # al lado del promocional, y va en None cuando no hay promo.
+#
+# `rol` ata cada plan a uno de los tres perfiles del producto. Sin eso, la
+# pantalla de registro de una naviera mostraria tambien el plan del parador y
+# el del kayakista, que no tienen nada que ver entre si.
 PLANES = {
+    # Perfil recreativo: el nauta que usa la app movil. Gratis y sin
+    # vencimiento; existe como plan igual para que el control de acceso sea el
+    # mismo mecanismo para los tres perfiles y no un caso especial suelto.
+    "nauta": {
+        "rol": "recreativo",
+        "etiqueta": "Nauta",
+        "resumen": "El río en el bolsillo: mapa, viento y paradores.",
+        "secciones": ("mapa_nautico",),
+        "max_activos": 0,
+        "max_rutas": 0,
+        "precio_usd": 0,
+        "precio_lista_usd": None,
+        "nota_precio": "Gratis, siempre",
+    },
+    # Perfil comerciante. Un solo plan: todavia no hay tarifa definida, asi
+    # que va con precio None ("a consultar"), igual que Capitán.
+    "comercio": {
+        "rol": "comercio",
+        "etiqueta": "Comercio",
+        "resumen": "Tu parador, cabaña o lancha en el mapa de todos los nautas.",
+        "secciones": ("mi_comercio",),
+        "max_activos": 0,
+        "max_rutas": 0,
+        "precio_usd": None,
+        "precio_lista_usd": None,
+        "nota_precio": "A definir",
+    },
     "vigia": {
+        "rol": "naviera",
         "etiqueta": "Vigía",
         "resumen": "Para seguir el río y enterarte a tiempo.",
         "secciones": SECCIONES_BASE,
@@ -46,6 +78,7 @@ PLANES = {
         "nota_precio": "Precio early bird",
     },
     "timonel": {
+        "rol": "naviera",
         "etiqueta": "Timonel",
         "resumen": "Todo el sistema, para operar con el río de verdad.",
         "secciones": SECCIONES_BASE + ("flota", "rutas"),
@@ -56,6 +89,7 @@ PLANES = {
         "nota_precio": "Precio early bird",
     },
     "capitan": {
+        "rol": "naviera",
         "etiqueta": "Capitán",
         "resumen": "Para flotas grandes y terminales con sistemas propios.",
         "secciones": SECCIONES_BASE + ("flota", "rutas"),
@@ -67,17 +101,40 @@ PLANES = {
     },
 }
 
-# El plan de una cuenta que no eligio ninguno. Es el mas acotado a proposito:
-# las cuentas que se crean sin pasar por el selector (el CLI, o "Continuar con
-# Google" desde la pantalla de login) no deberian recibir de arriba la
-# plan mas amplio. Las cuentas que ya existian antes de este sistema son
-# otro caso y se migran a "capitan" en db.py, para no sacarles nada que hoy
-# tienen.
-PLAN_POR_DEFECTO = "vigia"
+# El plan de una cuenta que no eligio ninguno, por rol. Para naviera es el mas
+# acotado a proposito: las cuentas que se crean sin pasar por el selector (el
+# CLI, o "Continuar con Google" desde la pantalla de login) no deberian
+# recibir de arriba el plan mas amplio. Las cuentas que ya existian antes de
+# este sistema son otro caso y se migran a "capitan" en db.py, para no
+# sacarles nada que hoy tienen.
+PLAN_POR_DEFECTO_POR_ROL = {
+    "recreativo": "nauta",
+    "comercio": "comercio",
+    "naviera": "vigia",
+}
+PLAN_POR_DEFECTO = PLAN_POR_DEFECTO_POR_ROL["naviera"]
+
+# El unico rol que no paga. Su acceso no depende de fechas ni de cobros.
+ROL_GRATUITO = "recreativo"
 
 
-def plan_valido(plan: Optional[str]) -> str:
-    """Normaliza lo que venga de afuera (o de una fila vieja) a un plan real."""
+def planes_de_rol(rol: Optional[str]) -> list[str]:
+    """Las claves de plan que puede elegir ese rol, en el orden del catalogo."""
+    return [clave for clave, definicion in PLANES.items() if definicion["rol"] == rol]
+
+
+def plan_valido(plan: Optional[str], rol: Optional[str] = None) -> str:
+    """Normaliza lo que venga de afuera (o de una fila vieja) a un plan real.
+
+    Con `rol`, ademas exige que el plan pertenezca a ese perfil: es lo que
+    impide que un alta de nauta pida el plan de una naviera mandandolo en el
+    cuerpo del request. Sin `rol` (las llamadas viejas) solo valida que exista.
+    """
+    if rol is not None:
+        elegibles = planes_de_rol(rol)
+        if plan in elegibles:
+            return plan
+        return PLAN_POR_DEFECTO_POR_ROL.get(rol, PLAN_POR_DEFECTO)
     return plan if plan in PLANES else PLAN_POR_DEFECTO
 
 
@@ -87,6 +144,7 @@ def limites_de_plan(plan: Optional[str]) -> dict:
     definicion = PLANES[clave]
     return {
         "plan": clave,
+        "rol": definicion["rol"],
         "etiqueta": definicion["etiqueta"],
         "resumen": definicion["resumen"],
         "secciones": list(definicion["secciones"]),
@@ -103,10 +161,24 @@ def _fila_suscripcion(con, usuario: str) -> Optional[dict]:
     return dict(fila) if fila else None
 
 
+def _rol_de(con, usuario: str) -> Optional[str]:
+    """El rol de la cuenta, leido directo de la tabla.
+
+    Se consulta con SQL en vez de importar backend.auth para no acoplar este
+    modulo (que solo sabe de acceso y planes) al de credenciales.
+    """
+    fila = con.execute("SELECT rol FROM usuarios WHERE usuario = %s", (usuario,)).fetchone()
+    return fila["rol"] if fila else None
+
+
 def _crear_prueba(con, usuario: str, plan: Optional[str] = None) -> dict:
     """Da de alta la prueba gratis. Arranca desde la fecha de creacion de la
     cuenta (usuarios.creado_en); las cuentas viejas, anteriores a que se
     guardara esa fecha, la tienen en NULL y arrancan la prueba ahora."""
+    # El plan por defecto depende del rol: sin esto, una cuenta recreativa que
+    # nunca eligio plan caeria en "vigia" y se le pediria pagar por un
+    # producto que ni siquiera usa.
+    rol = _rol_de(con, usuario)
     con.execute(
         """
         INSERT INTO suscripciones (usuario, estado, plan, vigente_hasta)
@@ -114,7 +186,7 @@ def _crear_prueba(con, usuario: str, plan: Optional[str] = None) -> dict:
         FROM usuarios WHERE usuario = %s
         ON CONFLICT (usuario) DO NOTHING
         """,
-        (usuario, plan_valido(plan), timedelta(days=DIAS_PRUEBA), usuario),
+        (usuario, plan_valido(plan, rol), timedelta(days=DIAS_PRUEBA), usuario),
     )
     return _fila_suscripcion(con, usuario)
 
@@ -143,12 +215,29 @@ def estado_de_suscripcion(usuario: str) -> dict:
     """
     inicializar_db()
     with conexion() as con:
+        rol = _rol_de(con, usuario)
         suscripcion = _fila_suscripcion(con, usuario) or _crear_prueba(con, usuario)
 
         if suscripcion is None:  # el usuario no existe
             return {
                 "estado": "sin_cuenta", "tiene_acceso": False, "vigente_hasta": None,
                 "dias_restantes": None, **limites_de_plan(None),
+            }
+
+        # El perfil recreativo es gratis: no tiene sentido que una fecha lo
+        # saque. Se resuelve aca, en la unica funcion que el resto del backend
+        # consulta para decidir acceso, y no salteando el chequeo endpoint por
+        # endpoint. La fecha se anula del todo (y no solo `tiene_acceso`) para
+        # que el frontend no muestre un cartel de "te quedan 3 días" a alguien
+        # que no vence nunca.
+        if rol == ROL_GRATUITO:
+            return {
+                "estado": suscripcion["estado"],
+                "vencida": False,
+                "tiene_acceso": True,
+                "vigente_hasta": None,
+                "dias_restantes": None,
+                **limites_de_plan(suscripcion["plan"]),
             }
 
         vigente_hasta = suscripcion["vigente_hasta"]
@@ -200,6 +289,13 @@ def cambiar_plan(usuario: str, plan: str) -> dict:
 
     inicializar_db()
     with conexion() as con:
+        # El plan tiene que ser de los del rol de la cuenta. Sin esto, una
+        # cuenta de comercio podria pasarse al plan Capitán (el mas amplio del
+        # producto de navieras, y sin tarifa publicada) mandando su clave.
+        rol = _rol_de(con, usuario)
+        if rol is not None and PLANES[plan]["rol"] != rol:
+            raise ValueError(f"El plan {PLANES[plan]['etiqueta']} no corresponde a este tipo de cuenta.")
+
         # Una cuenta que nunca consulto su suscripcion todavia no tiene fila:
         # se crea antes de actualizar, si no el UPDATE no afectaria nada.
         _crear_prueba(con, usuario)
@@ -211,11 +307,12 @@ def cambiar_plan(usuario: str, plan: str) -> dict:
 
 
 def plan_de(usuario: str) -> str:
-    """El plan vigente de la cuenta, normalizado."""
+    """El plan vigente de la cuenta, normalizado contra su rol."""
     inicializar_db()
     with conexion() as con:
         suscripcion = _fila_suscripcion(con, usuario)
-    return plan_valido(suscripcion["plan"] if suscripcion else None)
+        rol = _rol_de(con, usuario)
+    return plan_valido(suscripcion["plan"] if suscripcion else None, rol)
 
 
 def habilita_seccion(plan: str, seccion: str) -> bool:
