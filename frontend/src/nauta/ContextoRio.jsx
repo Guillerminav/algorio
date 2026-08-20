@@ -36,6 +36,13 @@ export function ProveedorRio({ children }) {
   const [reintento, setReintento] = useState(0);
   const [cargandoClima, setCargandoClima] = useState(true);
   const [errorClima, setErrorClima] = useState(false);
+  // El backend corre en el plan free de Render, que apaga el proceso a los 15
+  // minutos sin trafico y tarda hasta un minuto en volver. Mientras arranca, el
+  // gateway corta y devuelve 502/504 — no es que el pronostico no exista, es
+  // que el servidor todavia no esta. Decir "no pudimos consultar el
+  // pronostico" ahi es mentir sobre que pasa y hace que el usuario crea que
+  // esta roto (que es exactamente lo que paso).
+  const [despertando, setDespertando] = useState(false);
 
   const reintentarClima = useCallback(() => setReintento((n) => n + 1), []);
 
@@ -73,12 +80,15 @@ export function ProveedorRio({ children }) {
   // viento" clavado hasta recargar la página. Justo el escenario de alguien en
   // el agua, que es para quien está hecho esto.
   //
-  // Los tres intentos suben de 4 a 30 segundos: si a los 45 s no volvió, no
-  // vale seguir golpeando solo, y queda el reintento a mano tocando el cartel.
+  // Los cuatro intentos van de 4 a 45 segundos, o sea que el ultimo cae cerca
+  // del minuto y medio. No es exageracion: un arranque en frio de Render tarda
+  // ~50 s, y con la tanda anterior —que se rendia a los 46 s— el ultimo
+  // intento caia justo antes de que el servidor estuviera listo. Se daba por
+  // vencido en el peor momento posible.
   useEffect(() => {
     let cancelado = false;
     let temporizador;
-    const esperas = [4000, 12000, 30000];
+    const esperas = [4000, 12000, 30000, 45000];
 
     function pedir(intento = 0) {
       const [lat, lon] = posicion ? [posicion.lat, posicion.lon] : CENTRO_POR_DEFECTO;
@@ -89,12 +99,18 @@ export function ProveedorRio({ children }) {
           if (cancelado) return;
           setClima(d);
           setCargandoClima(false);
+          setDespertando(false);
         })
-        .catch(() => {
+        .catch((e) => {
           if (cancelado) return;
+          const quedanIntentos = intento < esperas.length;
+          // 502 y 504 los devuelve el gateway cuando Render todavia no
+          // levanto; el 503 lo devuelve NUESTRO backend cuando no consiguio
+          // pronostico (ver backend/clima.py) y ese si es un error del dato.
+          setDespertando([502, 504].includes(e?.status) && quedanIntentos);
           setCargandoClima(false);
           setErrorClima(true);
-          if (intento < esperas.length) {
+          if (quedanIntentos) {
             temporizador = setTimeout(() => !cancelado && pedir(intento + 1), esperas[intento]);
           }
         });
@@ -117,9 +133,11 @@ export function ProveedorRio({ children }) {
       clima,
       cargandoClima,
       errorClima,
+      despertando,
       reintentarClima,
     }),
-    [posicion, permitido, buscando, pedirUbicacion, clima, cargandoClima, errorClima, reintentarClima],
+    [posicion, permitido, buscando, pedirUbicacion, clima, cargandoClima, errorClima,
+     despertando, reintentarClima],
   );
 
   return <ContextoRio.Provider value={valor}>{children}</ContextoRio.Provider>;

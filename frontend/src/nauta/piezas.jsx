@@ -57,7 +57,7 @@ export function Estrellas({ puntaje, tamano = 15, onElegir }) {
  */
 export function BarraViento({ clima, cargando, error, onVerDetalle }) {
   const { usuario } = useAuth();
-  const { reintentarClima } = useRio();
+  const { reintentarClima, despertando } = useRio();
   const embarcacion = embarcacionPorClave(usuario?.tipo_embarcacion);
 
   // El emoji de la embarcación al lado del veredicto: recuerda de un vistazo
@@ -80,18 +80,27 @@ export function BarraViento({ clima, cargando, error, onVerDetalle }) {
   // automatico prende `error` apenas falla un intento, y tirar el dato bueno
   // por eso dejaba el cartel vacio de golpe estando en el agua.
   if ((cargando || error) && !clima) {
+    // Tres situaciones distintas que antes se veian igual: buscando, el
+    // servidor arrancando (sigue solo, no hay que tocar nada) y no se pudo.
+    const esperando = cargando || despertando;
     const contenido = (
       <>
         <Embarcacion />
         <span className="barra-viento-punto sin-datos" aria-hidden="true" />
         <div className="barra-viento-texto">
-          <strong>{cargando ? "Viendo cómo está el río…" : "Sin datos de viento"}</strong>
-          {!cargando && <span>Tocá para reintentar.</span>}
+          <strong>
+            {despertando
+              ? "Despertando el servidor…"
+              : cargando
+                ? "Viendo cómo está el río…"
+                : "Sin datos de viento"}
+          </strong>
+          {!esperando && <span>Tocá para reintentar.</span>}
         </div>
       </>
     );
 
-    if (cargando) return <div className="barra-viento">{contenido}</div>;
+    if (esperando) return <div className="barra-viento">{contenido}</div>;
     return (
       <button type="button" className="barra-viento" onClick={reintentarClima}>
         {contenido}

@@ -468,12 +468,39 @@ viento. Y la respuesta baja por una cascada, en este orden:
 | 2 | `clima_cache` en Postgres | Idem, pero el proceso se reinicio |
 | 3 | Open-Meteo | No hay nada fresco (con 3 reintentos) |
 | 4 | El dato vencido de esa celda | Open-Meteo no contesto |
-| 5 | La celda cacheada mas cercana (hasta ~165 km) | Esa celda nunca se consulto |
-| 6 | 503 | No hay absolutamente nada |
+| 5 | La celda cacheada mas cercana (hasta ~65 km) | Esa celda nunca se consulto |
+| 6 | 503 | No hay nada, o lo que hay ya no sirve |
 
 Los pasos 4 y 5 son los que sacan al nauta de la pantalla de error. Un
 pronostico de hace dos horas sigue sirviendo para decidir si salir; una
 pantalla de error no sirve para nada.
+
+### Los limites del respaldo
+
+Servir un dato viejo solo es defendible con limites, porque alguien se mete al
+rio con esto. Son tres:
+
+**Techo de seis horas** (`MAX_SEGUNDOS_RESPALDO`). Pasado eso se devuelve el
+503. Un numero al que no hay que creerle es peor que no tener numero, por mas
+que se aclare de cuando es.
+
+**Techo de ~65 km** (`GRADOS_MAX_VECINA`). El viento de Rosario no dice nada
+del de Corrientes, y estan a 700 km.
+
+**El "ahora" no es la medicion vieja.** Esta es la parte que importa. La
+respuesta de Open-Meteo tiene dos mitades que envejecen distinto:
+
+| | Que es | A las tres horas |
+| --- | --- | --- |
+| `current` | Una **medicion**, con `interval` de 900 s | Es simplemente falsa |
+| `hourly` | Un **pronostico** que cubre las horas siguientes | Sigue teniendo una prediccion para esta hora |
+
+Asi que cuando lo que se sirve es un respaldo, el bloque "ahora" se arma con la
+fila de la serie que corresponde a la hora actual, y no repitiendo la medicion
+vencida. Mostrar "viento 3 km/h" porque eso se midio a las 9 de la mañana,
+cuando la serie para las 15 decia 13 km/h, seria exactamente la informacion
+falsa que hay que evitar. La respuesta lo marca con `actual_estimado` y la app
+lo dice: "la prevision para esta hora, calculada hace 3 h" y no "el viento es".
 
 ### Pero se dice que es viejo
 

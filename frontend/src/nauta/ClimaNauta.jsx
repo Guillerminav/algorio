@@ -92,13 +92,23 @@ export default function ClimaNauta() {
   const { usuario } = useAuth();
   // El mismo pronostico que muestra el cartel del mapa, literalmente el mismo
   // objeto: por eso no pueden decir cosas distintas (ver ContextoRio.jsx).
-  const { clima, cargandoClima, errorClima } = useRio();
+  const { clima, cargandoClima, errorClima, despertando } = useRio();
 
   // `clima` puede existir aunque `errorClima` este en true: el reintento
   // automatico marca el error apenas falla un intento, y no tiene sentido
   // tirar a la basura el pronostico que ya se habia cargado. Se prefiere
   // siempre mostrar el dato que haya.
   if (cargandoClima && !clima) return <div className="estado">Consultando el pronóstico…</div>;
+  // Mientras el servidor arranca no hay error que reportar todavia: hay que
+  // esperar. Decir "no pudimos" ahi manda a recargar a alguien que solo tenia
+  // que aguantar treinta segundos.
+  if (despertando) {
+    return (
+      <div className="estado">
+        Estamos despertando el servidor. Puede tardar hasta un minuto…
+      </div>
+    );
+  }
   if (!clima) {
     return <div className="mensaje-error">No pudimos consultar el pronóstico ahora.</div>;
   }
@@ -115,15 +125,20 @@ export default function ClimaNauta() {
 
   return (
     <div className="clima-nauta">
-      {/* El backend sirve el ultimo dato conocido cuando Open-Meteo no
-          contesta. Mostrarlo sin aclarar de cuando es seria peor que no
-          mostrarlo: alguien decide salir al rio con esto. */}
+      {/* Cuando Open-Meteo no contesta, el backend arma el "ahora" con la
+          fila de la serie horaria que corresponde a esta hora — o sea, la
+          prevision para el presente, no una medicion vencida (ver
+          backend/clima.py: _formatear). Sigue habiendo que decirlo: no es lo
+          mismo "el viento es" que "el viento previsto para esta hora es", y
+          alguien decide salir al rio con esto. */}
       {sinActualizar && (
         <div className="aviso-clima-viejo">
-          No pudimos actualizar el pronóstico.{" "}
-          {antiguedad
-            ? `Este es el último que tenemos, de ${antiguedad}.`
-            : "Este es el último que pudimos traer."}
+          No pudimos conectarnos al servicio de pronóstico.{" "}
+          {clima.actual_estimado
+            ? `Lo que ves es la previsión para esta hora, calculada ${antiguedad}.`
+            : antiguedad
+              ? `Este es el último dato que tenemos, de ${antiguedad}.`
+              : "Este es el último dato que pudimos traer."}
         </div>
       )}
 

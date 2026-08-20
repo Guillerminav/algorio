@@ -29,14 +29,21 @@ Tres decisiones atacan eso, en orden de importancia:
    proceso a los 15 minutos sin uso, asi que la cache en memoria arrancaba
    vacia varias veces por dia y obligaba a salir a la ruta justo cuando mas
    probable era fallar.
-3. **Si no hay dato fresco, se sirve el viejo diciendo que es viejo.** Un
-   pronostico de hace dos horas sigue sirviendo para decidir si salir; una
-   pantalla de error no sirve para nada. Solo si no hay absolutamente nada
-   —ni de esta celda ni de ninguna cercana— se devuelve el 503.
+3. **Si no hay dato fresco, se sirve el viejo diciendo que es viejo**, y con
+   dos limites que no son negociables: nada de mas de seis horas
+   (MAX_SEGUNDOS_RESPALDO) y nada de mas de ~65 km (GRADOS_MAX_VECINA). Fuera
+   de eso se devuelve el 503, porque un numero que no hay que creerle es peor
+   que no tener numero.
+
+   Y lo que se sirve como "ahora" no es la medicion vieja sino la fila de la
+   serie horaria que corresponde a esta hora: la serie es un pronostico y
+   sigue prediciendo el presente aunque se haya traido hace rato, mientras que
+   `current` es una medicion de un momento que ya paso. Ver _formatear.
 """
 import json
 import math
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -85,10 +92,20 @@ VALIDEZ_CACHE_SEGUNDOS = 15 * 60
 MAX_ENTRADAS_CACHE = 500
 
 # Hasta donde se acepta el pronostico de una celda vecina cuando la propia no
-# tiene nada. Un grado y medio son ~165 km: sobre el mismo tramo de rio el
-# viento no cambia de signo en esa distancia, y la alternativa es no mostrar
-# nada. Mas lejos que eso ya seria inventar.
-GRADOS_MAX_VECINA = 1.5
+# tiene nada. 0,6 grados son ~65 km, cinco o seis celdas del modelo: sobre el
+# mismo tramo de rio el viento no cambia de signo en esa distancia. Mas lejos
+# que eso ya seria inventar — el viento de Rosario no dice nada del de
+# Corrientes, y estan a 700 km.
+GRADOS_MAX_VECINA = 0.6
+
+# Cuanto puede envejecer un respaldo antes de que deje de servir.
+#
+# Es el limite que separa "dato viejo pero util" de "dato que no hay que
+# mostrar". Seis horas es lo que aguanta la parte que de verdad se respalda: la
+# serie horaria, que es un PRONOSTICO y por lo tanto sigue cubriendo la hora
+# actual aunque se haya traido hace rato. Pasado eso preferimos fallar y
+# decirlo, porque alguien se mete al rio con esto.
+MAX_SEGUNDOS_RESPALDO = 6 * 3600
 
 # Reintentos de la llamada a Open-Meteo. Cortos y pocos: el endpoint es
 # sincronico y ocupa un hilo del threadpool de uvicorn mientras espera, asi que
@@ -178,13 +195,67 @@ def _pedir_open_meteo(lat: float, lon: float) -> dict:
     raise ultimo
 
 
+def _indice_hora_actual(crudo: dict) -> Optional[int]:
+    """Donde cae la hora de ahora dentro de la serie horaria, o None.
+
+    Open-Meteo devuelve los tiempos en la hora local del punto consultado
+    (`timezone=auto`), asi que la comparacion se hace corriendo el reloj UTC
+    por `utc_offset_seconds` y no con la hora de este servidor — que en Render
+    esta en UTC y en la maquina de desarrollo, en Argentina.
+    """
+    desfase = crudo.get("utc_offset_seconds")
+    if desfase is None:
+        return None
+    ahora_local = datetime.now(timezone.utc) + timedelta(seconds=desfase)
+    buscada = ahora_local.strftime("%Y-%m-%dT%H:00")
+    tiempos = (crudo.get("hourly") or {}).get("time") or []
+    try:
+        return tiempos.index(buscada)
+    except ValueError:
+        return None
+
+
 def _formatear(crudo: dict, tipo_embarcacion: Optional[str], edad_segundos: float = 0.0) -> dict:
     actual = crudo.get("current") or {}
+    horas = crudo.get("hourly") or {}
+
+    # Las dos mitades de la respuesta envejecen distinto y eso cambia que se
+    # puede mostrar de cada una:
+    #
+    # - `current` es una MEDICION de un momento (`interval` 900 s). A las tres
+    #   horas es simplemente falsa.
+    # - `hourly` es un PRONOSTICO que cubre las horas siguientes. Una serie
+    #   traida hace tres horas todavia tiene una prediccion para esta hora, y
+    #   esa prediccion es un dato legitimo — hecha con mas anticipacion, nada
+    #   mas.
+    #
+    # Por eso, cuando lo que se esta sirviendo es un respaldo, el "ahora" se
+    # arma con la fila de la serie que corresponde a esta hora en vez de
+    # repetir la medicion vieja. Mostrar "viento 3 km/h" porque eso medimos a
+    # las 9 de la mañana, cuando el pronostico de las 15 decia 13 km/h, seria
+    # exactamente la informacion falsa que hay que evitar.
+    estimado = False
+    if edad_segundos > VALIDEZ_CACHE_SEGUNDOS:
+        i = _indice_hora_actual(crudo)
+        if i is not None:
+            estimado = True
+            actual = {
+                "time": _en(horas.get("time"), i),
+                "temperature_2m": _en(horas.get("temperature_2m"), i),
+                # La serie horaria no trae sensacion termica ni precipitacion
+                # acumulada: van en None y la pantalla no los dibuja, que es
+                # mejor que arrastrar los de hace tres horas.
+                "apparent_temperature": None,
+                "precipitation": None,
+                "wind_speed_10m": _en(horas.get("wind_speed_10m"), i),
+                "wind_gusts_10m": _en(horas.get("wind_gusts_10m"), i),
+                "wind_direction_10m": _en(horas.get("wind_direction_10m"), i),
+            }
+
     viento = actual.get("wind_speed_10m")
     rafagas = actual.get("wind_gusts_10m")
     direccion = actual.get("wind_direction_10m")
 
-    horas = crudo.get("hourly") or {}
     tiempos = horas.get("time") or []
     # 48 horas alcanzan para decidir "salgo hoy" y "salgo mañana", que es el
     # horizonte real de quien va a remar el fin de semana.
@@ -216,6 +287,10 @@ def _formatear(crudo: dict, tipo_embarcacion: Optional[str], edad_segundos: floa
         # los reportes vencidos y que el estado del AIS.
         "edad_min": edad_min,
         "desactualizado": edad_segundos > VALIDEZ_CACHE_SEGUNDOS,
+        # El "ahora" salio de la serie horaria y no de una medicion. La app lo
+        # dice con todas las letras: no es lo mismo "el viento es" que "el
+        # viento previsto para esta hora es".
+        "actual_estimado": estimado,
         "actual": {
             "temperatura_c": actual.get("temperature_2m"),
             "sensacion_c": actual.get("apparent_temperature"),
@@ -355,7 +430,10 @@ def obtener(lat: float, lon: float, tipo_embarcacion: Optional[str] = None) -> d
         respaldo = en_db or (
             (ahora - en_memoria[0], en_memoria[1]) if en_memoria else None
         ) or _vecina_mas_cercana(lat, lon)
-        if respaldo:
+        # El techo importa tanto como el respaldo: un pronostico de hace tres
+        # dias no es "viejo pero util", es un numero que no hay que mostrar por
+        # mas que se aclare de cuando es. Pasado el limite se prefiere fallar.
+        if respaldo and respaldo[0] <= MAX_SEGUNDOS_RESPALDO:
             return _formatear(respaldo[1], tipo_embarcacion, respaldo[0])
         raise RuntimeError(f"No se pudo consultar el pronóstico: {e}") from e
 

@@ -136,16 +136,18 @@ export default function PantallaClima() {
         />
       }
     >
-      {/* El backend sirve el ultimo dato conocido cuando Open-Meteo no
-          contesta. Mostrarlo sin aclarar de cuando es seria peor que no
-          mostrarlo: alguien decide salir al rio con esto. */}
+      {/* Cuando Open-Meteo no contesta, el backend arma el "ahora" con la
+          prevision de la serie horaria para esta hora, no con una medicion
+          vencida (ver backend/clima.py). Igual hay que decirlo. */}
       {sinActualizar ? (
         <View style={estilos.avisoViejo}>
           <Text style={estilos.avisoViejoTexto}>
-            No pudimos actualizar el pronóstico.{" "}
-            {antiguedad
-              ? `Este es el último que tenemos, de ${antiguedad}.`
-              : "Este es el último que pudimos traer."}
+            No pudimos conectarnos al servicio de pronóstico.{" "}
+            {clima.actual_estimado
+              ? `Lo que ves es la previsión para esta hora, calculada ${antiguedad}.`
+              : antiguedad
+                ? `Este es el último dato que tenemos, de ${antiguedad}.`
+                : "Este es el último dato que pudimos traer."}
           </Text>
         </View>
       ) : null}
