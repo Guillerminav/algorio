@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 
+import BotonSOS from "./BotonSOS.jsx";
 import { useSesion } from "./sesion.jsx";
 import { Texto as Text, TextoMarca } from "./Texto.jsx";
 import { COLORES } from "./tema.js";
@@ -85,6 +86,13 @@ export function MenuLateral({ state, navigation, subtitulo }) {
         <Pressable onPress={confirmarSalida} style={estilos.salir}>
           <Text style={estilos.salirTexto}>Cerrar sesión</Text>
         </Pressable>
+
+        {/* Ultimo y pegado al borde inferior. Va en el pie y no dentro del
+            scroll a proposito: el pie no se mueve por mas que la lista de
+            secciones crezca o se scrollee, asi que el boton queda siempre en
+            el mismo lugar. Un control de emergencia se aprende una vez y
+            despues la mano va sola — eso vale mas que gritar. */}
+        <BotonSOS />
       </View>
     </View>
   );

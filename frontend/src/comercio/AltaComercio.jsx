@@ -8,7 +8,14 @@ import { TIPOS_COMERCIO } from "./tiposComercio.js";
 // celular, y una pantalla con rubro + nombre + mapa + contacto + servicios
 // junta se abandona a la mitad. Cada paso pide una sola cosa.
 const PASOS = [
-  { clave: "rubro", titulo: "Tipo de comercio náutico", ayuda: "Define cómo se muestra tu lugar en el mapa." },
+  {
+    clave: "rubro",
+    titulo: "Tipo de comercio náutico",
+    // Se avisa que no se cambia JUSTO donde se elige, y no despues en "Mi
+    // comercio": el rubro decide que pantallas existen (la carta es solo del
+    // parador, el tablero solo de la lancha-taxi) y queda atado a la cuenta.
+    ayuda: "Define cómo se muestra tu lugar en el mapa. Después no se puede cambiar.",
+  },
   { clave: "datos", titulo: "Contanos de vos", ayuda: "El nombre y la descripción son lo primero que ve el nauta." },
   { clave: "ubicacion", titulo: "¿Dónde estás?", ayuda: "Marcá el punto y dejá por dónde te escriben." },
 ];
@@ -18,7 +25,7 @@ const PASOS = [
  * su ficha: hasta que no exista el POI no hay panel que mostrar (no hay
  * metricas, ni reseñas, ni menu), asi que ocupa la pantalla entera.
  */
-export default function AltaComercio({ onCreado }) {
+export default function AltaComercio({ onCreado, onVolver }) {
   const [indicePaso, setIndicePaso] = useState(0);
   const [valores, setValores] = useState({ tipo: "", nombre: "", descripcion: "", servicios: [] });
   const [error, setError] = useState("");
@@ -143,13 +150,17 @@ export default function AltaComercio({ onCreado }) {
           <div className="mensaje-error">{error}</div>
 
           <div className="fila-acciones">
-            {indicePaso > 0 && (
+            {/* En el primer paso, "Atras" vuelve al selector de camino: quien
+                entro por error a cargar de cero tiene que poder ir a reclamar
+                sin recargar la pagina. */}
+            {(indicePaso > 0 || onVolver) && (
               <button
                 type="button"
                 className="boton-secundario"
                 onClick={() => {
                   setError("");
-                  setIndicePaso((i) => i - 1);
+                  if (indicePaso === 0) onVolver();
+                  else setIndicePaso((i) => i - 1);
                 }}
               >
                 Atrás

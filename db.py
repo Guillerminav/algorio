@@ -414,6 +414,46 @@ def _crear_esquema() -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS pois_usuario_key ON pois (usuario) WHERE usuario IS NOT NULL"
         )
 
+        # "Ese lugar del mapa es mio": pedido de propiedad de un POI huerfano.
+        #
+        # Existe porque muchos pines del mapa no los cargo su dueño (sembrados,
+        # importados, o de una cuenta que se dio de baja) y quedan con
+        # `pois.usuario` en NULL. Obligar al dueño real a cargar todo de cero
+        # deja al nauta con dos pines del mismo parador y al comerciante sin
+        # las reseñas que su lugar ya tenia.
+        #
+        # Lo aprueba un admin y no se concede solo: entregar la edicion de un
+        # POI es entregar el nombre, la ubicacion y el telefono que ve todo el
+        # mundo (ver backend/reclamos.py).
+        #
+        # ON DELETE CASCADE en las dos puntas: un reclamo sin lugar o sin
+        # solicitante no significa nada, a diferencia de un POI sin dueño.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS poi_reclamos (
+                id SERIAL PRIMARY KEY,
+                poi_id INTEGER NOT NULL REFERENCES pois (id) ON DELETE CASCADE,
+                usuario TEXT NOT NULL REFERENCES usuarios (usuario) ON DELETE CASCADE,
+                mensaje TEXT,
+                estado TEXT NOT NULL DEFAULT 'pendiente',
+                motivo_rechazo TEXT,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                resuelto_en TIMESTAMPTZ
+            )
+            """
+        )
+        # Un solo reclamo pendiente por cuenta. Parcial y no UNIQUE a secas:
+        # despues de un rechazo se tiene que poder volver a pedir, sea el mismo
+        # lugar u otro.
+        con.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS poi_reclamos_pendiente_key "
+            "ON poi_reclamos (usuario) WHERE estado = 'pendiente'"
+        )
+        # La cola del admin siempre filtra por estado.
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS poi_reclamos_estado_idx ON poi_reclamos (estado, creado_en)"
+        )
+
         # Puntaje y comentario del nauta sobre un lugar. UNIQUE (poi_id,
         # usuario): una reseña por persona por lugar, que se edita en vez de
         # acumularse. Sin esa restriccion, el dueño de un parador podria

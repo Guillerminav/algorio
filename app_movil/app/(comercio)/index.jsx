@@ -1,4 +1,4 @@
-import { Redirect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import MapView, { Marker } from "react-native-maps";
@@ -6,6 +6,7 @@ import MapView, { Marker } from "react-native-maps";
 import { tipoComercio } from "../../src/comercio.js";
 import { Boton, Campo, Cargando, Error } from "../../src/componentes.jsx";
 import { AvisoEstado, ChipEstado, Tarjeta } from "../../src/piezasComercio.jsx";
+import SinComercio from "../../src/SinComercio.jsx";
 import { CampoTexto as TextInput, Texto as Text } from "../../src/Texto.jsx";
 import { COLORES } from "../../src/tema.js";
 import { useComercio } from "../../src/useComercio.js";
@@ -17,7 +18,7 @@ const igual = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export default function MiComercio() {
   const router = useRouter();
-  const { comercio, cargando, error, guardando, guardar } = useComercio();
+  const { comercio, reclamo, cargando, error, guardando, guardar, recargar } = useComercio();
   const [valores, setValores] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [errorGuardado, setErrorGuardado] = useState("");
@@ -37,9 +38,10 @@ export default function MiComercio() {
     );
   }
 
-  // Sin ficha cargada no hay panel posible: el asistente de alta ocupa la
-  // pantalla entera, igual que en la web.
-  if (!comercio) return <Redirect href="/comercio/alta" />;
+  // Sin ficha cargada no hay panel posible. Pero puede que la cuenta no tenga
+  // ficha y SI un reclamo en curso, asi que no se manda derecho al alta: eso
+  // lo decide SinComercio, igual que en la web.
+  if (!comercio) return <SinComercio reclamo={reclamo} onRecargar={recargar} />;
   if (!valores) return <Cargando />;
 
   const definicion = tipoComercio(comercio.tipo);
@@ -90,6 +92,13 @@ export default function MiComercio() {
             </View>
           </View>
           <ChipEstado estado={comercio.estado} />
+          {/* El rubro se muestra pero no se edita: quedo atado a la cuenta en
+              el alta. Se aclara con todas las letras en vez de esconderlo —
+              quien lo busque para cambiarlo merece enterarse de por que no
+              esta (ver pois.CAMPOS_EDITABLES). */}
+          <Text style={estilos.notaRubro}>
+            El rubro queda asociado a tu cuenta desde el alta y no se puede cambiar.
+          </Text>
         </Tarjeta>
 
         <Tarjeta titulo="Datos">
@@ -236,6 +245,7 @@ const estilos = StyleSheet.create({
   flex: { flex: 1 },
 
   ayudaTablero: { fontSize: 13, lineHeight: 19, color: COLORES.textoSuave },
+  notaRubro: { fontSize: 12.5, lineHeight: 18, color: COLORES.textoSuave },
 
   encabezado: { flexDirection: "row", alignItems: "center", gap: 12 },
   emoji: { fontSize: 30 },

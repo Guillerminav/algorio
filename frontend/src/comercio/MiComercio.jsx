@@ -85,17 +85,19 @@ export default function MiComercio({ comercio, onGuardar, guardando }) {
 
   // Compara contra la ficha guardada, no contra el primer render: despues de
   // guardar, `comercio` llega actualizado y el boton vuelve a apagarse solo.
-  const CAMPOS = ["tipo", "nombre", "descripcion", "lat", "lon", "telefono", "whatsapp", "instagram", "fotos", "servicios"];
+  // Sin "tipo": el rubro se elige en el alta y despues queda atado a la cuenta
+  // (el backend lo rechaza igual, ver pois.CAMPOS_EDITABLES).
+  const CAMPOS = ["nombre", "descripcion", "lat", "lon", "telefono", "whatsapp", "instagram", "fotos", "servicios"];
   const hayCambios = CAMPOS.some(
     (campo) => JSON.stringify(valores[campo] ?? null) !== JSON.stringify(comercio[campo] ?? null),
   );
 
-  // Cambiar nombre, rubro o ubicacion vuelve a mandar la ficha a revision (lo
-  // decide el backend, ver pois.actualizar). Se avisa antes de guardar para que
-  // no sea una sorpresa: nadie espera que corregir un typo lo saque del mapa.
+  // Cambiar nombre o ubicacion vuelve a mandar la ficha a revision (lo decide
+  // el backend, ver pois.actualizar). Se avisa antes de guardar para que no sea
+  // una sorpresa: nadie espera que corregir un typo lo saque del mapa.
   const volveraARevision =
     comercio.estado === "aprobado" &&
-    ["nombre", "tipo", "lat", "lon"].some(
+    ["nombre", "lat", "lon"].some(
       (campo) => JSON.stringify(valores[campo] ?? null) !== JSON.stringify(comercio[campo] ?? null),
     );
 
@@ -123,13 +125,23 @@ export default function MiComercio({ comercio, onGuardar, guardando }) {
         </span>
       </p>
 
-      <FormularioFicha valores={valores} onCambiar={cambiar} />
+      {/* El rubro se muestra pero no se edita: quedo atado a la cuenta en el
+          alta. Se aclara con todas las letras en vez de esconderlo — quien lo
+          busque para cambiarlo merece enterarse de por que no esta, y no
+          pensar que la pantalla se rompio. */}
+      <p className="nota-rubro-fijo">
+        El rubro queda asociado a tu cuenta desde el alta y no se puede cambiar: define
+        qué pantallas tenés y cómo se dibuja tu pin en el mapa. Si te equivocaste,
+        escribinos por Ayuda.
+      </p>
+
+      <FormularioFicha valores={valores} onCambiar={cambiar} mostrarTipo={false} />
       <EditorFotos fotos={valores.fotos} onCambiar={(fotos) => cambiar({ fotos })} />
 
       {volveraARevision && (
         <div className="aviso-revision">
-          Cambiaste el nombre, el rubro o la ubicación: la ficha vuelve a revisión y no se
-          va a ver en el mapa hasta que la aprobemos de nuevo.
+          Cambiaste el nombre o la ubicación: la ficha vuelve a revisión y no se va a ver
+          en el mapa hasta que la aprobemos de nuevo.
         </div>
       )}
 

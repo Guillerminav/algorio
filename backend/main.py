@@ -23,7 +23,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from db import cerrar_pool, inicializar_db
 
-from backend import activos, ais, auth, ayuda, clima, datos, pois, reportes, resenas, rutas, suscripciones
+from backend import activos, ais, auth, ayuda, clima, datos, pois, reclamos, reportes
+from backend import resenas, rutas, suscripciones
 from backend import tokens, tramos_navegacion
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -400,6 +401,17 @@ class EstadoSalidaEntrada(BaseModel):
     """
     estado: Optional[str] = None
     demora_min: Optional[int] = Field(default=None, ge=5, le=720)
+
+
+class ReclamoEntrada(BaseModel):
+    """Un pedido de propiedad sobre un POI que no tiene dueño.
+
+    `mensaje` es opcional pero es lo unico que el admin tiene para decidir:
+    "soy el dueño, mi numero es el que figura", "cambie de razon social". Sin
+    eso queda un id contra un nombre de usuario.
+    """
+    poi_id: int
+    mensaje: Optional[str] = None
 
 
 class ResenaEntrada(BaseModel):
@@ -1077,6 +1089,42 @@ def api_cambiar_estado_salida(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/api/comercios-sin-dueno")
+def api_comercios_sin_dueno(
+    q: Optional[str] = None, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    """Los lugares publicados que todavia no tienen dueño, para que el
+    comerciante encuentre el suyo y lo reclame en vez de cargarlo de nuevo."""
+    return reclamos.listar_reclamables(q)
+
+
+@app.get("/api/mi-comercio/reclamo")
+def api_mi_reclamo(usuario: dict = Depends(usuario_con_rol("comercio"))):
+    """El ultimo reclamo de esta cuenta, o null. Devuelve tambien los
+    rechazados: si no, quien pidio y le dijeron que no vuelve a ver la pantalla
+    de alta sin enterarse de nada."""
+    return reclamos.mio(usuario["usuario"])
+
+
+@app.post("/api/mi-comercio/reclamo", status_code=201)
+def api_crear_reclamo(
+    entrada: ReclamoEntrada, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    try:
+        return reclamos.crear(usuario["usuario"], entrada.poi_id, entrada.mensaje)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/mi-comercio/reclamo", status_code=204)
+def api_cancelar_reclamo(usuario: dict = Depends(usuario_con_rol("comercio"))):
+    """Arrepentirse sin esperar respuesta, para poder cargar el comercio de
+    cero."""
+    if not reclamos.cancelar(usuario["usuario"]):
+        raise HTTPException(status_code=404, detail="No tenés ningún reclamo pendiente.")
+    return None
+
+
 @app.get("/api/mi-comercio/metricas")
 def api_metricas_mi_comercio(
     dias: int = Query(default=30, ge=1, le=365),
@@ -1107,6 +1155,40 @@ def api_aprobar_poi(poi_id: int, usuario: dict = Depends(usuario_admin)):
     if poi is None:
         raise HTTPException(status_code=404, detail="El lugar no existe.")
     return poi
+
+
+@app.get("/api/admin/reclamos")
+def api_reclamos_a_moderar(estado: str = "pendiente", usuario: dict = Depends(usuario_admin)):
+    """La cola de pedidos de propiedad. Aparte de la de fichas: son dos
+    decisiones distintas — una es "¿esto puede publicarse?" y la otra "¿esta
+    persona es quien dice ser?"."""
+    return reclamos.listar_para_moderar(estado)
+
+
+@app.post("/api/admin/reclamos/{reclamo_id}/aprobar")
+def api_aprobar_reclamo(reclamo_id: int, usuario: dict = Depends(usuario_admin)):
+    """Le entrega el POI a quien lo reclamo. Es lo unico que escribe
+    `pois.usuario` fuera del alta."""
+    try:
+        resuelto = reclamos.resolver(reclamo_id, aprobado=True)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if resuelto is None:
+        raise HTTPException(status_code=404, detail="El reclamo no existe.")
+    return resuelto
+
+
+@app.post("/api/admin/reclamos/{reclamo_id}/rechazar")
+def api_rechazar_reclamo(
+    reclamo_id: int, entrada: RechazoEntrada, usuario: dict = Depends(usuario_admin)
+):
+    try:
+        resuelto = reclamos.resolver(reclamo_id, aprobado=False, motivo=entrada.motivo)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if resuelto is None:
+        raise HTTPException(status_code=404, detail="El reclamo no existe.")
+    return resuelto
 
 
 @app.post("/api/admin/pois/{poi_id}/rechazar")

@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 
+import BotonSOS from "./BotonSOS.jsx";
 import IconoTuerca from "./IconoTuerca.jsx";
 import { seccionesVisibles } from "./Sidebar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -99,6 +100,17 @@ export default function MenuMovil({
             </button>
           ))}
         </nav>
+
+        {/* Pegado al borde inferior del cajon (lo hace `margin-top: auto` en
+            el CSS) y en tono bajo. Es una herramienta que hay que saber que
+            esta, no un boton que compite con la navegacion: el borde de abajo
+            es un lugar fijo que no se mueve cuando el perfil suma o resta
+            secciones, y eso se aprende una vez.
+
+            No cierra el cajon al tocarlo (a diferencia del resto de las
+            acciones): abre su propio panel encima, y si se cerrara el menu
+            detras, al salir del panel habria que volver a abrirlo todo. */}
+        <BotonSOS />
       </aside>
     </div>
   );

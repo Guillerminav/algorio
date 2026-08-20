@@ -17,6 +17,11 @@ import { useSesion } from "./sesion.jsx";
 export function useComercio() {
   const { api } = useSesion();
   const [comercio, setComercio] = useState(null);
+  // El pedido de propiedad sobre un POI que ya esta en el mapa. Viaja junto a
+  // la ficha porque las pantallas necesitan las dos cosas para decidir que
+  // mostrar: sin ficha PERO con reclamo pendiente no hay que ofrecer el alta
+  // (ver src/SinComercio.jsx).
+  const [reclamo, setReclamo] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -24,7 +29,17 @@ export function useComercio() {
   const recargar = useCallback(async () => {
     setError("");
     try {
-      setComercio(await api("/api/mi-comercio"));
+      // En paralelo: son dos consultas chicas e independientes, y encadenarlas
+      // duplicaria la espera de la unica pantalla que se ve al entrar.
+      const [ficha, pedido] = await Promise.all([
+        api("/api/mi-comercio"),
+        // El reclamo no es critico: si falla, se sigue con la ficha. Sin este
+        // catch, un error acá dejaría la pantalla en blanco aunque el comercio
+        // hubiera cargado bien.
+        api("/api/mi-comercio/reclamo").catch(() => null),
+      ]);
+      setComercio(ficha);
+      setReclamo(pedido);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -105,7 +120,7 @@ export function useComercio() {
   );
 
   return {
-    comercio, cargando, error, guardando, recargar, guardar, crear,
+    comercio, reclamo, cargando, error, guardando, recargar, guardar, crear,
     guardarTablero, cambiarEstadoCruce,
   };
 }

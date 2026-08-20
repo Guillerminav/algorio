@@ -57,10 +57,12 @@ export default function LayoutRaiz() {
             <Stack.Screen name="solo-web" options={{ headerShown: false }} />
             <Stack.Screen name="lugar/[id]" options={{ title: "" }} />
 
-            {/* Pantallas del comerciante que se abren desde "Mi comercio". El
-                alta no lleva boton de volver: cuando aparece es porque la cuenta
-                todavia no tiene ficha, y no hay ningun lado atras al que ir. */}
-            <Stack.Screen name="comercio/alta" options={{ title: "Cargá tu comercio", headerBackVisible: false }} />
+            {/* Pantallas del comerciante que se abren desde "Mi comercio".
+                El alta SI lleva boton de volver, a diferencia de antes: ahora
+                se llega desde el selector de camino (cargar de cero o reclamar
+                uno del mapa), asi que hay un lado atras al que ir. */}
+            <Stack.Screen name="comercio/alta" options={{ title: "Cargá tu comercio" }} />
+            <Stack.Screen name="comercio/reclamar" options={{ title: "Reclamar un comercio" }} />
             <Stack.Screen name="comercio/horarios" options={{ title: "Horarios" }} />
             <Stack.Screen name="comercio/carta" options={{ title: "Menú" }} />
             <Stack.Screen name="comercio/tablero" options={{ title: "Tablero de cruces" }} />

@@ -648,6 +648,119 @@ centro por defecto, que es donde de verdad hay gente mirando el mapa.
 Con eso, que Render pueda o no llegar a Open-Meteo deja de ser un requisito
 para que la app muestre el viento.
 
+## Dos maneras de tener ficha: cargarla o reclamarla
+
+Muchos pines del mapa no los cargo su dueño — sembrados por el equipo,
+importados, o de una cuenta que se dio de baja. Todos esos quedan con
+`pois.usuario` en NULL, que es huerfano a proposito para que borrar una cuenta
+no se lleve el pin puesto.
+
+Cuando el dueño de verdad se registra, obligarlo a empezar de cero es mal
+negocio para las dos puntas: el nauta termina con **dos pines del mismo
+parador** y el comerciante pierde las reseñas y las metricas que su lugar ya
+tenia. Asi que puede reclamarlo.
+
+Al entrar, una cuenta sin ficha elige camino:
+
+| | |
+| --- | --- |
+| **Cargar mi comercio** | El asistente de siempre. Nace en `pendiente`. |
+| **Ya esta en el mapa y es mio** | Busca su lugar entre los huerfanos y pide que se lo asignen. |
+
+### Por que lo aprueba un admin
+
+Entregar la edicion de un POI es entregar el nombre, la ubicacion y el telefono
+que ve todo el mundo. Con aprobacion automatica, cualquiera que se registre se
+queda con el parador de otro.
+
+La aprobacion hace **una** cosa: poner `pois.usuario`. De ahi en mas el
+comerciante edita por el camino de siempre y con las mismas reglas —los cambios
+de nombre o ubicacion vuelven a revision—, asi que reclamar no es un atajo para
+publicar cualquier cosa.
+
+La cola vive aparte de la de fichas aunque la mire la misma persona: son dos
+preguntas distintas. En moderacion se decide *¿esto puede publicarse?*; en
+reclamos, *¿esta persona es quien dice ser?* — y aprobar de mas no ensucia el
+mapa, le entrega el comercio de alguien a un tercero. Por eso cada fila trae el
+mail de la cuenta y el telefono que figura en la ficha: llamar y preguntar es
+la verificacion mas barata que hay.
+
+Tres cosas que el modelo cuida y que no se ven en la pantalla:
+
+- **Un solo reclamo pendiente por cuenta**, con un indice unico parcial
+  (`WHERE estado = 'pendiente'`). Parcial y no UNIQUE a secas: despues de un
+  rechazo se tiene que poder volver a pedir.
+- **Al aprobar se revalida que el POI siga sin dueño.** Un reclamo puede quedar
+  dias en la cola y en el medio el lugar pudo haber quedado asignado; sin ese
+  chequeo, aprobar el segundo le sacaria el comercio al primero sin avisarle a
+  nadie.
+- **Aprobar uno cierra los otros pendientes del mismo lugar**, con su motivo.
+  Ya no hay nada que decidir ahi.
+
+## El rubro se elige una vez
+
+`tipo` salio de `pois.CAMPOS_EDITABLES` y quedo solo en `CAMPOS_ALTA`. No es
+capricho: el rubro decide **que pantallas existen** (la carta es solo del
+parador, el tablero de cruces solo de la lancha-taxi), que servicios se
+ofrecen, y con que forma se dibuja el pin. Cambiarlo en caliente deja datos de
+un rubro colgando en otro — una cabaña con tablero de cruces, un parador con
+"chalecos incluidos".
+
+El backend lo **rechaza en voz alta** en vez de ignorarlo por la lista blanca:
+si una pantalla vieja sigue mandando el rubro, es mejor que se entere a que
+crea que lo cambio y no haya pasado nada. Mandar el mismo rubro que ya tiene no
+molesta.
+
+Y se avisa donde se elige — en el paso 1 del alta — y no despues en "Mi
+comercio", que es donde alguien lo iria a buscar para cambiarlo.
+
+## El boton de auxilio: compartir la posicion exacta
+
+En el rio no hay calles ni esquinas. Cuando se rompe el motor, explicarle a un
+remolque o a Prefectura donde estas es el problema, y "frente a la isla grande"
+no es una posicion.
+
+El boton vive **pegado al borde inferior** del menu hamburguesa y en tono bajo:
+contorno fino, sin relleno, con el rojo solo al pasar por encima.
+
+La tentacion es la contraria —es un boton de emergencia, que grite— y estaba
+asi al principio: arriba de todo y en rojo pleno. Se cambio porque el menu se
+abre veinte veces para mirar el clima y una para pedir auxilio, y en esas
+veinte era lo primero que se veia.
+
+Lo que un control de emergencia necesita no es gritar, es poder
+**encontrarse**: el borde de abajo es un lugar fijo que no se mueve cuando el
+perfil suma o resta secciones. Eso se aprende una vez y despues la mano va
+sola. En la web lo ancla un `margin-top: auto` (el cajon ya es una columna
+flex); en la app va en el pie, fuera del scroll.
+
+### Las dos notaciones, y por que van las dos
+
+| | para que |
+| --- | --- |
+| `S 32° 56.949'  O 60° 37.907'` | Es lo que se lee **por radio**. Un plotter, una carta nautica y un handie VHF hablan en grados y minutos. |
+| `-32.949157, -60.631786` + link | Es lo que se **toca** o se pega en un GPS. |
+
+Poner solo una obliga a alguien a convertir en el peor momento. Y las
+coordenadas se muestran **en pantalla** ademas de mandarse: puede que no haya
+datos para WhatsApp pero si señal de voz.
+
+### Detalles que no son detalles
+
+- **Precision alta y sin cache** (`maximumAge: 0`), al reves que el resto de la
+  app, que usa precision baja para ahorrar bateria. El que sale a buscarte
+  barre el radio que le digas, y una posicion vieja es una posicion de donde
+  estabas antes de quedarte a la deriva.
+- **Se escucha el flujo de posiciones**, no una sola lectura: el primer fix
+  suele venir con ±1000 m de la red de celdas y afinar a ±10 m recien a los
+  segundos. El numero mejora solo mientras la persona lee. Por debajo de 25 m
+  se corta el GPS — a la deriva la bateria es un recurso.
+- **La precision se muestra siempre**, no solo cuando es mala: no es lo mismo
+  "estoy aca ±8 m" que "±2 km".
+- **106 y canal VHF 16** van escritos y no como boton: en el rio se puede
+  quedar sin datos pero con señal de voz, y ahi el numero anotado sirve mas que
+  un enlace que puede fallar.
+
 ## Pipeline de datos hidrologicos
 
 Consolida en un unico lugar la informacion no estructurada que publican
@@ -958,6 +1071,7 @@ algorio/
 │   ├── tokens.py               # token Bearer para la app movil (itsdangerous)
 │   ├── activos.py               # CRUD de "Mi flota" (embarcaciones/dragas/muelles/tramos)
 │   ├── pois.py                   # paradores/cabañas/lanchas-taxi: alta, moderacion, metricas
+│   ├── reclamos.py                # "ese lugar del mapa es mio": pedidos de propiedad
 │   ├── tablero.py                 # cruces de las lanchas-taxi: estados, vigencia (sin moderacion)
 │   ├── reportes.py                # avisos efimeros del rio (vencen solos, sin cron)
 │   ├── resenas.py                  # puntajes y comentarios de los nautas
@@ -983,7 +1097,9 @@ algorio/
 │       │   └── useFetchLista.js               # pedir una lista a la API con estado de carga/error
 │       ├── comercio/                           # PERFIL COMERCIO — shell propio
 │       │   ├── ShellComercio.jsx                 # layout + estado de la ficha
-│       │   ├── AltaComercio.jsx                   # asistente de alta en 3 pasos
+│       │   ├── InicioComercio.jsx                 # elegir camino: cargar o reclamar
+│       │   ├── AltaComercio.jsx                    # asistente de alta en 3 pasos
+│       │   ├── ReclamarComercio.jsx                 # buscar un lugar sin dueño y pedirlo
 │       │   ├── MapaUbicacion.jsx                   # Leaflet satelital, pin arrastrable
 │       │   ├── MiComercio.jsx, EditorCarta.jsx,
 │       │   │   EditorHorarios.jsx                    # edicion de la ficha
@@ -999,8 +1115,10 @@ algorio/
 │       │   ├── PerfilNauta.jsx                       # embarcacion + mis reseñas
 │       │   └── constantes.js                          # embarcaciones, rubros, horarios
 │       ├── admin/
-│       │   └── ModeracionPois.jsx                        # cola de aprobacion (solo es_admin)
+│       │   ├── ModeracionPois.jsx                        # cola de aprobacion (solo es_admin)
+│       │   └── ModeracionReclamos.jsx                     # quien es dueño de que (solo es_admin)
 │       ├── tablero.js                                     # estados y cuentas del tablero, compartido
+│       ├── coordenadas.js                                  # grados/minutos y el mensaje de auxilio
 │       ├── mapaSatelital.js                               # capa Esri + pines (punto y terminal)
 │       └── components/                                     # PERFIL NAVIERA + comunes
 │           ├── Login.jsx, Registro.jsx, SelectorRol.jsx,

@@ -31,10 +31,20 @@ TIPOS_VISITA = {"ficha", "telefono", "whatsapp", "como_llegar"}
 
 # Campos que el dueño puede editar de su ficha. Lista blanca explicita: sin
 # ella, un PUT podria mandar `estado: "aprobado"` y saltearse la moderacion.
+#
+# `tipo` NO esta: el rubro se elige una sola vez, en el alta, y despues queda
+# atado a la cuenta. No es una restriccion caprichosa — el rubro decide que
+# pantallas existen (la carta es solo del parador, el tablero solo de la
+# lancha-taxi), que servicios se ofrecen y con que forma se dibuja el pin en el
+# mapa. Cambiarlo en caliente deja datos de un rubro colgando en otro: una
+# cabaña con tablero de cruces, un parador con "chalecos incluidos".
 CAMPOS_EDITABLES = {
-    "tipo", "nombre", "descripcion", "lat", "lon", "telefono", "whatsapp",
+    "nombre", "descripcion", "lat", "lon", "telefono", "whatsapp",
     "instagram", "horarios", "menu", "servicios", "fotos",
 }
+
+# En el alta si se acepta, y es la unica vez.
+CAMPOS_ALTA = CAMPOS_EDITABLES | {"tipo"}
 
 # Los que van a la base como JSONB y por lo tanto hay que serializar.
 CAMPOS_JSON = {"horarios", "menu", "servicios", "fotos"}
@@ -193,7 +203,7 @@ def crear(usuario: str, datos: dict) -> dict:
     if datos.get("lat") is None or datos.get("lon") is None:
         raise ValueError("Hay que marcar la ubicación en el mapa.")
 
-    campos = _serializar({k: v for k, v in datos.items() if k in CAMPOS_EDITABLES})
+    campos = _serializar({k: v for k, v in datos.items() if k in CAMPOS_ALTA})
     columnas = ", ".join(campos)
     marcadores = ", ".join(["%s"] * len(campos))
 
@@ -210,26 +220,35 @@ def actualizar(usuario: str, cambios: dict) -> dict:
     """Edita el comercio del usuario.
 
     Editar una ficha ya aprobada la devuelve a 'pendiente' solo si cambio algo
-    que se publica en el mapa (nombre, tipo o ubicacion). Corregir un horario
-    o agregar un plato no deberia sacar al parador del mapa hasta la proxima
+    que se publica en el mapa (nombre o ubicacion). Corregir un horario o
+    agregar un plato no deberia sacar al parador del mapa hasta la proxima
     revision, pero mudar el pin a otro lado o renombrarlo entero si amerita
     que alguien lo vuelva a mirar.
-    """
-    campos = {k: v for k, v in cambios.items() if k in CAMPOS_EDITABLES}
-    if not campos:
-        raise ValueError("No hay nada para actualizar.")
-    if "tipo" in campos and campos["tipo"] not in TIPOS_VALIDOS:
-        raise ValueError(f"El tipo debe ser uno de {sorted(TIPOS_VALIDOS)}.")
 
+    El rubro no entra en esa lista porque directamente no se puede cambiar
+    (ver CAMPOS_EDITABLES).
+    """
     inicializar_db()
     with conexion() as con:
         actual = con.execute("SELECT * FROM pois WHERE usuario = %s", (usuario,)).fetchone()
         if actual is None:
             raise ValueError("Todavía no cargaste tu comercio.")
 
+        # Se rechaza en voz alta en vez de ignorarlo por la lista blanca: si
+        # una pantalla vieja sigue mandando el rubro, es mejor que se entere a
+        # que crea que lo cambio y no haya pasado nada.
+        if "tipo" in cambios and cambios["tipo"] not in (None, actual["tipo"]):
+            raise ValueError(
+                "El rubro no se puede cambiar: queda asociado a la cuenta desde el alta."
+            )
+
+        campos = {k: v for k, v in cambios.items() if k in CAMPOS_EDITABLES}
+        if not campos:
+            raise ValueError("No hay nada para actualizar.")
+
         vuelve_a_revision = actual["estado"] == "aprobado" and any(
             clave in campos and campos[clave] != actual[clave]
-            for clave in ("nombre", "tipo", "lat", "lon")
+            for clave in ("nombre", "lat", "lon")
         )
 
         serializados = _serializar(campos)

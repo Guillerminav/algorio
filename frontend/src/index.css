@@ -7147,3 +7147,302 @@ div.barra-viento { cursor: default; }
   font-style: normal;
   opacity: 0.75;
 }
+
+/* ===========================================================================
+   COMPARTIR MI UBICACION: EL BOTON DE EMERGENCIA
+   ---------------------------------------------------------------------------
+   Va pegado al borde inferior del cajon y en tono bajo. La tentacion es la
+   contraria —es un boton de emergencia, que grite— y estaba asi al principio:
+   arriba de todo y en rojo pleno. Se cambio porque el menu se abre veinte
+   veces para mirar el clima y una para pedir auxilio, y en esas veinte era lo
+   primero que se veia.
+
+   Un control de emergencia tiene que estar donde se lo pueda ENCONTRAR — y el
+   borde de abajo es un lugar fijo, siempre el mismo, que no se mueve cuando el
+   perfil suma o resta secciones. Eso es mas util que gritar: se aprende una
+   vez y despues la mano va sola.
+
+   El rojo queda solo en el borde al pasar por encima: alcanza para
+   distinguirlo de una seccion mas sin convertirlo en el centro de la pantalla.
+   =========================================================================== */
+
+.boton-sos {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  /* `margin-top: auto` es lo que lo empuja al borde inferior: .menu-movil ya
+     es una columna flex, asi que el sobrante de alto se lo come este margen y
+     el boton queda abajo aunque haya tres secciones o diez. */
+  margin: auto 0 0;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: none;
+  color: var(--marca-texto-suave);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Recien al pasar por encima aparece el rojo, y como contorno: confirma de que
+   se trata justo cuando alguien lo esta por tocar. */
+.boton-sos:hover {
+  border-color: rgba(255, 118, 100, 0.55);
+  background: rgba(192, 57, 43, 0.14);
+  color: #fff;
+}
+
+.boton-sos-icono { font-size: 1.05rem; line-height: 1; opacity: 0.9; }
+
+.boton-sos-texto { display: flex; flex-direction: column; gap: 0.05rem; }
+.boton-sos-texto strong { font-size: 0.88rem; font-weight: 600; }
+.boton-sos-texto span { font-size: 0.72rem; opacity: 0.7; }
+
+.sos-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(4, 18, 28, 0.6);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.sos-panel {
+  width: min(420px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.1rem 1.2rem 1.3rem;
+  border-radius: 16px;
+  background: var(--superficie);
+  box-shadow: 0 20px 60px rgba(4, 18, 28, 0.45);
+}
+
+.sos-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.sos-encabezado h2 { margin: 0; font-size: 1.05rem; }
+
+.sos-encabezado button {
+  border: none;
+  background: none;
+  font-size: 1rem;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+/* Grados y minutos, grandes y en fuente tabular. Es el numero que alguien va a
+   leer en voz alta por radio con el motor apagado y olas: si hay que
+   entrecerrar los ojos, no sirve. */
+.sos-coordenadas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  background: var(--marca);
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.sos-decimal {
+  margin: 0.45rem 0 0;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+.sos-precision {
+  margin: 0.5rem 0 0.9rem;
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+.sos-acciones { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.sos-acciones > * {
+  display: block;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* El verde de WhatsApp y no el acento de la marca: es el unico boton de la app
+   que promete abrir otra aplicacion, y el color es lo que lo anticipa. */
+.sos-whatsapp {
+  background: #25d366;
+  color: #04231a;
+  border: 1px solid #1eb958;
+}
+
+.sos-reintentar {
+  width: 100%;
+  margin-top: 0.6rem;
+  border: none;
+  background: none;
+  font-size: 0.82rem;
+  color: var(--acento);
+  cursor: pointer;
+}
+
+.sos-prefectura {
+  margin: 0.9rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--borde-suave);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+/* ===========================================================================
+   RECLAMAR UN COMERCIO DEL MAPA
+   ---------------------------------------------------------------------------
+   Dos pantallas: la del comerciante que busca su lugar entre los que no tienen
+   dueño, y la cola donde el admin decide. Ver backend/reclamos.py.
+   =========================================================================== */
+
+/* Las dos maneras de tener ficha. Botones grandes y no un desplegable: es la
+   primera decision de alguien que recien se registro, y las dos opciones
+   tienen que poder leerse enteras antes de elegir. */
+.opcion-camino {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1rem 1.1rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+  text-align: left;
+  cursor: pointer;
+}
+
+.opcion-camino:hover { border-color: var(--acento); background: var(--chip-fondo); }
+.opcion-camino strong { font-size: 1rem; color: var(--texto); }
+.opcion-camino span { font-size: 0.85rem; line-height: 1.45; color: var(--texto-suave); }
+
+.lista-reclamables {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reclamable {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.reclamable.elegido { border-color: var(--acento); background: var(--chip-fondo); }
+.reclamable-cuerpo { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.reclamable-rubro { font-size: 0.78rem; color: var(--acento); font-weight: 600; }
+.reclamable-descripcion { font-size: 0.82rem; line-height: 1.4; color: var(--texto-suave); }
+
+/* Coordenadas y telefono en fuente tabular: es con lo que alguien reconoce
+   que ese pin es el suyo y no el del vecino que se llama parecido. */
+.reclamable-meta {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+.nota-rubro-fijo {
+  margin: 0 0 0.2rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: var(--chip-fondo);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+
+/* --- La cola del admin ---------------------------------------------------- */
+
+.lista-reclamos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reclamo {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.reclamo-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.reclamo-cabecera strong { font-size: 1rem; margin-right: 0.5rem; }
+.reclamo-rubro { font-size: 0.8rem; color: var(--acento); font-weight: 600; }
+
+/* Grilla y no renglones: se moderan de a varios y la vista compara la misma
+   columna de fila en fila. */
+.reclamo-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem 1rem;
+  margin: 0.8rem 0 0;
+}
+
+.reclamo-datos dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.reclamo-datos dd { margin: 0.1rem 0 0; font-size: 0.88rem; }
+.reclamo-usuario { display: block; font-size: 0.75rem; color: var(--texto-suave); }
+
+/* Lo que escribio la persona, entre comillas y en cursiva: es lo unico de la
+   fila que no es un dato del sistema, y conviene que se lea como una voz. */
+.reclamo-mensaje {
+  margin: 0.8rem 0 0;
+  padding-left: 0.7rem;
+  border-left: 3px solid var(--borde);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  font-style: italic;
+  color: var(--texto);
+}
+
+.reclamo-motivo {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: var(--evacuacion);
+}

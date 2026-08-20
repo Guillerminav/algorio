@@ -14,7 +14,14 @@ import { CENTRO_POR_DEFECTO, useUbicacion } from "../../src/useUbicacion.js";
 // una pantalla con rubro + nombre + mapa + contacto junta se abandona a la
 // mitad. Cada paso pide una sola cosa.
 const PASOS = [
-  { clave: "rubro", titulo: "Tipo de comercio náutico", ayuda: "Define cómo se muestra tu lugar en el mapa." },
+  {
+    clave: "rubro",
+    titulo: "Tipo de comercio náutico",
+    // Se avisa donde se elige y no despues: el rubro decide que pantallas
+    // existen (la carta es solo del parador, el tablero solo de la
+    // lancha-taxi) y queda atado a la cuenta.
+    ayuda: "Define cómo se muestra tu lugar en el mapa. Después no se puede cambiar.",
+  },
   { clave: "datos", titulo: "Contanos de vos", ayuda: "El nombre es lo primero que ve el nauta." },
   { clave: "ubicacion", titulo: "¿Dónde estás?", ayuda: "Marcá el punto sobre la costa y dejá por dónde te escriben." },
 ];

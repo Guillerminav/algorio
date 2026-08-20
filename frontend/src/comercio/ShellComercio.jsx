@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 import { pedirJSON } from "../api.js";
 import ModeracionPois from "../admin/ModeracionPois.jsx";
+import ModeracionReclamos from "../admin/ModeracionReclamos.jsx";
 import MenuMovil from "../components/MenuMovil.jsx";
 import ModalAyuda from "../components/ModalAyuda.jsx";
 import ModalPerfil from "../components/ModalPerfil.jsx";
@@ -12,7 +13,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { ProveedorRio } from "../nauta/ContextoRio.jsx";
 import MapaNauta from "../nauta/MapaNauta.jsx";
 import NivelRio from "../nauta/NivelRio.jsx";
-import AltaComercio from "./AltaComercio.jsx";
+import InicioComercio from "./InicioComercio.jsx";
 import EditorCarta from "./EditorCarta.jsx";
 import EditorHorarios from "./EditorHorarios.jsx";
 import EditorTablero from "./EditorTablero.jsx";
@@ -176,9 +177,11 @@ export default function ShellComercio() {
   }
 
   // Sin ficha cargada no hay panel posible (no hay metricas, ni reseñas, ni
-  // menu de nada), asi que el asistente ocupa la pantalla entera.
+  // menu de nada), asi que el asistente ocupa la pantalla entera. Puede que la
+  // cuenta no tenga ficha pero si un reclamo en curso: eso lo resuelve
+  // InicioComercio, que decide entre cargar, reclamar y esperar.
   if (!comercio) {
-    return <AltaComercio onCreado={setComercio} />;
+    return <InicioComercio onCreado={setComercio} />;
   }
 
   const definicion = tipoDe(comercio.tipo);
@@ -205,7 +208,12 @@ export default function ShellComercio() {
     // pero saber si el río está creciendo le cambia el fin de semana tanto
     // como al nauta. Es la misma pantalla que ve el nauta.
     { id: "nivel", etiqueta: "Nivel del río" },
-    ...(usuario?.es_admin ? [{ id: "moderacion", etiqueta: "Moderación" }] : []),
+    ...(usuario?.es_admin
+      ? [
+          { id: "moderacion", etiqueta: "Moderación" },
+          { id: "reclamos", etiqueta: "Reclamos" },
+        ]
+      : []),
   ];
 
   const titulos = {
@@ -243,7 +251,7 @@ export default function ShellComercio() {
           {/* El estado de publicación acompaña a las pantallas del propio
               comercio; en suscripción, moderación y nivel del río no viene a
               cuento y sería ruido fijo arriba de todo. */}
-          {!["suscripcion", "moderacion", "nivel", "mapa"].includes(seccionActiva) && (
+          {!["suscripcion", "moderacion", "reclamos", "nivel", "mapa"].includes(seccionActiva) && (
             <BannerEstado comercio={comercio} />
           )}
 
@@ -273,6 +281,7 @@ export default function ShellComercio() {
           )}
           {seccionActiva === "nivel" && <NivelRio />}
           {seccionActiva === "moderacion" && <ModeracionPois />}
+          {seccionActiva === "reclamos" && <ModeracionReclamos />}
           {seccionActiva === "suscripcion" && <PantallaSuscripcion onAbrirAyuda={abrirAyuda} />}
         </main>
       </div>
