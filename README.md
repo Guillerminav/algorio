@@ -489,6 +489,28 @@ que los reportes que vencen y que los tres mensajes distintos del AIS.
 El aviso tambien aparece cuando el que no pudo actualizar fue el navegador, no
 el backend: el dato en pantalla puede ser bueno y viejo igual.
 
+### El caso duro: que Render no pueda salir nunca
+
+Toda la cascada de arriba asume que el backend consigue una respuesta buena de
+vez en cuando: la cache se llena sola con el uso normal. Si la IP de Render
+queda del lado equivocado de la cuota de forma sostenida, no consigue ninguna
+—y una cache que no se llena nunca no es respaldo de nada.
+
+Para eso esta `scripts/refrescar_clima.py`, que escribe `clima_cache` desde
+afuera del backend:
+
+```bash
+python -m scripts.refrescar_clima
+```
+
+Corre desde cualquier lado con salida a internet (una maquina, una Action, un
+cron en otro proveedor) y deja el pronostico en la base; el backend lo lee sin
+salir a la ruta. Las celdas no se inventan: salen de los POIs publicados y del
+centro por defecto, que es donde de verdad hay gente mirando el mapa.
+
+Con eso, que Render pueda o no llegar a Open-Meteo deja de ser un requisito
+para que la app muestre el viento.
+
 ## Pipeline de datos hidrologicos
 
 Consolida en un unico lugar la informacion no estructurada que publican
