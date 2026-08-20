@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Texto as Text } from "../../src/Texto.jsx";
 import MapView, { Callout, Marker } from "react-native-maps";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { estadoApertura, haceCuanto, vigenciaRestante } from "../../src/api.js";
 import Brujula from "../../src/Brujula.jsx";
@@ -265,6 +265,10 @@ export default function PantallaMapa() {
   const router = useRouter();
   const navegacion = useNavigation();
   const { posicion, permitido, buscando, centro, pedirUbicacion } = useUbicacion();
+  // Los botones flotantes son `position: absolute` sobre la pantalla, o sea que
+  // quedan fuera de cualquier <SafeAreaView>: en un iPhone con barra de inicio
+  // el de ubicación caía justo abajo, encima de ella. Se corrigen a mano.
+  const margenes = useSafeAreaInsets();
   const mapaRef = useRef(null);
 
   const [lugares, setLugares] = useState([]);
@@ -444,7 +448,7 @@ export default function PantallaMapa() {
           mapa deja un aviso, y eso sí hay que verlo sin dudar. */}
       <VidrioTocable
         radio={24}
-        estilo={estilos.botonFlotante}
+        estilo={[estilos.botonFlotante, { bottom: 80 + margenes.bottom, right: 14 + margenes.right }]}
         tinte={modoReporte ? COLORES.acento : null}
         onPress={() => {
           setModoReporte((previo) => !previo);
@@ -461,7 +465,11 @@ export default function PantallaMapa() {
 
       <VidrioTocable
         radio={24}
-        estilo={[estilos.botonFlotante, estilos.botonUbicacion, buscando && estilos.botonApagado]}
+        estilo={[
+          estilos.botonFlotante,
+          { bottom: 24 + margenes.bottom, right: 14 + margenes.right },
+          buscando && estilos.botonApagado,
+        ]}
         disabled={buscando}
         accessibilityLabel={posicion ? "Centrar el mapa en mi ubicación" : "Usar mi ubicación"}
         onPress={irAMiUbicacion}
@@ -603,9 +611,9 @@ const estilos = StyleSheet.create({
   chipTextoActivo: { color: VIDRIO.texto, fontWeight: "700" },
 
   // --- Botones flotantes ---------------------------------------------------
-  botonFlotante: { position: "absolute", right: 14, bottom: 80, width: 48, height: 48, ...sombraFlotante },
+  // `bottom` y `right` los pone el componente sumando los márgenes seguros.
+  botonFlotante: { position: "absolute", width: 48, height: 48, ...sombraFlotante },
   botonFlotanteCuerpo: { flex: 1, alignItems: "center", justifyContent: "center" },
-  botonUbicacion: { bottom: 24 },
   botonApagado: { opacity: 0.6 },
   botonReportarTexto: { fontSize: 26, lineHeight: 30, color: VIDRIO.texto, fontWeight: "500" },
   botonReportarTextoActivo: { fontSize: 20, lineHeight: 24 },

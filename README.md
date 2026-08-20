@@ -206,6 +206,36 @@ metros no significa lo mismo si viene hacia vos que si se esta yendo. Cuando no
 informa rumbo se dibuja un rombo, que no apunta a ningun lado — mejor eso que
 una flecha al norte por defecto, que seria mentir.
 
+## Isla, muesca y barra de inicio
+
+`viewport-fit=cover` en el `<meta viewport>` de `frontend/index.html` hace dos
+cosas y las dos hacen falta: deja que la pagina pinte de borde a borde (el mapa
+a pantalla completa lo necesita) y —lo importante— es lo **unico** que hace que
+`env(safe-area-inset-*)` devuelva valores reales. Sin eso esas variables valen
+0 y cualquier padding que dependa de ellas no hace nada.
+
+Ese era el bug: habia un `calc(0.6rem + env(safe-area-inset-top))` en la capa
+del mapa que no servia para nada, porque faltaba el `viewport-fit`. Los
+controles quedaban debajo de la isla del iPhone.
+
+Los insets se leen una vez en `:root` (`--seguro-arriba`, `--seguro-abajo`,
+`--seguro-izq`, `--seguro-der`) y de ahi los toma todo lo que toca un borde: la
+capa de controles del mapa, los botones flotantes, la ficha del parador, el
+zoom de Leaflet, la barra superior, el cajon del menu y las pantallas de
+acceso.
+
+**Los insets laterales no son decorativos**: en horizontal la isla se va a un
+costado, y sin ellos los botones quedan tapados al rotar el telefono.
+
+El `, 0px` de respaldo de cada `env()` importa: en un navegador sin soporte,
+`env()` sin valor por defecto invalida la declaracion entera y el padding se
+pierde del todo.
+
+En la app nativa el equivalente son los `<SafeAreaView>` que ya estaban, mas
+`useSafeAreaInsets()` para los dos botones flotantes del mapa — son
+`position: absolute` sobre la pantalla, o sea que quedan fuera de cualquier
+SafeAreaView y el de ubicacion caia justo sobre la barra de inicio.
+
 ## En el celular, el mapa es la pantalla
 
 Abajo de 880px —el mismo corte donde desaparece la barra lateral— la seccion

@@ -6204,3 +6204,99 @@ div.barra-viento { cursor: default; }
 @media (max-width: 880px) {
   .mapa-nauta .boton-expandir-mapa { display: none; }
 }
+
+/* ===========================================================================
+   ZONAS SEGURAS: ISLA, MUESCA Y BARRA DE INICIO
+   ---------------------------------------------------------------------------
+   Con `viewport-fit=cover` en el <meta viewport> (ver index.html) la pagina
+   pinta de borde a borde, que es lo que el mapa a pantalla completa necesita.
+   El precio es que hay que apartar a mano todo lo que toca un borde, porque si
+   no queda debajo de la isla, de la muesca o de la barra de inicio.
+
+   En horizontal la isla se va a un COSTADO, asi que los insets laterales no
+   son decorativos: sin ellos los botones quedan tapados al rotar el telefono.
+
+   El `, 0px` de respaldo importa: en un navegador sin soporte, `env()` sin
+   valor por defecto invalida la declaracion entera y el padding se pierde.
+   =========================================================================== */
+
+:root {
+  --seguro-arriba: env(safe-area-inset-top, 0px);
+  --seguro-abajo: env(safe-area-inset-bottom, 0px);
+  --seguro-izq: env(safe-area-inset-left, 0px);
+  --seguro-der: env(safe-area-inset-right, 0px);
+}
+
+@media (max-width: 880px) {
+  /* La capa de controles del mapa: baja por la isla y se aparta de los
+     costados al rotar. */
+  .app-nauta.mapa-pleno .capa-mapa {
+    padding-top: calc(0.6rem + var(--seguro-arriba));
+    padding-left: calc(0.6rem + var(--seguro-izq));
+    padding-right: calc(0.6rem + var(--seguro-der));
+  }
+
+  /* Los botones flotantes de abajo, por encima de la barra de inicio. */
+  .app-nauta.mapa-pleno .boton-mi-ubicacion {
+    bottom: calc(1.75rem + var(--seguro-abajo));
+    right: calc(0.75rem + var(--seguro-der));
+  }
+
+  .app-nauta.mapa-pleno.con-ficha .boton-mi-ubicacion,
+  .mapa-nauta.con-ficha .boton-mi-ubicacion {
+    bottom: calc(16.5rem + var(--seguro-abajo));
+  }
+
+  .app-nauta.mapa-pleno .ficha-rapida {
+    bottom: calc(0.6rem + var(--seguro-abajo));
+    left: calc(0.6rem + var(--seguro-izq));
+    right: calc(0.6rem + var(--seguro-der));
+  }
+
+  /* El zoom de Leaflet, que vive abajo a la izquierda. */
+  .app-nauta.mapa-pleno .leaflet-bottom.leaflet-left,
+  .app-nauta.mapa-pleno .leaflet-top.leaflet-left {
+    margin-bottom: var(--seguro-abajo);
+    margin-left: var(--seguro-izq);
+  }
+
+  /* Las pantallas que NO son el mapa: la barra superior deja de arrancar
+     debajo de la isla en cuanto la pagina pinta a sangre. */
+  .barra-superior {
+    padding-top: calc(1.25rem + var(--seguro-arriba));
+    padding-left: calc(1rem + var(--seguro-izq));
+    padding-right: calc(1rem + var(--seguro-der));
+  }
+
+  main {
+    padding-bottom: calc(2.5rem + var(--seguro-abajo));
+    padding-left: calc(1rem + var(--seguro-izq));
+    padding-right: calc(1rem + var(--seguro-der));
+  }
+}
+
+/* El cajon del menu: arranca debajo de la isla y termina arriba de la barra de
+   inicio. El inset de abajo ya estaba; faltaban el de arriba y el lateral. */
+.menu-movil {
+  padding-top: calc(1.25rem + var(--seguro-arriba));
+  padding-left: calc(1.1rem + var(--seguro-izq));
+}
+
+/* Las pantallas de acceso tambien pintan a sangre (fondo de marca a pantalla
+   completa), asi que el wordmark de arriba y el pie de abajo necesitan lo
+   mismo. */
+.pantalla-marca {
+  padding-top: calc(1.75rem + var(--seguro-arriba));
+  padding-bottom: calc(2rem + var(--seguro-abajo));
+  padding-left: calc(1.5rem + var(--seguro-izq));
+  padding-right: calc(1.5rem + var(--seguro-der));
+}
+
+@media (max-width: 560px) {
+  .pantalla-marca {
+    padding-top: calc(1.25rem + var(--seguro-arriba));
+    padding-bottom: calc(1.5rem + var(--seguro-abajo));
+    padding-left: calc(1rem + var(--seguro-izq));
+    padding-right: calc(1rem + var(--seguro-der));
+  }
+}

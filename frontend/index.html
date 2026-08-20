@@ -2,7 +2,13 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- `viewport-fit=cover` hace dos cosas, y las dos hacen falta: deja que la
+     pagina pinte de borde a borde (el mapa a pantalla completa lo necesita) y
+     —lo importante— es lo UNICO que hace que `env(safe-area-inset-*)` devuelva
+     valores reales. Sin esto esas variables valen 0 y cualquier padding que
+     dependa de ellas no hace nada, que era el bug: los controles quedaban
+     debajo de la isla del iPhone. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
 <!-- Esta identidad es la de app.algorio.com.ar: navegacion recreativa y
      comercios del rio. La de Pro (pro.algorio.com.ar) la pisa
