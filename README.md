@@ -154,6 +154,167 @@ La ventana se dibuja con el POI que el mapa ya tiene en su lista, asi que
 aparece sin esperar ninguna consulta; el fetch de la ficha completa recien
 ocurre al tocar "Ver mas".
 
+## El tablero de cruces de las lanchas-taxi
+
+Una lancha-taxi no es un lugar al que se va: es de donde **sale** el
+transporte. Con la ficha de comercio comun —descripcion, servicios, horarios de
+atencion— quedaba sin contestar la unica pregunta que importa: *¿a que hora
+cruza, cuanto sale y hoy esta saliendo?*
+
+El tablero es eso, con la forma del cartel de salidas de un aeropuerto. Una
+fila por cruce con **proxima salida, frecuencia, precio, duracion, ultimo
+regreso y estado**:
+
+```
+CRUCES                                             14:23
+
+Isla del Cerrito                            [A HORARIO]
+desde Puerto Corrientes
+PRÓXIMA       FRECUENCIA    PRECIO   ÚLT. REGRESO
+15:00  en 37 min  cada 2 h 30   $3.500   19:30
+ 07:00   09:30   12:00   15:00   17:30
+
+Paso de la Patria                           [A HORARIO]
+PRÓXIMA                  FRECUENCIA   PRECIO
+1̶4̶:̶0̶0̶ 14:20  ahora       cada 6 h     $5.200
+ 08:00  [1̶4̶:̶0̶0̶ 14:20 DEMORADO]  [1̶8̶:̶0̶0̶ CANCELADO]
+```
+
+La hora de cartel se tacha y al lado va la estimada: asi se lee que la salida
+se corrio sin tener que restar nada.
+
+### El estado vive en dos niveles
+
+Un tablero de aeropuerto no dice que la aerolinea esta demorada: dice que **ese
+vuelo** lo esta. Aca igual.
+
+- El estado del **cruce** es el default del dia: "hoy no cruzo a Apipe", "todo
+  el recorrido va demorado". Un toque y vale para todas sus salidas.
+- El de cada **salida** lo pisa cuando hace falta: la de las 14:00 se corrio
+  media hora, la de las 18:00 se cayo, y las demas siguen saliendo bien.
+
+Una salida sin estado propio (`estado` en `null`) **hereda** el del cruce, y eso
+no es lo mismo que estar "a horario": si el recorrido entero va demorado, sus
+salidas van demoradas sin que el lanchero tenga que tocarlas de a una. Por eso
+el editor tiene, ademas de los cinco estados, un boton de **"Que siga al
+recorrido"**: marcarla "a horario" para sacarle un "demorado" no deshace nada
+—la dejaria pisando al cruce para siempre, y manana, con el recorrido demorado,
+esa salida seguiria afirmando que sale bien.
+
+`sin_servicio` es el unico estado que no existe a nivel de salida: describe que
+el lanchero no opera ese recorrido por ahora, y no hay tal cosa como "no opero
+la salida de las 12".
+
+Los dos niveles caducan por separado y con la misma cuenta, porque son dos
+decisiones tomadas en momentos distintos: que el cruce entero vuelva a la
+normalidad manana no tiene por que borrar la demora que se marco hoy a la
+tarde en una salida puntual, ni al reves.
+
+Dentro de un cruce, **la hora es el identificador de la salida** (no puede
+haber dos a las 09:30). Con un indice de la lista, agregar un horario mas
+temprano le moveria el estado a otra salida — y agregar el madrugon de las 5
+convertiria el "cancelado" de las 18 en un "cancelado" de las 15.
+
+### Las ediciones no pasan por moderacion
+
+Todo lo demas de una ficha lo aprueba un admin antes de aparecer en el mapa,
+porque publica algo nuevo. El tablero no publica nada nuevo: actualiza un dato
+operativo que envejece en minutos. Un "demorado" esperando aprobacion no sirve
+para nada — cuando lo aprueben, la lancha ya salio.
+
+Por eso el tablero tiene su propia puerta de entrada y **no** esta en
+`pois.CAMPOS_EDITABLES`, que es la lista blanca del PUT que si puede devolver
+la ficha a `pendiente`:
+
+| Endpoint | Que hace | Moderacion |
+| --- | --- | --- |
+| `PUT /api/mi-comercio` | La ficha (nombre, ubicacion, rubro…) | Vuelve a revision si cambia nombre, tipo o coordenadas |
+| `PUT /api/mi-comercio/tablero` | El tablero completo: alta de cruces, horarios, precios | Ninguna |
+| `POST /api/mi-comercio/tablero/{id}/estado` | El interruptor de un recorrido | Ninguna, se publica en el acto |
+| `POST /api/mi-comercio/tablero/{id}/salidas/{hora}/estado` | El interruptor de UNA salida (`estado: null` la devuelve a heredar) | Ninguna, se publica en el acto |
+
+Que sean dos endpoints y no un campo mas del PUT es lo que evita que un cambio
+futuro en `pois.actualizar` le aplique la moderacion al tablero sin que nadie
+se de cuenta.
+
+El endpoint del interruptor suelto existe aparte del guardado completo porque
+es la operacion del dia a dia y la unica que se hace apurado: el lanchero abre
+la app, toca "Demorado" y guarda el telefono. Mandar el tablero entero para eso
+tambien funcionaria, pero pisaria con una copia vieja cualquier cambio hecho
+desde otro dispositivo.
+
+### Los estados caducan solos
+
+Los seis estados son `a_horario`, `por_salir`, `demorado`, `completo`,
+`cancelado` y `sin_servicio` (`backend/tablero.py`: `ESTADOS`); una salida
+suelta admite los cinco primeros (`ESTADOS_SALIDA`).
+
+Un "cancelado" cargado un sabado a la mañana que sigue ahi el martes es **peor**
+que no tener tablero: el nauta deja de creerle. Es el mismo problema que
+resuelve `vence_en` en los reportes, y se resuelve igual — sin cron y sin
+columna nueva, calculando la vigencia **al leer**:
+
+- Los estados alterados vuelven a `a_horario` cuando cambia el dia en
+  Argentina. El lanchero piensa por jornada ("hoy no cruzo por el viento"), no
+  por reloj, y arranca la mañana con el tablero limpio.
+- `por_salir` es la excepcion: no describe el dia sino los proximos minutos, y
+  se apaga solo a los 45.
+
+La marca de tiempo (`estado_desde`) la pone **el servidor**, aunque el estado se
+acepte desde afuera: es lo unico que decide cuando caduca, y un celular con la
+hora mal puesta la dejaria colgada para siempre. Corregir un precio tampoco
+reinicia ese reloj — si lo hiciera, un "cancelado" no caducaria nunca.
+
+La hora que manda en el tablero es la de Argentina (UTC-3 fijo, que no mueve la
+hora desde 2009) y no la del dispositivo: un celular con la zona horaria de
+otro pais mostraria "sale en 4 h" para una lancha que zarpa en veinte minutos.
+El cartel es el del muelle, no el del que lo mira.
+
+### El pin: un cartel de terminal, no un punto
+
+Los tres rubros se distinguian solo por el color del pin, y eso alcanza
+mientras los tres sean "un lugar al que se llega". La lancha-taxi no lo es, asi
+que va como **cartel cuadrado parado sobre el muelle**, con el barquito adentro
+y borde blanco. Es la misma distincion que hacen los mapas de ciudad entre un
+comercio (punto) y una estacion (cartel con forma propia): se lee por forma,
+sin zoom y sin leer nada, y no por un tercer tono de azul.
+
+Cuando el tablero tiene una alteracion —una demora, un cruce cancelado— el
+cartel lleva un punto de ese color arriba a la derecha. Solo entonces: si
+estuviera siempre, un mapa donde todos los pines avisan algo es un mapa donde
+ninguno avisa nada. El chip del filtro tambien lleva el punto cuadrado, para no
+tener que aprenderse de memoria cual es cual.
+
+### Donde se ve cada cosa
+
+| Pantalla | Que muestra |
+| --- | --- |
+| Pin del mapa | Cartel de terminal + punto de alteracion |
+| Ficha rapida / tarjeta de abajo | El cruce que sale antes, con su hora y estado |
+| Listado de lugares | Lo mismo, en un renglon de la fila |
+| Ficha completa | El tablero entero, con todas las salidas y su estado |
+| Panel del comerciante | Interruptores (instantaneos) + campos (con boton de guardar) |
+
+La pantalla del lanchero hace dos cosas con reglas distintas y eso esta a la
+vista: los **interruptores** van arriba y con mas peso visual que los campos,
+al reves de lo que pediria la jerarquia de un formulario. No es un formulario:
+es un tablero con un formulario adjunto.
+
+Debajo de cada fila del editor va la vista previa en una linea —"Así lo ven:
+próxima 14:20 · ahora · cada 6 h · $5.200 · vuelve hasta 18:45"—. Sin eso, el
+lanchero carga cinco numeros sueltos y no ve que frase arman hasta abrir la
+ficha del nauta en otra pantalla.
+
+Los horarios se cargan todos juntos en un renglon ("07:00, 09:30, 12:00") y
+debajo aparece un chip por salida para marcarlas de a una. El renglon **guarda
+su propio texto mientras se escribe** y solo lo interpreta al salir del campo:
+si el valor del campo se recalculara desde la lista en cada tecla, la coma que
+uno acaba de escribir desapareceria al instante —se parsea, queda un elemento
+vacio, se descarta y se vuelve a unir sin ella— y el campo seria intipeable.
+Al confirmar, los horarios se ordenan, se deduplican, "8" se vuelve "08:00" y
+**cada salida conserva el estado que ya tenia**: tocar una coma no puede borrar
+el "demorado" que se acaba de marcar.
+
 ## Trafico de embarcaciones en tiempo real (AIS)
 
 Los barcos de porte emiten su posicion por AIS y aisstream.io la reparte por
@@ -580,6 +741,7 @@ algorio/
 │   ├── tokens.py               # token Bearer para la app movil (itsdangerous)
 │   ├── activos.py               # CRUD de "Mi flota" (embarcaciones/dragas/muelles/tramos)
 │   ├── pois.py                   # paradores/cabañas/lanchas-taxi: alta, moderacion, metricas
+│   ├── tablero.py                 # cruces de las lanchas-taxi: estados, vigencia (sin moderacion)
 │   ├── reportes.py                # avisos efimeros del rio (vencen solos, sin cron)
 │   ├── resenas.py                  # puntajes y comentarios de los nautas
 │   ├── clima.py                    # Open-Meteo + veredicto de "¿esta picado?" por embarcacion
@@ -608,18 +770,21 @@ algorio/
 │       │   ├── MapaUbicacion.jsx                   # Leaflet satelital, pin arrastrable
 │       │   ├── MiComercio.jsx, EditorCarta.jsx,
 │       │   │   EditorHorarios.jsx                    # edicion de la ficha
+│       │   ├── EditorTablero.jsx                      # cruces: interruptores en vivo + campos
 │       │   ├── MetricasComercio.jsx                   # clicks recibidos (recharts)
 │       │   └── ResenasComercio.jsx                     # lo que dicen los nautas
 │       ├── nauta/                              # PERFIL RECREATIVO — version web
 │       │   ├── ShellNauta.jsx                    # layout + onboarding de embarcacion
 │       │   ├── MapaNauta.jsx                      # satelital, pines por rubro, capa de vidrio encima
 │       │   ├── PanelLugar.jsx                      # ficha: menu, horarios, contacto, reseñas
+│       │   ├── TableroCruces.jsx                    # el cartel de salidas de una lancha-taxi
 │       │   ├── ClimaNauta.jsx                       # 48 h de viento y rafagas
 │       │   ├── PerfilNauta.jsx                       # embarcacion + mis reseñas
 │       │   └── constantes.js                          # embarcaciones, rubros, horarios
 │       ├── admin/
 │       │   └── ModeracionPois.jsx                        # cola de aprobacion (solo es_admin)
-│       ├── mapaSatelital.js                               # capa Esri + pin, compartido
+│       ├── tablero.js                                     # estados y cuentas del tablero, compartido
+│       ├── mapaSatelital.js                               # capa Esri + pines (punto y terminal)
 │       └── components/                                     # PERFIL NAVIERA + comunes
 │           ├── Login.jsx, Registro.jsx, SelectorRol.jsx,
 │           │   AppShell.jsx, Sidebar.jsx, TopBar.jsx        # shell + autenticacion
@@ -633,7 +798,7 @@ algorio/
 │   │   ├── index.jsx           # rutea por rol al abrir la app
 │   │   ├── (tabs)/              # nauta: mapa, clima, perfil
 │   │   ├── (comercio)/           # comerciante: ficha, metricas, reseñas, cuenta
-│   │   └── comercio/              # alta, horarios, carta y ubicacion (pantallas sueltas)
+│   │   └── comercio/              # alta, horarios, carta, tablero y ubicacion (pantallas sueltas)
 │   └── src/                     # sesion con token, cliente HTTP, tema, ubicacion
 └── data/
     ├── per_source/            # dataset_<fuente>.csv

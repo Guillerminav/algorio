@@ -386,6 +386,7 @@ def _crear_esquema() -> None:
                 menu JSONB,
                 servicios JSONB,
                 fotos JSONB,
+                cruces JSONB,
                 estado TEXT NOT NULL DEFAULT 'pendiente',
                 motivo_rechazo TEXT,
                 creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -393,6 +394,16 @@ def _crear_esquema() -> None:
             )
             """
         )
+        # El tablero de cruces de una lancha-taxi (ver backend/tablero.py): a
+        # que hora cruza, cada cuanto, cuanto sale y si hoy va demorada.
+        #
+        # Va en la misma tabla y como JSONB por lo mismo que horarios y menu:
+        # nunca se consulta un cruce suelto, siempre la ficha entera. Y va como
+        # columna propia y no dentro de `menu` porque tiene su propia puerta de
+        # escritura —la unica que no pasa por moderacion— y mezclarlos haria
+        # que actualizar un precio de la carta y declarar una demora fueran la
+        # misma operacion con las mismas reglas, que es justo lo que no son.
+        con.execute("ALTER TABLE pois ADD COLUMN IF NOT EXISTS cruces JSONB")
         # El mapa siempre filtra por estado='aprobado' y despues por caja de
         # coordenadas; el indice compuesto cubre esa consulta entera.
         con.execute("CREATE INDEX IF NOT EXISTS pois_estado_idx ON pois (estado)")

@@ -14,12 +14,17 @@ un saque y no confundirlos nunca con un parador de verdad.
 """
 import argparse
 
-from backend import pois
+from backend import pois, tablero
 from db import conexion, inicializar_db
 
 # Todo lo que crea este script queda marcado con esto en la descripcion, que es
 # lo unico que se ve en la app. Asi nadie confunde un pin de demo con uno real.
 MARCA_DEMO = "[DEMO]"
+
+# Los estados del tablero caducan al terminar el dia (ver backend/tablero.py),
+# asi que el demo los sella al momento de sembrar: sin esto naceria ya vencido
+# y el tablero se veria todo en verde, que es justo lo que no se quiere mostrar.
+_AHORA = tablero._ahora_ar().isoformat(timespec="seconds")
 
 LUGARES = [
     {
@@ -62,6 +67,39 @@ LUGARES = [
                 {"nombre": "Paseo de una hora", "precio": "25000"},
             ]},
         ],
+        # El unico rubro con tablero de cruces. Va uno a horario y otro
+        # demorado a proposito: con los dos en verde no se ve para que sirve
+        # la pantalla, que es justo lo que un demo tiene que mostrar.
+        "cruces": [
+            {
+                "destino": "Isla del Cerrito",
+                "origen": "Puerto Corrientes",
+                "salidas": ["07:00", "09:30", "12:00", "15:00", "17:30"],
+                "frecuencia_min": 150,
+                "precio": 3500,
+                "duracion_min": 25,
+                "ultimo_regreso": "19:30",
+                "estado": "a_horario",
+            },
+            {
+                "destino": "Paso de la Patria",
+                "origen": "Puerto Corrientes",
+                # El recorrido va bien, pero una salida suelta esta demorada
+                # y otra se cayo: es el caso que muestra para que sirven los
+                # dos niveles de estado, y con todo en verde no se ve.
+                "salidas": [
+                    "08:00",
+                    {"hora": "14:00", "estado": "demorado", "demora_min": 20,
+                     "estado_desde": _AHORA},
+                    {"hora": "18:00", "estado": "cancelado", "estado_desde": _AHORA},
+                ],
+                "frecuencia_min": 360,
+                "precio": 5200,
+                "duracion_min": 40,
+                "ultimo_regreso": "18:45",
+                "estado": "a_horario",
+            },
+        ],
     },
     {
         "tipo": "alojamiento",
@@ -94,8 +132,8 @@ def _sin_dueno(datos: dict) -> None:
         con.execute(
             """
             INSERT INTO pois (tipo, nombre, descripcion, lat, lon, telefono, whatsapp,
-                              servicios, menu, horarios, estado)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'aprobado')
+                              servicios, menu, horarios, cruces, estado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'aprobado')
             """,
             (
                 datos["tipo"],
@@ -108,6 +146,10 @@ def _sin_dueno(datos: dict) -> None:
                 json.dumps(datos.get("servicios")),
                 json.dumps(datos.get("menu")),
                 json.dumps(datos.get("horarios")),
+                # Por tablero.validar y no crudo: asi el demo lleva los ids y
+                # las marcas de tiempo que pone el servidor, y el "demorado"
+                # caduca esta noche igual que uno de verdad.
+                json.dumps(tablero.validar(datos["cruces"]) if datos.get("cruces") else None),
             ),
         )
 

@@ -28,6 +28,10 @@ export const TIPOS_COMERCIO = [
     resumen: "Traslados y paseos por el río.",
     emoji: "🚤",
     tieneCarta: false,
+    // El unico rubro con tablero de cruces (ver src/tablero.js): a que hora
+    // cruza, cada cuanto, cuanto sale y si hoy va demorada. Se publica sin
+    // moderacion porque es un dato que envejece en minutos.
+    tieneTablero: true,
     servicios: ["Chalecos incluidos", "Apto grupos", "Traslado nocturno", "Acepta tarjeta", "Guía a bordo", "Apto mascotas"],
   },
 ];
@@ -41,6 +45,7 @@ export const tipoComercio = (clave) =>
     etiqueta: "Comercio",
     emoji: "📍",
     tieneCarta: false,
+    tieneTablero: false,
     servicios: [],
   };
 

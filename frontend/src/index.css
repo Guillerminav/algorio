@@ -3127,6 +3127,7 @@ tr.fila-critica {
 .panel-comercio input[type="tel"],
 .panel-comercio input[type="url"],
 .panel-comercio input[type="time"],
+.panel-comercio select,
 .panel-comercio textarea {
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--borde);
@@ -6299,4 +6300,687 @@ div.barra-viento { cursor: default; }
     padding-left: calc(1rem + var(--seguro-izq));
     padding-right: calc(1rem + var(--seguro-der));
   }
+}
+
+/* ===========================================================================
+   TABLERO DE CRUCES DE LAS LANCHAS-TAXI
+   ---------------------------------------------------------------------------
+   El cartel de salidas de un aeropuerto, para el rio. Se dibuja oscuro y con
+   numeros tabulares, y esa no es una decision estetica: es el unico bloque de
+   la ficha que se lee de reojo, a un metro de distancia y con sol, mientras se
+   decide si se corre al muelle o no. El fondo oscuro con horas blancas es lo
+   que hace que la hora se lea antes que el resto del texto, igual que en el
+   tablero de verdad.
+
+   El resumen de que estado tiene cada cruce viaja al pin del mapa
+   (.marcador-terminal) y a la ventana de abajo (.ficha-rapida-cruce), asi que
+   el color de cada estado se pasa como `--tono-estado` y las tres piezas usan
+   la misma regla.
+   =========================================================================== */
+
+.tablero-cruces {
+  margin: 1rem 0 1.1rem;
+  border-radius: 14px;
+  background: var(--marca);
+  color: #fff;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.tablero-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.95rem 0.55rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.tablero-cabecera h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--marca-texto-suave);
+}
+
+/* El reloj del tablero. Es la hora de Argentina y no la del dispositivo (ver
+   src/tablero.js): sin el, un "en 12 min" no tiene contra que contrastarse. */
+.tablero-reloj {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--acento-claro);
+  letter-spacing: 0.04em;
+}
+
+.tablero-filas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tablero-fila {
+  padding: 0.8rem 0.95rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.tablero-fila:first-child {
+  border-top: none;
+}
+
+/* Un cruce que hoy no sale se apaga entero en vez de solo cambiar de chip: es
+   informacion que sigue estando pero que ya no sirve para planificar nada, y
+   bajarle el contraste la saca del camino de la que si. */
+.tablero-fila.estado-cancelado,
+.tablero-fila.estado-sin_servicio {
+  opacity: 0.62;
+}
+
+.tablero-fila-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.tablero-destino {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tablero-destino strong {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tablero-destino span {
+  font-size: 0.76rem;
+  color: var(--marca-texto-tenue);
+}
+
+/* El chip de estado va en color pleno y no en contorno: es lo unico del
+   tablero que cambia solo, y tiene que ganarle a las horas en la primera
+   mirada. */
+.tablero-estado {
+  flex-shrink: 0;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: var(--tono-estado, var(--subida));
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* "Por salir" es el unico que pide urgencia: late, como el cartel del vuelo
+   que esta embarcando. Los demas describen el dia y no tienen apuro. */
+.tablero-fila.estado-por_salir .tablero-estado {
+  animation: latido-tablero 1.6s ease-in-out infinite;
+}
+
+@keyframes latido-tablero {
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tablero-fila.estado-por_salir .tablero-estado { animation: none; }
+}
+
+.tablero-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.15rem;
+  margin-top: 0.6rem;
+}
+
+.tablero-dato {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.tablero-dato-etiqueta {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--marca-texto-tenue);
+}
+
+.tablero-dato-valor {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tablero-hora {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+/* La hora de cartel cuando hay demora: tachada, con la estimada al lado. Es
+   como se lee "esto se corrio" sin tener que restar nada. */
+.tablero-hora-vieja {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: line-through;
+  color: var(--marca-texto-tenue);
+}
+
+.tablero-hora-nula { color: var(--marca-texto-tenue); }
+
+.tablero-falta {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--acento-claro);
+}
+
+/* La aclaracion del lanchero ("rio picado, sale del muelle chico"). Va con
+   barra al costado y no como parrafo suelto: es lo unico del tablero escrito
+   a mano y conviene que se note que lo escribio una persona. */
+.tablero-nota {
+  margin: 0.6rem 0 0;
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--tono-estado, var(--acento-claro));
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #eaf3f9;
+}
+
+/* Todas las salidas del dia, cada una con lo suyo. Es la parte que hace que
+   esto sea un tablero de aeropuerto y no un cartel de horarios: ahi la demora
+   es de un vuelo, no de la aerolinea.
+
+   Las que heredan el estado del recorrido se dibujan planas; las que el
+   lanchero marco aparte llevan el borde y la etiqueta de su estado. La
+   diferencia importa: con quince chips de colores no se distingue cual es la
+   excepcion, que es justo lo unico que hay que mirar. */
+.tablero-salidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tablero-salida {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.18rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.tablero-salida.propia {
+  border-color: var(--tono-estado, var(--acento-claro));
+  background: color-mix(in srgb, var(--tono-estado, var(--acento-claro)) 22%, transparent);
+}
+
+.tablero-salida-hora {
+  font-weight: 700;
+}
+
+/* Tachada, con la corrida al lado: dice "esta se movio" sin pedir que nadie
+   sume minutos de cabeza. */
+.tablero-salida-vieja {
+  text-decoration: line-through;
+  color: var(--marca-texto-tenue);
+}
+
+/* Una salida cancelada no muestra hora alternativa, asi que la tachadura tiene
+   que ir sobre la hora misma. */
+.tablero-salida.estado-cancelado .tablero-salida-hora {
+  text-decoration: line-through;
+  color: var(--marca-texto-tenue);
+}
+
+.tablero-salida-estado {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tono-estado, var(--acento-claro));
+}
+
+/* Quien firma el tablero. Un cartel sin firma se lee como dato oficial, y este
+   lo carga el lanchero: saberlo cambia cuanto se le confia. */
+.tablero-pie {
+  margin: 0;
+  padding: 0.6rem 0.95rem 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--marca-texto-tenue);
+}
+
+/* --- El renglon del tablero en la ventana de abajo del mapa ---------------
+   La ficha rapida no repite el tablero entero: muestra la salida que viene
+   antes, que es la pregunta con la que uno toca el pin. El resto queda detras
+   de "Ver mas", igual que la carta de un parador. */
+.ficha-rapida-cruce {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 11px;
+  background: var(--marca);
+  color: #fff;
+}
+
+.ficha-rapida-cruce-hora {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.ficha-rapida-cruce-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.ficha-rapida-cruce-texto strong {
+  font-size: 0.85rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ficha-rapida-cruce-texto span {
+  font-size: 0.72rem;
+  color: var(--acento-claro);
+  font-weight: 600;
+}
+
+.ficha-rapida-cruce-estado {
+  flex-shrink: 0;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: var(--tono-estado, var(--subida));
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --- El pin: un cartel de terminal, no un punto ---------------------------
+   Los otros dos rubros son "un lugar al que se llega" y van como circulo de
+   color. Una lancha-taxi es de donde SALE el transporte, y esa diferencia se
+   lee por forma —sin zoom y sin leer nada— y no por un tercer tono de azul.
+   Es la misma distincion que hacen los mapas de ciudad entre un comercio y una
+   estacion. Ver iconoTerminal() en mapaSatelital.js. */
+.marcador-terminal span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--tono-terminal, #0b3252);
+  border: 3px solid #fff;
+  color: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+/* El pie del cartel. Se dibuja con un pseudo-elemento rotado y no con otro
+   div porque asi comparte el borde blanco con el cuerpo: es un cartel parado
+   sobre el muelle, no dos figuras apiladas. */
+.marcador-terminal span::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--tono-terminal, #0b3252);
+  border-right: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  border-bottom-right-radius: 3px;
+}
+
+/* El punto de alteracion del tablero: solo aparece si hay una demora, un cruce
+   cancelado o algo por salir. Si estuviera siempre, un mapa donde todos los
+   pines avisan algo es un mapa donde ninguno avisa nada. */
+.marcador-terminal-estado {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* El chip del filtro toma la forma de su pin: cuadrado para la terminal,
+   redondo para los rubros que son un punto. Sin esto habria que aprenderse de
+   memoria que el cartel cuadrado del mapa es el mismo que el chip
+   "Lanchas-taxi" de arriba. */
+.chip-lancha_taxi .chip-tipo-punto {
+  border-radius: 3px;
+}
+
+/* ===========================================================================
+   TABLERO DE CRUCES: EL EDITOR DEL LANCHERO
+   ---------------------------------------------------------------------------
+   Dos operaciones con reglas distintas conviven en la misma fila, y eso tiene
+   que verse: los INTERRUPTORES se publican en el acto (son lo que se toca
+   todos los dias, desde el muelle) y los CAMPOS se guardan con el boton de
+   abajo, como el resto del panel.
+
+   Por eso los interruptores van arriba de los campos y con mas peso visual que
+   ellos, al reves de lo que pediria la jerarquia de un formulario: no es un
+   formulario, es un tablero con un formulario adjunto.
+   =========================================================================== */
+
+.tablero-editor {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.tablero-editor-fila {
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.tablero-editor-encabezado {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.tablero-editor-titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+/* El titulo de la fila. Es un <h4> y no un input con el destino adentro: con
+   seis cruces cargados hay que saber en cual estas parado sin leer el
+   contenido de un campo, y de paso los siete campos de la fila quedan todos
+   iguales entre si y con el resto del panel. */
+.tablero-editor-titulo {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--texto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tablero-interruptores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Que alcance cada botonera. Sin este renglon, dos filas de botones casi
+   iguales —la del recorrido y la de una salida— se leen como un unico
+   control roto en dos. */
+.tablero-interruptores-ayuda,
+.tablero-salidas-ayuda {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+}
+
+.tablero-botonera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Apagado es un contorno del tono del estado y prendido lo pinta entero. Los
+   seis en color pleno serian un semaforo roto; con contorno se lee cual esta
+   elegido de un vistazo y ademas se aprende que color le corresponde a cada
+   uno, que es el que despues aparece en el pin del mapa. */
+.tablero-boton-estado {
+  padding: 0.38rem 0.7rem;
+  border: 1.5px solid var(--tono-estado, var(--borde));
+  border-radius: 999px;
+  background: none;
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.tablero-boton-estado:hover:not(:disabled) {
+  background: var(--chip-fondo);
+}
+
+.tablero-boton-estado.activo {
+  background: var(--tono-estado, var(--acento));
+  border-color: var(--tono-estado, var(--acento));
+  color: #fff;
+  font-weight: 700;
+}
+
+.tablero-boton-estado:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.tablero-demora {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+}
+
+.tablero-nota-campo {
+  width: 100%;
+}
+
+.tablero-editor-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--borde-suave);
+}
+
+.tablero-editor-fila small {
+  font-size: 0.7rem;
+  color: var(--texto-suave);
+}
+
+/* Como queda del otro lado, en una linea. No es decoracion: sin esto el
+   lanchero carga cinco numeros sueltos y no ve que frase arman hasta que abre
+   la ficha del nauta en otra pantalla. */
+.tablero-vista {
+  margin: 0.8rem 0 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 9px;
+  background: var(--chip-fondo);
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Las salidas, una por una -------------------------------------------
+   El renglon de texto carga la lista de horarios de un saque; los chips de
+   abajo son para lo otro: marcar UNA salida cuando se corrio solo esa. Van
+   juntos y en ese orden porque asi se usa —primero se carga el dia, despues
+   se lo va corrigiendo—, y separarlos en dos pantallas obligaria a ir y venir
+   con el motor prendido. */
+.tablero-salidas-bloque {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--borde-suave);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.tablero-chips-salida {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Una salida que hereda el estado del recorrido va neutra; la que el lanchero
+   marco aparte se tiñe. Con quince chips de colores no se distingue cual es la
+   excepcion, que es justo lo unico que hay que mirar. */
+.tablero-chip-salida {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.32rem;
+  padding: 0.35rem 0.6rem;
+  border: 1.5px solid var(--borde);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tablero-chip-salida:hover {
+  background: var(--chip-fondo);
+}
+
+.tablero-chip-salida.propia {
+  border-color: var(--tono-estado, var(--acento));
+  background: color-mix(in srgb, var(--tono-estado, var(--acento)) 12%, var(--superficie));
+}
+
+/* La abierta se marca con el anillo y no cambiando de color: el color de ese
+   chip ya significa otra cosa (su estado). */
+.tablero-chip-salida.abierta {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.tablero-chip-salida-hora {
+  font-weight: 700;
+}
+
+.tablero-chip-salida-estado {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tono-estado, var(--acento));
+}
+
+.tablero-panel-salida {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--fondo);
+}
+
+.tablero-panel-salida-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-basis: 100%;
+  font-size: 0.9rem;
+}
+
+/* Deshacer sin tener que afirmar otra cosa: marcar "a horario" para sacar un
+   "demorado" dejaria la salida pisando al recorrido para siempre. */
+.tablero-heredar {
+  padding: 0.38rem 0.7rem;
+  border: 1px dashed var(--borde);
+  border-radius: 999px;
+  background: none;
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tablero-heredar:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tablero-heredar:not(:disabled):hover {
+  border-style: solid;
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.tablero-panel-salida-aviso {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--texto-suave);
+}
+
+@media (max-width: 560px) {
+  .tablero-editor-campos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tablero-boton-estado {
+    padding: 0.34rem 0.6rem;
+    font-size: 0.76rem;
+  }
+}
+
+/* El renglon del proximo cruce en el listado de lugares. Se marca con un punto
+   del color del estado y no con un chip lleno: comparte fila con el puntaje y
+   la apertura, y un chip mas ahi convierte la meta en una hilera de globos. */
+.lugar-item-cruce {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  font-weight: 600;
+  color: var(--acento);
+  font-variant-numeric: tabular-nums;
+}
+
+.lugar-item-cruce::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--tono-estado, var(--subida));
 }

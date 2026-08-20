@@ -7,12 +7,17 @@ deliberado: sin el, cualquiera que se registre publica un pin en el mapa.
 
 Tambien vive aca el conteo de interes (poi_visitas), que es lo que el
 comerciante ve como "cuanta gente me miro".
+
+La excepcion a la moderacion es el tablero de cruces de las lanchas-taxi: se
+guarda en la misma tabla pero por una puerta aparte y sin revision, porque es
+un dato operativo que envejece en minutos (ver backend/tablero.py).
 """
 import json
 import math
 from datetime import date, timedelta
 from typing import Optional
 
+from backend import tablero
 from db import conexion, inicializar_db
 
 TIPOS_VALIDOS = {"parador", "alojamiento", "lancha_taxi"}
@@ -82,6 +87,26 @@ def _con_promedio(con, filas: list[dict]) -> list[dict]:
         datos = por_id.get(fila["id"])
         fila["puntaje_promedio"] = round(datos["promedio"], 1) if datos else None
         fila["cantidad_resenas"] = datos["cantidad"] if datos else 0
+    return _con_tablero(filas)
+
+
+def _con_tablero(filas: list[dict]) -> list[dict]:
+    """Devuelve el tablero de cruces ya normalizado, y solo a quien le
+    corresponde tenerlo.
+
+    Los estados alterados caducan al leer y no con un cron (ver
+    tablero.normalizar), asi que este es el unico lugar donde eso ocurre: pasa
+    por aca todo lo que sale de la tabla hacia el mapa, la ficha o el panel.
+
+    A un POI que no es lancha-taxi se le devuelve el tablero en None aunque la
+    columna tenga algo: si alguien cambio el rubro de su ficha, los cruces
+    viejos siguen guardados —por si vuelve— pero no tienen por que aparecer en
+    la ficha de un parador.
+    """
+    for fila in filas:
+        fila["cruces"] = (
+            tablero.normalizar(fila.get("cruces")) if fila.get("tipo") == "lancha_taxi" else None
+        )
     return filas
 
 
@@ -178,7 +203,7 @@ def crear(usuario: str, datos: dict) -> dict:
             f"INSERT INTO pois (usuario, {columnas}) VALUES (%s, {marcadores}) RETURNING *",
             [usuario, *campos.values()],
         ).fetchone()
-    return dict(fila)
+    return _con_tablero([dict(fila)])[0]
 
 
 def actualizar(usuario: str, cambios: dict) -> dict:
@@ -216,7 +241,82 @@ def actualizar(usuario: str, cambios: dict) -> dict:
             f"UPDATE pois SET {asignaciones}, actualizado_en = now() WHERE usuario = %s RETURNING *",
             [*serializados.values(), usuario],
         ).fetchone()
-    return dict(fila)
+    return _con_tablero([dict(fila)])[0]
+
+
+def _tablero_del_usuario(con, usuario: str) -> dict:
+    """La fila del comercio de esa cuenta, ya verificada como lancha-taxi.
+
+    Se pide antes de cada escritura del tablero y no se cachea: es el mismo
+    chequeo de propiedad que hace `actualizar`, y saltearselo dejaria que
+    cualquier cuenta con rol comercio mandara un estado al tablero de otra.
+    """
+    fila = con.execute(
+        "SELECT id, tipo, cruces FROM pois WHERE usuario = %s", (usuario,)
+    ).fetchone()
+    if fila is None:
+        raise ValueError("Todavía no cargaste tu comercio.")
+    if fila["tipo"] != "lancha_taxi":
+        raise ValueError("El tablero de cruces es solo para lanchas-taxi.")
+    return fila
+
+
+def _guardar_cruces(con, usuario: str, cruces: list) -> dict:
+    fila = con.execute(
+        "UPDATE pois SET cruces = %s, actualizado_en = now() WHERE usuario = %s RETURNING *",
+        (json.dumps(cruces), usuario),
+    ).fetchone()
+    return _con_promedio(con, [dict(fila)])[0]
+
+
+def guardar_tablero(usuario: str, cruces: list) -> dict:
+    """Reemplaza el tablero entero: es la pantalla de edicion, donde se dan de
+    alta los cruces y se corrigen horarios, frecuencia y precios.
+
+    No toca `estado` de la ficha ni la manda a revision, a diferencia de
+    `actualizar`. Ver el encabezado de backend/tablero.py para el porque.
+    """
+    inicializar_db()
+    with conexion() as con:
+        actual = _tablero_del_usuario(con, usuario)
+        return _guardar_cruces(con, usuario, tablero.validar(cruces, previos=actual["cruces"]))
+
+
+def cambiar_estado_cruce(
+    usuario: str,
+    cruce_id: str,
+    estado: str,
+    demora_min: Optional[int] = None,
+    nota: Optional[str] = None,
+) -> dict:
+    """Mueve el interruptor de un solo cruce. Es la operacion del dia a dia:
+    dos toques desde el muelle y listo, sin pasar por ninguna aprobacion."""
+    inicializar_db()
+    with conexion() as con:
+        actual = _tablero_del_usuario(con, usuario)
+        nuevos = tablero.cambiar_estado(actual["cruces"], cruce_id, estado, demora_min, nota)
+        return _guardar_cruces(con, usuario, nuevos)
+
+
+def cambiar_estado_salida(
+    usuario: str,
+    cruce_id: str,
+    hora: str,
+    estado,
+    demora_min=None,
+) -> dict:
+    """Mueve el interruptor de una salida suelta ("la de las 09:30 va demorada").
+
+    `estado` en None la devuelve a heredar el del cruce, que es como se deshace
+    una marca sin tener que afirmar otra cosa en su lugar.
+    """
+    inicializar_db()
+    with conexion() as con:
+        actual = _tablero_del_usuario(con, usuario)
+        nuevos = tablero.cambiar_estado_salida(
+            actual["cruces"], cruce_id, hora, estado, demora_min
+        )
+        return _guardar_cruces(con, usuario, nuevos)
 
 
 def registrar_visita(poi_id: int, tipo: str) -> None:
@@ -283,7 +383,7 @@ def listar_para_moderar(estado: str = "pendiente") -> list[dict]:
             "WHERE p.estado = %s ORDER BY p.creado_en",
             (estado,),
         ).fetchall()
-    return [dict(f) for f in filas]
+    return _con_tablero([dict(f) for f in filas])
 
 
 def moderar(poi_id: int, aprobado: bool, motivo: Optional[str] = None) -> Optional[dict]:
@@ -294,4 +394,4 @@ def moderar(poi_id: int, aprobado: bool, motivo: Optional[str] = None) -> Option
             "WHERE id = %s RETURNING *",
             ("aprobado" if aprobado else "rechazado", None if aprobado else motivo, poi_id),
         ).fetchone()
-    return dict(fila) if fila else None
+    return _con_tablero([dict(fila)])[0] if fila else None

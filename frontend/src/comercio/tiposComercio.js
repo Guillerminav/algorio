@@ -45,6 +45,11 @@ export const TIPOS_COMERCIO = [
     etiqueta: "Lancha-taxi",
     resumen: "Traslados y paseos por el río.",
     tieneCarta: false,
+    // El unico rubro con tablero de cruces. Es el equivalente a la carta del
+    // parador —el dato que el cliente mira ANTES de decidir— pero con una
+    // diferencia que cambia todo: cambia varias veces por dia y por eso se
+    // publica sin moderacion (ver backend/tablero.py).
+    tieneTablero: true,
     etiquetaCarta: "Recorridos",
     unidadSeccion: "tipo de servicio",
     pluralSeccion: "tipos de servicio",
@@ -64,6 +69,7 @@ export const TIPO_POR_CLAVE = Object.fromEntries(TIPOS_COMERCIO.map((t) => [t.ti
 export const TIPO_GENERICO = {
   etiqueta: "Comercio",
   tieneCarta: false,
+  tieneTablero: false,
   etiquetaCarta: "Servicios",
   unidadSeccion: "sección",
   pluralSeccion: "secciones",

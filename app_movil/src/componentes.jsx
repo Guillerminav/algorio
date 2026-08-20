@@ -31,15 +31,25 @@ export function Boton({ titulo, onPress, cargando, deshabilitado, variante = "pr
   );
 }
 
-export function Campo({ etiqueta, ...props }) {
+/**
+ * Campo de texto con etiqueta.
+ *
+ * `ayuda` es la aclaracion chica debajo del campo ("cada cuantos minutos") y
+ * `estilo` sirve para que el contenedor participe de una grilla. Los dos son
+ * opcionales: existen para que las pantallas que los necesitan no tengan que
+ * armarse su propio campo con otras medidas — que es como termina habiendo dos
+ * estilos de input en la misma app.
+ */
+export function Campo({ etiqueta, ayuda, estilo, ...props }) {
   return (
-    <View style={estilos.campo}>
+    <View style={[estilos.campo, estilo]}>
       <Text style={estilos.campoEtiqueta}>{etiqueta}</Text>
       <TextInput
         style={estilos.campoInput}
         placeholderTextColor={COLORES.textoSuave}
         {...props}
       />
+      {ayuda ? <Text style={estilos.campoAyuda}>{ayuda}</Text> : null}
     </View>
   );
 }
@@ -115,6 +125,7 @@ const estilos = StyleSheet.create({
 
   campo: { gap: 6 },
   campoEtiqueta: { fontSize: 14, fontWeight: "600", color: COLORES.texto },
+  campoAyuda: { fontSize: 12, color: COLORES.textoSuave },
   campoInput: {
     borderWidth: 1,
     borderColor: COLORES.borde,

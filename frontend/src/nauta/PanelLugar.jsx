@@ -13,6 +13,7 @@ import {
 } from "./constantes.js";
 import ModalResena from "./ModalResena.jsx";
 import { Estrellas } from "./piezas.jsx";
+import TableroCruces from "./TableroCruces.jsx";
 
 // Cada acción de contacto se cuenta antes de salir de la página: es la métrica
 // que el comerciante ve en su panel. Se dispara sin await ni catch — si el
@@ -166,6 +167,13 @@ export default function PanelLugar({ poiId, onCerrar }) {
           {apertura.texto}
         </div>
       )}
+
+      {/* Para una lancha-taxi el tablero es la razon por la que se abrio la
+          ficha, asi que va antes que la descripcion y que los contactos: el
+          que lo mira quiere saber a que hora sale la proxima, no leer dos
+          parrafos sobre los paseos. Para los otros rubros no existe (el
+          backend devuelve `cruces` en null). */}
+      <TableroCruces cruces={lugar.cruces} actualizado={formatearFecha(lugar.actualizado_en)} />
 
       {lugar.descripcion && <p className="lugar-descripcion">{lugar.descripcion}</p>}
 

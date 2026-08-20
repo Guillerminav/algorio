@@ -4,6 +4,38 @@ import Brujula from "./Brujula.jsx";
 import { estadoApertura, tipoPoi } from "./constantes.js";
 import { Estrellas } from "./piezas.jsx";
 import { distanciaEnTexto, haciaElLugar } from "./rumbo.js";
+import { estadoCruce, faltanEnTexto, proximoCruce } from "../tablero.js";
+
+/**
+ * El renglon de tablero de una lancha-taxi: cual es el proximo cruce que sale
+ * y cuando.
+ *
+ * Es el equivalente de "abierto hasta las 20" de un parador: el dato por el
+ * que se toco el pin. El tablero completo —frecuencia, precio, ultimo
+ * regreso— queda detras de "Ver mas", igual que la carta.
+ */
+function ProximoCruce({ cruces }) {
+  const proximo = proximoCruce(cruces);
+  if (!proximo) return null;
+
+  const { cruce, salida } = proximo;
+  const estado = estadoCruce(cruce.estado);
+
+  return (
+    <div className="ficha-rapida-cruce">
+      <span className="ficha-rapida-cruce-hora">{salida.estimada ?? salida.hora}</span>
+      <div className="ficha-rapida-cruce-texto">
+        <strong>{cruce.destino}</strong>
+        <span>{faltanEnTexto(salida.faltan)}</span>
+      </div>
+      {estado.alterado && (
+        <span className="ficha-rapida-cruce-estado" style={{ "--tono-estado": estado.color }}>
+          {estado.etiqueta}
+        </span>
+      )}
+    </div>
+  );
+}
 
 /**
  * La ventana de abajo al tocar un pin.
@@ -56,6 +88,8 @@ export default function FichaRapida({ lugar, posicion, onVerMas, onCerrar }) {
           </span>
         )}
       </div>
+
+      <ProximoCruce cruces={lugar.cruces} />
 
       {/* Cómo llegar, pero para el agua. Sin ubicación no se inventa nada: se
           dicen las coordenadas, que es lo que se carga a mano en un GPS. */}

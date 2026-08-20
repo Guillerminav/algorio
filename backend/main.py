@@ -370,6 +370,38 @@ class ComercioActualizacion(BaseModel):
     fotos: Optional[list] = None
 
 
+class TableroEntrada(BaseModel):
+    """El tablero completo de una lancha-taxi.
+
+    `cruces` va sin tipar por dentro por la misma razon que menu y horarios en
+    ComercioEntrada, y ademas porque el saneado de verdad —normalizar "7:5" a
+    "07:00", descartar frecuencias imposibles, poner la marca de tiempo del
+    estado— lo hace backend/tablero.py, que es donde vive la regla. Duplicarlo
+    en un esquema de Pydantic obligaria a cambiar los dos cada vez.
+    """
+    cruces: list
+
+
+class EstadoCruceEntrada(BaseModel):
+    """Un solo interruptor del tablero. `demora_min` solo se usa con
+    estado="demorado"; el resto de los estados lo ignoran."""
+    estado: str
+    demora_min: Optional[int] = Field(default=None, ge=5, le=720)
+    nota: Optional[str] = None
+
+
+class EstadoSalidaEntrada(BaseModel):
+    """El interruptor de una salida suelta.
+
+    `estado` es opcional y en None significa "sacale el estado propio y que
+    vuelva a heredar el del cruce". Por eso no se puede reusar
+    EstadoCruceEntrada, donde el estado es obligatorio: un cruce siempre tiene
+    uno, una salida puede no tener ninguno.
+    """
+    estado: Optional[str] = None
+    demora_min: Optional[int] = Field(default=None, ge=5, le=720)
+
+
 class ResenaEntrada(BaseModel):
     puntaje: int = Field(..., ge=1, le=5)
     comentario: Optional[str] = None
@@ -986,6 +1018,61 @@ def api_actualizar_mi_comercio(
 ):
     try:
         return pois.actualizar(usuario["usuario"], cambios.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/api/mi-comercio/tablero")
+def api_guardar_tablero(
+    entrada: TableroEntrada, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    """El tablero de cruces de una lancha-taxi, completo.
+
+    Endpoint aparte del PUT de la ficha —y no un campo mas de
+    ComercioActualizacion— porque las reglas son otras: esto no pasa por
+    moderacion y nunca devuelve la ficha a 'pendiente'. Tenerlo en la misma
+    lista blanca haria muy facil que un cambio futuro en `actualizar` le
+    aplicara la moderacion sin que nadie se de cuenta.
+    """
+    try:
+        return pois.guardar_tablero(usuario["usuario"], entrada.cruces)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/mi-comercio/tablero/{cruce_id}/estado")
+def api_cambiar_estado_cruce(
+    cruce_id: str,
+    entrada: EstadoCruceEntrada,
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    """Mueve un solo interruptor. Se publica en el acto, sin revision: para
+    cuando un admin llegara a aprobar un "demorado", la lancha ya salio."""
+    try:
+        return pois.cambiar_estado_cruce(
+            usuario["usuario"], cruce_id, entrada.estado, entrada.demora_min, entrada.nota
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/mi-comercio/tablero/{cruce_id}/salidas/{hora}/estado")
+def api_cambiar_estado_salida(
+    cruce_id: str,
+    hora: str,
+    entrada: EstadoSalidaEntrada,
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    """El estado de UNA salida ("la de las 09:30 va demorada media hora").
+
+    La hora hace de identificador porque lo es: dentro de un cruce no puede
+    haber dos salidas a la misma hora. Con un indice de la lista, agregar un
+    horario mas temprano le moveria el estado a otra salida.
+    """
+    try:
+        return pois.cambiar_estado_salida(
+            usuario["usuario"], cruce_id, hora, entrada.estado, entrada.demora_min
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

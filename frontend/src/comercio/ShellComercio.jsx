@@ -15,6 +15,7 @@ import NivelRio from "../nauta/NivelRio.jsx";
 import AltaComercio from "./AltaComercio.jsx";
 import EditorCarta from "./EditorCarta.jsx";
 import EditorHorarios from "./EditorHorarios.jsx";
+import EditorTablero from "./EditorTablero.jsx";
 import MetricasComercio from "./MetricasComercio.jsx";
 import MiComercio from "./MiComercio.jsx";
 import ResenasComercio from "./ResenasComercio.jsx";
@@ -84,6 +85,57 @@ export default function ShellComercio() {
     }
   }, []);
 
+  // El tablero de cruces tiene su propio endpoint y no viaja por el PUT de
+  // arriba: es la unica edicion del panel que NO pasa por moderacion y que
+  // nunca devuelve la ficha a 'pendiente' (ver backend/tablero.py). Separarlo
+  // aca tambien es lo que evita que un cambio futuro en `guardar` le aplique
+  // sin querer las reglas de la ficha.
+  const guardarTablero = useCallback(async (cruces) => {
+    setGuardando(true);
+    try {
+      const actualizado = await pedirJSON("/api/mi-comercio/tablero", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cruces }),
+      });
+      setComercio(actualizado);
+      return actualizado;
+    } finally {
+      setGuardando(false);
+    }
+  }, []);
+
+  // Un solo interruptor. No toca `guardando`: el boton de "Guardar cambios"
+  // del editor no tiene por que apagarse porque alguien marco una demora, que
+  // es otra operacion y se resuelve sola.
+  const cambiarEstadoCruce = useCallback(async (cruceId, cuerpo) => {
+    const actualizado = await pedirJSON(
+      `/api/mi-comercio/tablero/${encodeURIComponent(cruceId)}/estado`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cuerpo),
+      },
+    );
+    setComercio(actualizado);
+    return actualizado;
+  }, []);
+
+  // El de UNA salida. `estado` en null le saca la marca propia y la devuelve a
+  // seguir al recorrido, que es como se deshace sin afirmar otra cosa.
+  const cambiarEstadoSalida = useCallback(async (cruceId, hora, cuerpo) => {
+    const actualizado = await pedirJSON(
+      `/api/mi-comercio/tablero/${encodeURIComponent(cruceId)}/salidas/${encodeURIComponent(hora)}/estado`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cuerpo),
+      },
+    );
+    setComercio(actualizado);
+    return actualizado;
+  }, []);
+
   if (cargando) return null;
 
   if (errorCarga) {
@@ -137,6 +189,10 @@ export default function ShellComercio() {
     // o una lancha-taxi cuentan lo suyo en la descripcion y en los servicios,
     // sin una pantalla mas que mantener.
     ...(definicion.tieneCarta ? [{ id: "carta", etiqueta: definicion.etiquetaCarta }] : []),
+    // El tablero es solo de la lancha-taxi y va ARRIBA de los horarios: es lo
+    // que el lanchero abre todos los dias (marcar una demora), mientras que
+    // los horarios de atencion se cargan una vez y no se tocan mas.
+    ...(definicion.tieneTablero ? [{ id: "tablero", etiqueta: "Tablero de cruces" }] : []),
     { id: "horarios", etiqueta: "Horarios" },
     { id: "metricas", etiqueta: "Métricas" },
     { id: "resenas", etiqueta: "Reseñas" },
@@ -189,6 +245,15 @@ export default function ShellComercio() {
 
           {seccionActiva === "ficha" && <MiComercio {...propsEdicion} />}
           {seccionActiva === "carta" && <EditorCarta {...propsEdicion} />}
+          {seccionActiva === "tablero" && (
+            <EditorTablero
+              comercio={comercio}
+              guardando={guardando}
+              onGuardarTablero={guardarTablero}
+              onCambiarEstadoCruce={cambiarEstadoCruce}
+              onCambiarEstadoSalida={cambiarEstadoSalida}
+            />
+          )}
           {seccionActiva === "horarios" && <EditorHorarios {...propsEdicion} />}
           {seccionActiva === "metricas" && <MetricasComercio comercio={comercio} />}
           {seccionActiva === "resenas" && <ResenasComercio comercio={comercio} />}

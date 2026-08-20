@@ -15,6 +15,7 @@ import { estadoApertura } from "../../src/api.js";
 import Brujula from "../../src/Brujula.jsx";
 import { Boton, Cargando, Error, Estrellas } from "../../src/componentes.jsx";
 import { distanciaEnTexto, haciaElLugar } from "../../src/rumbo.js";
+import TableroCruces from "../../src/TableroCruces.jsx";
 import { useUbicacion } from "../../src/useUbicacion.js";
 import { useSesion } from "../../src/sesion.jsx";
 import { CampoTexto as TextInput, Texto as Text } from "../../src/Texto.jsx";
@@ -244,6 +245,13 @@ export default function FichaLugar() {
           </Text>
         )}
       </View>
+
+      {/* Para una lancha-taxi el tablero es la razón por la que se abrió la
+          ficha, así que va antes que la descripción y que los contactos: el
+          que lo mira quiere saber a qué hora sale la próxima, no leer dos
+          párrafos sobre los paseos. Para los otros rubros no existe (el
+          backend devuelve `cruces` en null). */}
+      <TableroCruces cruces={lugar.cruces} />
 
       {lugar.descripcion && <Text style={estilos.descripcion}>{lugar.descripcion}</Text>}
 

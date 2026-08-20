@@ -5,6 +5,7 @@ import { estadoApertura, TIPOS_POI, tipoPoi } from "./constantes.js";
 import { useRio } from "./ContextoRio.jsx";
 import { Estrellas } from "./piezas.jsx";
 import { distanciaEnTexto, haciaElLugar } from "./rumbo.js";
+import { estadoCruce, faltanEnTexto, proximoCruce } from "../tablero.js";
 
 /**
  * Todos los lugares, en lista.
@@ -120,6 +121,9 @@ export default function ListaLugares({ onVerLugar }) {
             const apertura = estadoApertura(lugar.horarios);
             const rumbo = haciaElLugar(posicion, lugar);
             const distancia = rumbo?.texto ?? distanciaEnTexto(lugar.distancia_km);
+            // Para una lancha-taxi, "abierto hasta las 20" no es el dato: lo
+            // es a que hora sale la proxima. Ocupa el mismo renglon de meta.
+            const proximo = proximoCruce(lugar.cruces);
 
             return (
               <li key={lugar.id}>
@@ -148,6 +152,15 @@ export default function ListaLugares({ onVerLugar }) {
                       {apertura && (
                         <span className={apertura.abierto ? "lugar-item-abierto" : "lugar-item-cerrado"}>
                           {apertura.texto}
+                        </span>
+                      )}
+                      {proximo && (
+                        <span
+                          className="lugar-item-cruce"
+                          style={{ "--tono-estado": estadoCruce(proximo.cruce.estado).color }}
+                        >
+                          {proximo.salida.estimada ?? proximo.salida.hora} a{" "}
+                          {proximo.cruce.destino} · {faltanEnTexto(proximo.salida.faltan)}
                         </span>
                       )}
                     </span>

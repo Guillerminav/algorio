@@ -63,6 +63,7 @@ export default function LayoutRaiz() {
             <Stack.Screen name="comercio/alta" options={{ title: "Cargá tu comercio", headerBackVisible: false }} />
             <Stack.Screen name="comercio/horarios" options={{ title: "Horarios" }} />
             <Stack.Screen name="comercio/carta" options={{ title: "Menú" }} />
+            <Stack.Screen name="comercio/tablero" options={{ title: "Tablero de cruces" }} />
             <Stack.Screen name="comercio/ubicacion" options={{ title: "Ubicación" }} />
           </Stack>
         </ProveedorSesion>

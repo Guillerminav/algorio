@@ -187,6 +187,20 @@ export default function MiComercio() {
           />
         </Tarjeta>
 
+        {/* El tablero va en su propia tarjeta y ARRIBA de "Más": es lo unico
+            de este panel que se abre todos los dias —marcar una demora antes
+            de salir— y esconderlo entre los accesos secundarios lo dejaria a
+            dos toques de distancia justo cuando hay apuro. */}
+        {definicion.tieneTablero && (
+          <Tarjeta titulo="Tablero de cruces">
+            <Text style={estilos.ayudaTablero}>
+              A qué hora cruzás, cada cuánto, cuánto sale y si hoy va demorada. Los estados
+              se publican en el momento, sin revisión.
+            </Text>
+            <Boton titulo="Abrir el tablero" onPress={() => router.push("/comercio/tablero")} />
+          </Tarjeta>
+        )}
+
         <Tarjeta titulo="Más">
           <Boton
             titulo="Horarios"
@@ -220,6 +234,8 @@ const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: COLORES.fondo },
   contenido: { padding: 16, gap: 14, paddingBottom: 32 },
   flex: { flex: 1 },
+
+  ayudaTablero: { fontSize: 13, lineHeight: 19, color: COLORES.textoSuave },
 
   encabezado: { flexDirection: "row", alignItems: "center", gap: 12 },
   emoji: { fontSize: 30 },

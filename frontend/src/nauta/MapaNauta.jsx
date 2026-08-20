@@ -8,7 +8,9 @@ import {
   TILES_ETIQUETAS,
   TILES_SATELITAL,
   iconoCircular,
+  iconoTerminal,
 } from "../mapaSatelital.js";
+import { estadoResumen } from "../tablero.js";
 import CapaEmbarcaciones from "./CapaEmbarcaciones.jsx";
 import CapaReportes from "./CapaReportes.jsx";
 import FichaRapida from "./FichaRapida.jsx";
@@ -19,6 +21,22 @@ import { useRio } from "./ContextoRio.jsx";
 import { BarraViento } from "./piezas.jsx";
 
 const ZOOM_INICIAL = 11;
+
+/**
+ * El icono de un lugar.
+ *
+ * Los dos rubros que son "un lugar al que se llega" —parador y alojamiento—
+ * van como circulo de color; la lancha-taxi va como cartel de terminal, que es
+ * otra cosa: de ahi SALE algo, y a que hora sale es la pregunta. Ver
+ * iconoTerminal en mapaSatelital.js.
+ */
+function iconoDe(lugar) {
+  if (lugar.tipo !== "lancha_taxi") return iconoCircular(tipoPoi(lugar.tipo).color);
+  return iconoTerminal({
+    color: tipoPoi(lugar.tipo).color,
+    estado: estadoResumen(lugar.cruces)?.color ?? null,
+  });
+}
 
 // Marcador de "acá estás". Distinto de los pines de lugares a propósito: es
 // azul, más chico y con halo, para no confundirse con un parador.
@@ -294,7 +312,7 @@ export default function MapaNauta({ onIrAClima, onAbrirMenu }) {
                   <button
                     key={clave}
                     type="button"
-                    className={`chip-tipo${activo ? " activo" : ""}`}
+                    className={`chip-tipo chip-${clave}${activo ? " activo" : ""}`}
                     aria-pressed={activo}
                     onClick={() => alternarTipo(clave)}
                   >
@@ -366,7 +384,7 @@ export default function MapaNauta({ onIrAClima, onAbrirMenu }) {
               <Marker
                 key={lugar.id}
                 position={[lugar.lat, lugar.lon]}
-                icon={iconoCircular(tipoPoi(lugar.tipo).color)}
+                icon={iconoDe(lugar)}
                 eventHandlers={{ click: () => setSeleccionado(lugar) }}
               />
             ))}

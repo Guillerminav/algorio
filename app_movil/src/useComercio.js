@@ -57,6 +57,41 @@ export function useComercio() {
     [api],
   );
 
+  // El tablero de cruces tiene su propio endpoint y no viaja por el PUT de
+  // arriba: es la unica edicion del panel que NO pasa por moderacion y que
+  // nunca devuelve la ficha a 'pendiente' (ver backend/tablero.py).
+  const guardarTablero = useCallback(
+    async (cruces) => {
+      setGuardando(true);
+      try {
+        const actualizado = await api("/api/mi-comercio/tablero", {
+          method: "PUT",
+          body: JSON.stringify({ cruces }),
+        });
+        setComercio(actualizado);
+        return actualizado;
+      } finally {
+        setGuardando(false);
+      }
+    },
+    [api],
+  );
+
+  // Un solo interruptor, publicado en el acto. No toca `guardando`: el boton
+  // de guardar del editor no tiene por que apagarse porque alguien marco una
+  // demora, que es otra operacion y se resuelve sola.
+  const cambiarEstadoCruce = useCallback(
+    async (cruceId, cuerpo) => {
+      const actualizado = await api(
+        `/api/mi-comercio/tablero/${encodeURIComponent(cruceId)}/estado`,
+        { method: "POST", body: JSON.stringify(cuerpo) },
+      );
+      setComercio(actualizado);
+      return actualizado;
+    },
+    [api],
+  );
+
   const crear = useCallback(
     async (datos) => {
       const creado = await api("/api/mi-comercio", {
@@ -69,5 +104,8 @@ export function useComercio() {
     [api],
   );
 
-  return { comercio, cargando, error, guardando, recargar, guardar, crear };
+  return {
+    comercio, cargando, error, guardando, recargar, guardar, crear,
+    guardarTablero, cambiarEstadoCruce,
+  };
 }

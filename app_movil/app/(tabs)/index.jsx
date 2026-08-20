@@ -21,6 +21,7 @@ import {
   tipoPoi,
   tipoReporte,
 } from "../../src/tema.js";
+import { estadoCruce, estadoResumen, faltanEnTexto, proximoCruce } from "../../src/tablero.js";
 import { CENTRO_POR_DEFECTO, useUbicacion } from "../../src/useUbicacion.js";
 import { Vidrio, VidrioTocable } from "../../src/Vidrio.jsx";
 
@@ -164,6 +165,64 @@ function ChipsTipo({ activos, onAlternar }) {
 }
 
 /**
+ * El pin de una lancha-taxi: un cartel de terminal, no un globo de color.
+ *
+ * Los otros dos rubros son "un lugar al que se llega" y les alcanza con el pin
+ * por defecto. Una lancha-taxi es de donde SALE el transporte, y esa
+ * diferencia se lee por forma —sin zoom y sin leer nada— y no por un tercer
+ * tono de azul. Es la misma distincion que hacen los mapas de ciudad entre un
+ * comercio y una estacion.
+ *
+ * El punto de arriba a la derecha solo aparece cuando el tablero tiene una
+ * alteracion (una demora, un cruce cancelado): si estuviera siempre, un mapa
+ * donde todos los pines avisan algo es un mapa donde ninguno avisa nada.
+ */
+function PinTerminal({ lugar }) {
+  const alterado = estadoResumen(lugar.cruces);
+  return (
+    <View style={estilos.pinTerminal}>
+      <View style={estilos.pinTerminalCuerpo}>
+        <Text style={estilos.pinTerminalGlifo}>⛴</Text>
+        {alterado ? (
+          <View style={[estilos.pinTerminalPunto, { backgroundColor: alterado.color }]} />
+        ) : null}
+      </View>
+      {/* El pie del cartel: esta parado sobre el muelle, no flotando encima. */}
+      <View style={estilos.pinTerminalPie} />
+    </View>
+  );
+}
+
+/**
+ * El renglon de tablero de una lancha-taxi: cual es el proximo cruce que sale
+ * y cuando. Es el equivalente de "abierto hasta las 20" de un parador — el
+ * dato por el que se toco el pin. El tablero completo queda detras de "Ver
+ * mas", igual que la carta.
+ */
+function ProximoCruce({ cruces }) {
+  const proximo = proximoCruce(cruces);
+  if (!proximo) return null;
+
+  const { cruce, salida } = proximo;
+  const estado = estadoCruce(cruce.estado);
+
+  return (
+    <View style={estilos.tarjetaCruce}>
+      <Text style={estilos.tarjetaCruceHora}>{salida.estimada ?? salida.hora}</Text>
+      <View style={estilos.flex}>
+        <Text style={estilos.tarjetaCruceDestino} numberOfLines={1}>{cruce.destino}</Text>
+        <Text style={estilos.tarjetaCruceFalta}>{faltanEnTexto(salida.faltan)}</Text>
+      </View>
+      {estado.alterado ? (
+        <View style={[estilos.tarjetaCruceEstado, { backgroundColor: estado.color }]}>
+          <Text style={estilos.tarjetaCruceEstadoTexto}>{estado.etiqueta.toUpperCase()}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
  * La ventana de abajo al tocar un pin.
  *
  * Muestra lo básico y nada más: nombre, rubro, puntaje, si está abierto y —lo
@@ -219,6 +278,8 @@ function TarjetaLugar({ lugar, posicion, onAbrir, onCerrar }) {
             </Text>
           )}
         </View>
+
+        <ProximoCruce cruces={lugar.cruces} />
 
         {rumbo && (
           <View style={estilos.tarjetaRumbo}>
@@ -277,6 +338,12 @@ export default function PantallaMapa() {
   const [error, setError] = useState("");
   const [seleccionado, setSeleccionado] = useState(null);
   const [tiposActivos, setTiposActivos] = useState(Object.keys(TIPOS_POI));
+  // Los pines con vista propia —el cartel de terminal de las lanchas-taxi—
+  // necesitan dibujarse al menos una vez antes de congelarse: con
+  // `tracksViewChanges` en false desde el arranque, Android se queda con el
+  // marcador en blanco. Dejandolo prendido, en cambio, cada pin se vuelve a
+  // renderizar en cada frame y el mapa se arrastra al desplazarlo.
+  const [pinesDibujados, setPinesDibujados] = useState(false);
   const [reportes, setReportes] = useState([]);
   const [modoReporte, setModoReporte] = useState(false);
   const [puntoReporte, setPuntoReporte] = useState(null);
@@ -330,6 +397,12 @@ export default function PantallaMapa() {
     yaCentro.current = true;
     mapaRef.current?.animateToRegion({ ...posicion, latitudeDelta: 0.08, longitudeDelta: 0.08 }, 600);
   }, [posicion]);
+
+  useEffect(() => {
+    setPinesDibujados(false);
+    const id = setTimeout(() => setPinesDibujados(true), 600);
+    return () => clearTimeout(id);
+  }, [lugares]);
 
   const visibles = useMemo(
     () => lugares.filter((l) => tiposActivos.includes(l.tipo)),
@@ -426,14 +499,23 @@ export default function PantallaMapa() {
           <Marker
             key={lugar.id}
             coordinate={{ latitude: lugar.lat, longitude: lugar.lon }}
+            // La lancha-taxi lleva cartel propio; los otros dos rubros, el pin
+            // por defecto pintado del color del rubro (ver PinTerminal).
             pinColor={tipoPoi(lugar.tipo).color}
+            anchor={lugar.tipo === "lancha_taxi" ? { x: 0.5, y: 1 } : undefined}
+            // `tracksViewChanges` apagado despues del primer dibujo: con el
+            // prendido, cada pin con vista propia se re-renderiza en cada
+            // frame del mapa y en Android eso arrastra el scroll entero.
+            tracksViewChanges={lugar.tipo === "lancha_taxi" && !pinesDibujados}
             onPress={(e) => {
               // Sin esto, en Android el toque tambien llega al mapa y el
               // onPress de arriba cierra la tarjeta apenas se abre.
               e.stopPropagation();
               setSeleccionado(lugar);
             }}
-          />
+          >
+            {lugar.tipo === "lancha_taxi" ? <PinTerminal lugar={lugar} /> : null}
+          </Marker>
         ))}
       </MapView>
 
@@ -667,4 +749,56 @@ const estilos = StyleSheet.create({
   tarjetaRumboDistancia: { fontSize: 19, fontWeight: "800", color: COLORES.texto },
   tarjetaRumboTexto: { fontSize: 12.5, color: COLORES.textoSuave, marginTop: 1 },
   tarjetaVerMas: { marginTop: 10, fontSize: 14, fontWeight: "700", color: COLORES.acento },
+
+  // --- El renglon del proximo cruce, en la tarjeta -------------------------
+  tarjetaCruce: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    borderRadius: 11,
+    backgroundColor: COLORES.marca,
+  },
+  tarjetaCruceHora: { fontSize: 19, fontWeight: "800", color: "#fff" },
+  tarjetaCruceDestino: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  tarjetaCruceFalta: { fontSize: 12, fontWeight: "600", color: COLORES.acentoClaro, marginTop: 1 },
+  tarjetaCruceEstado: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  tarjetaCruceEstadoTexto: { fontSize: 9.5, fontWeight: "800", color: "#fff", letterSpacing: 0.6 },
+
+  // --- El pin de terminal --------------------------------------------------
+  pinTerminal: { alignItems: "center" },
+  pinTerminalCuerpo: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: COLORES.marca,
+    borderWidth: 3,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinTerminalGlifo: { fontSize: 15, lineHeight: 19, color: "#fff" },
+  pinTerminalPunto: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  pinTerminalPie: {
+    width: 0,
+    height: 0,
+    marginTop: -1,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 7,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#fff",
+  },
 });
