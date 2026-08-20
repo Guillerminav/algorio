@@ -431,6 +431,64 @@ backend dejaba filas de 2,2 · 7,3 · 3,5 km, que parece un error aunque cada
 numero este bien. Sin ubicacion va alfabetico, que es el unico orden honesto
 que queda, y se avisa por que.
 
+## El pronostico tiene que salir aunque Open-Meteo no conteste
+
+Open-Meteo es gratis y sin API key, lo que en la practica significa **cuota por
+IP**. El backend corre en el plan free de Render, cuya IP de salida es
+compartida con otros inquilinos, asi que la cuota se agota por motivos que no
+tienen nada que ver con el trafico de AlgoRio. Cuando eso pasaba, `/api/clima`
+devolvia 503 y el nauta veia "No pudimos consultar el pronostico ahora" — el
+dato por el que abrio la app.
+
+El agravante estaba en la propia cache. La celda era de **0,01 grados (~1 km)**,
+y eso tiene tres consecuencias que se suman:
+
+- El modelo global de Open-Meteo tiene resolucion de ~11 km. Pedir por celdas
+  de 1 km no daba un pronostico mas fino: daba el mismo dato interpolado,
+  multiplicado por cien llamadas.
+- Dos personas a diez cuadras generaban dos consultas distintas, y una lancha
+  en movimiento generaba una nueva cada kilometro.
+- El respaldo a datos vencidos existia, pero solo servia para la celda exacta,
+  que casi nunca era la misma dos veces.
+
+Y encima la cache vivia solo en memoria: Render apaga el proceso a los 15
+minutos sin trafico, asi que arrancaba vacia varias veces por dia y obligaba a
+salir a la ruta justo cuando mas probable era fallar.
+
+### Como queda
+
+La celda pasa a **0,1 grados**, que es la resolucion real del modelo: mismo
+dato, cien veces menos llamadas. La cache se guarda ademas en Postgres (tabla
+`clima_cache`), asi que un proceso recien despertado ya sabe como venia el
+viento. Y la respuesta baja por una cascada, en este orden:
+
+| Paso | De donde sale | Cuando |
+| --- | --- | --- |
+| 1 | Memoria del proceso | Hay dato de menos de 15 min |
+| 2 | `clima_cache` en Postgres | Idem, pero el proceso se reinicio |
+| 3 | Open-Meteo | No hay nada fresco (con 3 reintentos) |
+| 4 | El dato vencido de esa celda | Open-Meteo no contesto |
+| 5 | La celda cacheada mas cercana (hasta ~165 km) | Esa celda nunca se consulto |
+| 6 | 503 | No hay absolutamente nada |
+
+Los pasos 4 y 5 son los que sacan al nauta de la pantalla de error. Un
+pronostico de hace dos horas sigue sirviendo para decidir si salir; una
+pantalla de error no sirve para nada.
+
+### Pero se dice que es viejo
+
+La respuesta trae `edad_min` y `desactualizado`, y la app los muestra: un aviso
+en la pantalla de Clima y, en el cartel sobre el mapa —donde no hay lugar para
+un aviso— la antiguedad pegada al numero del viento, que es donde la ve alguien
+que mira de reojo.
+
+Esto no es un detalle de cortesia. Servir un dato viejo disfrazado de fresco es
+peor que fallar: alguien decide meterse al rio con eso. Es el mismo criterio
+que los reportes que vencen y que los tres mensajes distintos del AIS.
+
+El aviso tambien aparece cuando el que no pudo actualizar fue el navegador, no
+el backend: el dato en pantalla puede ser bueno y viejo igual.
+
 ## Pipeline de datos hidrologicos
 
 Consolida en un unico lugar la informacion no estructurada que publican
@@ -744,7 +802,7 @@ algorio/
 │   ├── tablero.py                 # cruces de las lanchas-taxi: estados, vigencia (sin moderacion)
 │   ├── reportes.py                # avisos efimeros del rio (vencen solos, sin cron)
 │   ├── resenas.py                  # puntajes y comentarios de los nautas
-│   ├── clima.py                    # Open-Meteo + veredicto de "¿esta picado?" por embarcacion
+│   ├── clima.py                    # Open-Meteo + veredicto por embarcacion + cache con respaldos
 │   ├── suscripciones.py             # planes por rol y control de acceso
 │   ├── crear_usuario.py              # CLI para dar de alta un usuario (getpass, no via web)
 │   └── datos.py                       # lectura de los CSV, normalizacion, umbrales y alertas

@@ -468,6 +468,34 @@ def _crear_esquema() -> None:
         # coordenadas; el indice compuesto cubre esa consulta entera.
         con.execute("CREATE INDEX IF NOT EXISTS reportes_vigencia_idx ON reportes (vence_en, lat, lon)")
 
+        # El ultimo pronostico conocido de cada celda del rio.
+        #
+        # Es una CACHE, no un dato del producto, y aun asi vive en la base por
+        # una razon concreta: el backend corre en el plan free de Render, que
+        # apaga el proceso a los 15 minutos sin trafico. Con la cache solo en
+        # memoria, cada vez que alguien abre la app despues de un rato el
+        # proceso arranca vacio y TIENE que salir a Open-Meteo; si esa llamada
+        # falla —y falla, que es el bug que esto arregla— no hay nada que
+        # mostrar y la pantalla queda en error.
+        #
+        # Guardada aca, el proceso nuevo arranca sabiendo como venia el viento
+        # hace media hora. Un pronostico viejo se puede mostrar diciendo que es
+        # viejo; una pantalla de error no se puede arreglar con nada.
+        #
+        # `celda` es "lat,lon" ya redondeado a 0,1 grados (ver backend/clima.py:
+        # _celda), que es la resolucion real del modelo de Open-Meteo.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clima_cache (
+                celda TEXT PRIMARY KEY,
+                lat DOUBLE PRECISION NOT NULL,
+                lon DOUBLE PRECISION NOT NULL,
+                datos JSONB NOT NULL,
+                actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+
         # Interes medido: cuanta gente abrio la ficha o toco "WhatsApp".
         # Agregado por dia y tipo (una fila por combinacion, con contador) y no
         # un log fila-por-click: es exactamente lo que muestra la pantalla del

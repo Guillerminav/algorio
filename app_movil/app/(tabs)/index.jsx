@@ -5,7 +5,7 @@ import { Texto as Text } from "../../src/Texto.jsx";
 import MapView, { Callout, Marker } from "react-native-maps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { estadoApertura, haceCuanto, vigenciaRestante } from "../../src/api.js";
+import { antiguedadEnTexto, estadoApertura, haceCuanto, vigenciaRestante } from "../../src/api.js";
 import Brujula from "../../src/Brujula.jsx";
 import { distanciaEnTexto, haciaElLugar } from "../../src/rumbo.js";
 import { Estrellas } from "../../src/componentes.jsx";
@@ -78,6 +78,11 @@ function PanelRio({ clima, cargando, embarcacion, onPress }) {
             : ""
         }`;
 
+  // De cuando es el dato, si no es de ahora. Va pegado al viento y no en un
+  // aviso aparte: en este cartel no hay lugar, y el que lo mira de reojo tiene
+  // que verlo junto al numero o no lo ve.
+  const viejo = clima?.desactualizado ? antiguedadEnTexto(clima.edad_min) : null;
+
   const grados = actual?.direccion_grados;
   const letras = actual?.direccion;
   const hayRumbo = grados !== null && grados !== undefined && Boolean(letras);
@@ -97,7 +102,10 @@ function PanelRio({ clima, cargando, embarcacion, onPress }) {
               {estadoRio?.titulo ?? "Sin datos del río"}
             </Text>
           </View>
-          <Text style={estilos.panelViento} numberOfLines={1}>{lecturaViento}</Text>
+          <Text style={estilos.panelViento} numberOfLines={1}>
+            {lecturaViento}
+            {viejo ? ` · ${viejo}` : ""}
+          </Text>
         </View>
 
         {hayRumbo && (

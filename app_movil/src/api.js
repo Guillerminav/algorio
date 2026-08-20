@@ -112,6 +112,22 @@ export function formatearHora(iso) {
 // dia en el pronostico.
 export const diaDe = (iso) => (iso ? iso.slice(0, 10) : "");
 
+
+/**
+ * "hace 2 h", "hace 40 min". Para el aviso de pronóstico desactualizado.
+ *
+ * El backend sirve el último dato conocido cuando Open-Meteo no contesta, en
+ * vez de romper la pantalla (ver backend/clima.py). Eso solo es honesto si se
+ * dice de cuándo es: un viento de hace dos horas sirve para decidir si salir,
+ * pero hay que saber que es de hace dos horas.
+ */
+export function antiguedadEnTexto(minutos) {
+  if (!minutos || minutos < 1) return null;
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  return horas === 1 ? "hace 1 h" : `hace ${horas} h`;
+}
+
 /** "hace 20 min", "hace 3 h", "ayer". Un reporte vale por lo reciente. */
 export function haceCuanto(iso) {
   if (!iso) return "";

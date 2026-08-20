@@ -2,6 +2,7 @@ import React from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import {
+  antiguedadEnTexto,
   CLASE_POR_ESTADO_RIO,
   diaDe,
   embarcacionPorClave,
@@ -93,17 +94,39 @@ export default function ClimaNauta() {
   // objeto: por eso no pueden decir cosas distintas (ver ContextoRio.jsx).
   const { clima, cargandoClima, errorClima } = useRio();
 
-  if (cargandoClima) return <div className="estado">Consultando el pronóstico…</div>;
-  if (errorClima || !clima) {
+  // `clima` puede existir aunque `errorClima` este en true: el reintento
+  // automatico marca el error apenas falla un intento, y no tiene sentido
+  // tirar a la basura el pronostico que ya se habia cargado. Se prefiere
+  // siempre mostrar el dato que haya.
+  if (cargandoClima && !clima) return <div className="estado">Consultando el pronóstico…</div>;
+  if (!clima) {
     return <div className="mensaje-error">No pudimos consultar el pronóstico ahora.</div>;
   }
 
   const { actual, estado_rio: estado, pronostico, umbrales_kmh: umbrales } = clima;
+  // Dos motivos distintos para el mismo aviso: que el backend haya servido un
+  // dato viejo (Open-Meteo no contesta) o que el ultimo refresco desde el
+  // navegador haya fallado. En los dos casos lo que se ve puede no ser de
+  // ahora, y quien decide salir al rio tiene que saberlo.
+  const antiguedad = antiguedadEnTexto(clima.edad_min);
+  const sinActualizar = clima.desactualizado || errorClima;
   const embarcacion = embarcacionPorClave(usuario?.tipo_embarcacion);
   const maximoViento = Math.max(...pronostico.map((h) => h.viento_kmh ?? 0), 1);
 
   return (
     <div className="clima-nauta">
+      {/* El backend sirve el ultimo dato conocido cuando Open-Meteo no
+          contesta. Mostrarlo sin aclarar de cuando es seria peor que no
+          mostrarlo: alguien decide salir al rio con esto. */}
+      {sinActualizar && (
+        <div className="aviso-clima-viejo">
+          No pudimos actualizar el pronóstico.{" "}
+          {antiguedad
+            ? `Este es el último que tenemos, de ${antiguedad}.`
+            : "Este es el último que pudimos traer."}
+        </div>
+      )}
+
       <div className={`clima-veredicto ${CLASE_POR_ESTADO_RIO[estado.estado] ?? "sin-datos"}`}>
         <strong>{estado.titulo}</strong>
         {estado.detalle && <span className="clima-veredicto-detalle">{estado.detalle}</span>}

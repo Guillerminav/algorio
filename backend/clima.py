@@ -9,12 +9,39 @@ para una lancha de 7 metros y un problema serio para un kayak. Por eso el
 resultado incluye `estado_rio`, que cruza el pronostico con el tipo de
 embarcacion del usuario (usuarios.tipo_embarcacion). Ese cruce es lo que la
 app muestra arriba de todo en el mapa.
+
+SOBRE LA CACHE Y LOS RESPALDOS
+
+Buena parte de este modulo es aguante, y no por gusto. Open-Meteo es gratis y
+sin API key, lo que en la practica significa cuota por IP; el backend corre en
+el plan free de Render, cuya IP de salida es compartida con otros inquilinos.
+Cuando esa cuota se agota, la llamada falla y el nauta ve una pantalla de error
+en vez del viento — que es el dato por el que abrio la app.
+
+Tres decisiones atacan eso, en orden de importancia:
+
+1. **La celda de cache es de 0,1 grados**, no de 0,01. Es la resolucion real
+   del modelo global de Open-Meteo: pedir mas fino no da un pronostico mas
+   preciso, da el mismo dato interpolado. Con celdas de 1 km, dos personas a
+   diez cuadras generaban dos llamadas distintas y una lancha en movimiento
+   generaba una nueva cada kilometro. Ese era el grueso del trafico.
+2. **La cache sobrevive al reinicio** (tabla clima_cache). Render apaga el
+   proceso a los 15 minutos sin uso, asi que la cache en memoria arrancaba
+   vacia varias veces por dia y obligaba a salir a la ruta justo cuando mas
+   probable era fallar.
+3. **Si no hay dato fresco, se sirve el viejo diciendo que es viejo.** Un
+   pronostico de hace dos horas sigue sirviendo para decidir si salir; una
+   pantalla de error no sirve para nada. Solo si no hay absolutamente nada
+   —ni de esta celda ni de ninguna cercana— se devuelve el 503.
 """
+import json
 import math
 import time
 from typing import Optional
 
 import httpx
+
+from db import conexion, inicializar_db
 
 URL_OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
 
@@ -45,13 +72,30 @@ FACTOR_RAFAGA = 1.4
 ROSA_VIENTOS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                 "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"]
 
-# El pronostico de una zona no cambia entre dos consultas seguidas, y la app
-# lo pide cada vez que se abre el mapa. Se cachea por celda de ~1 km y por
-# hora: es el detalle util (dos paradores del mismo brazo del rio comparten
-# clima) sin que el dato quede viejo.
-_CACHE: dict[tuple, tuple[float, dict]] = {}
+# El pronostico de una zona no cambia entre dos consultas seguidas, y la app lo
+# pide cada vez que se abre el mapa.
+#
+# La celda es de 0,1 grados (~11 km) y ese numero no es arbitrario: es la
+# resolucion del modelo global de Open-Meteo. Pedir por celdas de 0,01 —como se
+# hacia antes— no daba un pronostico mas fino, daba el mismo dato interpolado
+# multiplicado por cien llamadas.
+GRADOS_CELDA = 1  # decimales de redondeo
+_CACHE: dict[str, tuple[float, dict]] = {}
 VALIDEZ_CACHE_SEGUNDOS = 15 * 60
 MAX_ENTRADAS_CACHE = 500
+
+# Hasta donde se acepta el pronostico de una celda vecina cuando la propia no
+# tiene nada. Un grado y medio son ~165 km: sobre el mismo tramo de rio el
+# viento no cambia de signo en esa distancia, y la alternativa es no mostrar
+# nada. Mas lejos que eso ya seria inventar.
+GRADOS_MAX_VECINA = 1.5
+
+# Reintentos de la llamada a Open-Meteo. Cortos y pocos: el endpoint es
+# sincronico y ocupa un hilo del threadpool de uvicorn mientras espera, asi que
+# insistir mucho aca es quitarle atencion al resto de la app. Con un 429 por
+# cuota no van a servir; con un corte de red de un segundo, si.
+REINTENTOS = 3
+ESPERAS_REINTENTO = (0.4, 1.2)
 
 
 def _umbrales(tipo_embarcacion: Optional[str]) -> tuple[int, int]:
@@ -114,13 +158,27 @@ def _pedir_open_meteo(lat: float, lon: float) -> dict:
         "timezone": "auto",
         "forecast_days": 3,
     }
+    ultimo = None
     with httpx.Client(timeout=10) as cliente:
-        respuesta = cliente.get(URL_OPEN_METEO, params=parametros)
-        respuesta.raise_for_status()
-        return respuesta.json()
+        for intento in range(REINTENTOS):
+            try:
+                respuesta = cliente.get(URL_OPEN_METEO, params=parametros)
+                respuesta.raise_for_status()
+                return respuesta.json()
+            except (httpx.HTTPError, ValueError) as e:
+                ultimo = e
+                # No se reintenta un 4xx que no sea 429: si el pedido esta mal
+                # formado o la cuota es diaria, volver a preguntar lo mismo da
+                # lo mismo y solo suma latencia.
+                codigo = getattr(getattr(e, "response", None), "status_code", None)
+                if codigo is not None and 400 <= codigo < 500 and codigo != 429:
+                    break
+                if intento < len(ESPERAS_REINTENTO):
+                    time.sleep(ESPERAS_REINTENTO[intento])
+    raise ultimo
 
 
-def _formatear(crudo: dict, tipo_embarcacion: Optional[str]) -> dict:
+def _formatear(crudo: dict, tipo_embarcacion: Optional[str], edad_segundos: float = 0.0) -> dict:
     actual = crudo.get("current") or {}
     viento = actual.get("wind_speed_10m")
     rafagas = actual.get("wind_gusts_10m")
@@ -149,7 +207,15 @@ def _formatear(crudo: dict, tipo_embarcacion: Optional[str]) -> dict:
     ]
 
     umbral_pica, umbral_no_salir = _umbrales(tipo_embarcacion)
+    edad_min = int(edad_segundos // 60)
     return {
+        # Cuan viejo es esto. Va en la respuesta y no se esconde: si el
+        # pronostico se sirvio de la cache vencida porque Open-Meteo no
+        # contesto, el nauta tiene derecho a saber que esta mirando el viento
+        # de hace dos horas antes de decidir si sale. Es el mismo criterio que
+        # los reportes vencidos y que el estado del AIS.
+        "edad_min": edad_min,
+        "desactualizado": edad_segundos > VALIDEZ_CACHE_SEGUNDOS,
         "actual": {
             "temperatura_c": actual.get("temperature_2m"),
             "sensacion_c": actual.get("apparent_temperature"),
@@ -177,6 +243,85 @@ def _en(lista, indice):
     return lista[indice]
 
 
+def _celda(lat: float, lon: float) -> str:
+    """La clave de cache de esa coordenada. Ver GRADOS_CELDA."""
+    return f"{round(lat, GRADOS_CELDA)},{round(lon, GRADOS_CELDA)}"
+
+
+def _leer_db(celda: str):
+    """El ultimo pronostico guardado de esa celda, o None.
+
+    Todo el acceso a la base va envuelto: la cache es una mejora, no un
+    requisito. Si Neon no contesta, el clima tiene que seguir funcionando
+    contra Open-Meteo como antes en vez de arrastrar a la pantalla al error.
+    """
+    try:
+        inicializar_db()
+        with conexion() as con:
+            fila = con.execute(
+                "SELECT datos, EXTRACT(EPOCH FROM (now() - actualizado_en)) AS edad "
+                "FROM clima_cache WHERE celda = %s",
+                (celda,),
+            ).fetchone()
+        return (float(fila["edad"]), fila["datos"]) if fila else None
+    except Exception:
+        return None
+
+
+def _guardar_db(celda: str, lat: float, lon: float, crudo: dict) -> None:
+    try:
+        inicializar_db()
+        with conexion() as con:
+            con.execute(
+                """
+                INSERT INTO clima_cache (celda, lat, lon, datos, actualizado_en)
+                VALUES (%s, %s, %s, %s, now())
+                ON CONFLICT (celda) DO UPDATE
+                    SET datos = EXCLUDED.datos,
+                        lat = EXCLUDED.lat,
+                        lon = EXCLUDED.lon,
+                        actualizado_en = now()
+                """,
+                (celda, lat, lon, json.dumps(crudo)),
+            )
+    except Exception:
+        # Que no se pueda guardar la cache no es motivo para no devolver el
+        # pronostico que ya tenemos en la mano.
+        pass
+
+
+def _vecina_mas_cercana(lat: float, lon: float):
+    """El pronostico guardado mas cercano, dentro de GRADOS_MAX_VECINA.
+
+    Ultimo recurso, para cuando Open-Meteo no contesta y esta celda nunca se
+    consulto. Sobre el mismo tramo de rio el viento de la celda de al lado es
+    una respuesta razonable; una pantalla de error no es ninguna.
+
+    La distancia se mide en grados con correccion por coseno y no con haversine
+    exacto: solo hay que elegir cual de un puñado de celdas esta mas cerca, no
+    informar kilometros.
+    """
+    try:
+        inicializar_db()
+        with conexion() as con:
+            filas = con.execute(
+                "SELECT lat, lon, datos, EXTRACT(EPOCH FROM (now() - actualizado_en)) AS edad "
+                "FROM clima_cache"
+            ).fetchall()
+    except Exception:
+        return None
+
+    coseno = max(math.cos(math.radians(lat)), 0.01)
+    mejor = None
+    for fila in filas:
+        d_lat = fila["lat"] - lat
+        d_lon = (fila["lon"] - lon) * coseno
+        distancia = math.hypot(d_lat, d_lon)
+        if distancia <= GRADOS_MAX_VECINA and (mejor is None or distancia < mejor[0]):
+            mejor = (distancia, float(fila["edad"]), fila["datos"])
+    return (mejor[1], mejor[2]) if mejor else None
+
+
 def obtener(lat: float, lon: float, tipo_embarcacion: Optional[str] = None) -> dict:
     """Clima de esa coordenada, ya cruzado con la embarcacion del usuario.
 
@@ -184,24 +329,38 @@ def obtener(lat: float, lon: float, tipo_embarcacion: Optional[str] = None) -> d
     lugar con embarcaciones distintas comparten el pronostico pero no el
     veredicto, asi que el cruce se recalcula por llamada, que es gratis.
     """
-    clave = (round(lat, 2), round(lon, 2))
+    celda = _celda(lat, lon)
     ahora = time.time()
 
-    guardado = _CACHE.get(clave)
-    if guardado and ahora - guardado[0] < VALIDEZ_CACHE_SEGUNDOS:
-        return _formatear(guardado[1], tipo_embarcacion)
+    # 1. Memoria, si esta fresca. Es el caso normal y no toca ni la red ni la base.
+    en_memoria = _CACHE.get(celda)
+    if en_memoria and ahora - en_memoria[0] < VALIDEZ_CACHE_SEGUNDOS:
+        return _formatear(en_memoria[1], tipo_embarcacion, ahora - en_memoria[0])
 
+    # 2. La base, si esta fresca. Es lo que hace que el primer usuario despues
+    #    de que Render apago el proceso no tenga que salir a Open-Meteo.
+    en_db = _leer_db(celda)
+    if en_db and en_db[0] < VALIDEZ_CACHE_SEGUNDOS:
+        _CACHE[celda] = (ahora - en_db[0], en_db[1])
+        return _formatear(en_db[1], tipo_embarcacion, en_db[0])
+
+    # 3. Open-Meteo.
     try:
         crudo = _pedir_open_meteo(lat, lon)
     except (httpx.HTTPError, ValueError) as e:
-        # Si Open-Meteo no responde y hay algo cacheado, aunque este vencido,
-        # es mejor que nada: un pronostico de hace una hora sigue siendo util
-        # y la alternativa es una pantalla vacia en medio del rio.
-        if guardado:
-            return _formatear(guardado[1], tipo_embarcacion)
+        # Cuota agotada, corte de red, lo que sea: antes de rendirse se busca
+        # el dato viejo, primero el propio y despues el de la celda vecina mas
+        # cercana. Se devuelve marcado como desactualizado, no disfrazado de
+        # fresco.
+        respaldo = en_db or (
+            (ahora - en_memoria[0], en_memoria[1]) if en_memoria else None
+        ) or _vecina_mas_cercana(lat, lon)
+        if respaldo:
+            return _formatear(respaldo[1], tipo_embarcacion, respaldo[0])
         raise RuntimeError(f"No se pudo consultar el pronóstico: {e}") from e
 
     if len(_CACHE) >= MAX_ENTRADAS_CACHE:
         _CACHE.clear()
-    _CACHE[clave] = (ahora, crudo)
-    return _formatear(crudo, tipo_embarcacion)
+    _CACHE[celda] = (ahora, crudo)
+    _guardar_db(celda, round(lat, GRADOS_CELDA), round(lon, GRADOS_CELDA), crudo)
+    return _formatear(crudo, tipo_embarcacion, 0.0)

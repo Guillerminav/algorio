@@ -2,7 +2,7 @@ import React from "react";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { useRio } from "./ContextoRio.jsx";
-import { CLASE_POR_ESTADO_RIO, embarcacionPorClave, rumbo } from "./constantes.js";
+import { antiguedadEnTexto, CLASE_POR_ESTADO_RIO, embarcacionPorClave, rumbo } from "./constantes.js";
 
 /** Cinco estrellas siempre dibujadas, las llenas en color: se lee de un
  *  vistazo y ocupa lo mismo con cualquier puntaje. */
@@ -75,7 +75,11 @@ export function BarraViento({ clima, cargando, error, onVerDetalle }) {
   // el botón de reintentar. Es lo primero que uno toca cuando algo no cargó, y
   // en el agua la señal va y viene todo el tiempo — el reintento automático
   // (ver ContextoRio) se rinde a los 45 s y a partir de ahí queda este.
-  if (cargando || error || !clima) {
+  // Se cae al cartel de "sin datos" solo cuando NO hay nada que mostrar. Con
+  // un pronostico viejo en la mano se muestra ese, marcado: el reintento
+  // automatico prende `error` apenas falla un intento, y tirar el dato bueno
+  // por eso dejaba el cartel vacio de golpe estando en el agua.
+  if ((cargando || error) && !clima) {
     const contenido = (
       <>
         <Embarcacion />
@@ -122,7 +126,15 @@ export function BarraViento({ clima, cargando, error, onVerDetalle }) {
           />
           {titulo}
         </strong>
-        <span>{lecturaViento}</span>
+        <span>
+          {lecturaViento}
+          {/* De cuando es el dato, si no es de ahora. En el cartel del mapa va
+              pegado al numero y no en un aviso aparte: no hay lugar, y el que
+              lo mira de reojo tiene que verlo junto al viento o no lo ve. */}
+          {(clima.desactualizado || error) && antiguedadEnTexto(clima.edad_min) && (
+            <em className="barra-viento-viejo"> · {antiguedadEnTexto(clima.edad_min)}</em>
+          )}
+        </span>
       </div>
 
       {/* De dónde sopla, como veleta: la flecha apunta al origen. */}

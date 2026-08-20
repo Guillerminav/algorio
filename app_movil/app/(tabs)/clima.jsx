@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { Texto as Text } from "../../src/Texto.jsx";
 
-import { diaDe, formatearHora, nombreDeDia } from "../../src/api.js";
+import { antiguedadEnTexto, diaDe, formatearHora, nombreDeDia } from "../../src/api.js";
 import { Cargando, Error } from "../../src/componentes.jsx";
 import { embarcacionPorClave } from "../../src/embarcaciones.js";
 import { useSesion } from "../../src/sesion.jsx";
@@ -101,9 +101,11 @@ export default function PantallaClima() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [punto.latitude, punto.longitude]);
 
-  if (cargando) return <Cargando texto="Consultando el pronóstico…" />;
+  // Se muestra el cartel de error solo si NO hay nada que mostrar: con un
+  // pronostico viejo en la mano se prefiere ese, marcado como viejo.
+  if (cargando && !clima) return <Cargando texto="Consultando el pronóstico…" />;
 
-  if (error) {
+  if (error && !clima) {
     return (
       <View style={estilos.contenido}>
         <Error>{error}</Error>
@@ -112,6 +114,11 @@ export default function PantallaClima() {
   }
 
   const { actual, estado_rio: estado, pronostico, umbrales_kmh: umbrales } = clima;
+  // Dos motivos distintos para el mismo aviso: que el backend haya servido un
+  // dato viejo (Open-Meteo no contesta) o que el ultimo refresco desde el
+  // telefono haya fallado. En los dos casos lo que se ve puede no ser de ahora.
+  const antiguedad = antiguedadEnTexto(clima.edad_min);
+  const sinActualizar = clima.desactualizado || Boolean(error);
   const embarcacion = embarcacionPorClave(usuario?.tipo_embarcacion);
   const maximoViento = Math.max(...pronostico.map((h) => h.viento_kmh ?? 0), 1);
 
@@ -129,6 +136,20 @@ export default function PantallaClima() {
         />
       }
     >
+      {/* El backend sirve el ultimo dato conocido cuando Open-Meteo no
+          contesta. Mostrarlo sin aclarar de cuando es seria peor que no
+          mostrarlo: alguien decide salir al rio con esto. */}
+      {sinActualizar ? (
+        <View style={estilos.avisoViejo}>
+          <Text style={estilos.avisoViejoTexto}>
+            No pudimos actualizar el pronóstico.{" "}
+            {antiguedad
+              ? `Este es el último que tenemos, de ${antiguedad}.`
+              : "Este es el último que pudimos traer."}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Tarjeta clara con un punto de color, y no un bloque entero pintado
           de verde, ámbar o rojo. Es la misma decisión que en el mapa: el
           semáforo tiene que leerse de reojo, no quedarse con la pantalla. Acá
@@ -203,6 +224,17 @@ export default function PantallaClima() {
 const redondear = (n) => (typeof n === "number" ? Math.round(n) : null);
 
 const estilos = StyleSheet.create({
+  // Tono de aviso y no de error: el dato sirve, nada mas que hay que saber que
+  // no es de recien.
+  avisoViejo: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e8d5a8",
+    backgroundColor: "#fdf6e7",
+  },
+  avisoViejoTexto: { fontSize: 13, lineHeight: 19, color: "#6b4d0c" },
+
   contenido: { padding: 16, gap: 16 },
   flex: { flex: 1 },
 

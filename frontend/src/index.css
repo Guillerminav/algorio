@@ -6984,3 +6984,26 @@ div.barra-viento { cursor: default; }
   border-radius: 2px;
   background: var(--tono-estado, var(--subida));
 }
+
+/* Aviso de pronostico desactualizado.
+   El backend sirve el ultimo dato conocido cuando Open-Meteo no contesta (ver
+   backend/clima.py), y eso solo es honesto si se dice de cuando es. Va en tono
+   de aviso y no de error: el dato sirve, nada mas que hay que saber que no es
+   de recien. */
+.aviso-clima-viejo {
+  margin-bottom: 0.9rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid #e8d5a8;
+  background: #fdf6e7;
+  color: #6b4d0c;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+/* En el cartel sobre el mapa el mismo dato entra pegado al viento: ahi no hay
+   lugar para un aviso, y de reojo se lee junto al numero o no se lee. */
+.barra-viento-viejo {
+  font-style: normal;
+  opacity: 0.75;
+}
