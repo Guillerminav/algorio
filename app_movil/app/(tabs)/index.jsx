@@ -49,7 +49,7 @@ const DELTA_INICIAL = { latitudeDelta: 0.35, longitudeDelta: 0.35 };
 function PanelRio({ clima, cargando, embarcacion, onPress }) {
   if (cargando) {
     return (
-      <Vidrio estilo={estilos.panel} denso>
+      <Vidrio estilo={estilos.panel} radio={999} denso>
         <View style={estilos.panelCuerpo}>
           <ActivityIndicator color={VIDRIO.texto} size="small" />
           <Text style={estilos.panelVeredicto}>Viendo cómo está el río…</Text>
@@ -82,7 +82,7 @@ function PanelRio({ clima, cargando, embarcacion, onPress }) {
   const hayRumbo = grados !== null && grados !== undefined && Boolean(letras);
 
   return (
-    <VidrioTocable estilo={estilos.panel} denso onPress={onPress} accessibilityRole="button">
+    <VidrioTocable estilo={estilos.panel} radio={999} denso onPress={onPress} accessibilityRole="button">
       <View style={estilos.panelCuerpo}>
         {/* El emoji recuerda de un vistazo que el veredicto es el umbral de TU
             embarcación y no uno genérico. Sin él, dos personas paradas en la
@@ -249,7 +249,7 @@ function Aviso({ children, tono = "normal" }) {
   return (
     <Vidrio
       estilo={estilos.aviso}
-      radio={12}
+      radio={14}
       denso={tono !== "normal"}
       tinte={tono === "destacado" ? COLORES.acento : null}
     >
@@ -481,6 +481,7 @@ export default function PantallaMapa() {
               va flotando acá, en la misma fila que el cartel del río: suelto
               arriba se comeria una franja de alto al mapa. */}
           <VidrioTocable
+            radio={999}
             estilo={estilos.botonMenu}
             onPress={() => navegacion.openDrawer()}
             hitSlop={8}
@@ -630,7 +631,7 @@ const estilos = StyleSheet.create({
   tarjeta: {
     margin: 12,
     padding: 14,
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: COLORES.superficie,
     gap: 8,
     ...Platform.select({

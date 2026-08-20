@@ -3829,7 +3829,7 @@ tr.fila-critica {
   gap: 0.7rem;
   padding: 0.55rem 0.6rem 0.55rem 0.85rem;
   border: 1px solid var(--vidrio-borde);
-  border-radius: 14px;
+  border-radius: 999px;
   background: var(--vidrio-denso);
   -webkit-backdrop-filter: var(--vidrio-desenfoque);
   backdrop-filter: var(--vidrio-desenfoque);
@@ -3993,7 +3993,7 @@ div.barra-viento { cursor: default; }
 .aviso-nauta {
   max-width: 34rem;
   padding: 0.6rem 0.85rem;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--vidrio-borde);
   background: var(--vidrio-denso);
   -webkit-backdrop-filter: var(--vidrio-desenfoque);
@@ -5421,7 +5421,7 @@ div.barra-viento { cursor: default; }
   position: static;
   z-index: auto;
   flex: 0 0 auto;
-  border-radius: 14px;
+  border-radius: 999px;
   border-color: var(--vidrio-borde);
   background: var(--vidrio-denso);
   -webkit-backdrop-filter: var(--vidrio-desenfoque);
@@ -5437,7 +5437,7 @@ div.barra-viento { cursor: default; }
 }
 
 .mapa-nauta .boton-mi-ubicacion {
-  border-radius: 14px;
+  border-radius: 999px;
   border-color: var(--vidrio-borde);
   background: var(--vidrio-denso);
   -webkit-backdrop-filter: var(--vidrio-desenfoque);
@@ -5461,7 +5461,7 @@ div.barra-viento { cursor: default; }
 
 .mapa-nauta .leaflet-control-zoom {
   border: 1px solid var(--vidrio-borde);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
 }
@@ -5484,10 +5484,6 @@ div.barra-viento { cursor: default; }
 .mapa-nauta .barra-viento-embarcacion { font-size: 1.3rem; }
 
 @media (max-width: 700px) {
-  /* En pantalla angosta el botón queda solo con el ícono: "Pantalla completa"
-     al lado del cartel del río no entra, y es la etiqueta la que sobra. */
-  .mapa-nauta .boton-expandir-etiqueta { display: none; }
-
   /* Los filtros pasan a scrollear de costado en vez de partirse en dos
      renglones, igual que en la app. Cada renglón que suma la capa es mapa que
      se tapa, que es justo lo que se estaba tratando de recuperar. */
@@ -5709,7 +5705,7 @@ div.barra-viento { cursor: default; }
   gap: 0.45rem;
   padding: 0.75rem 0.85rem;
   border: 1px solid var(--borde);
-  border-radius: 14px;
+  border-radius: 20px;
   background: var(--superficie);
   box-shadow: 0 10px 26px rgba(4, 18, 28, 0.3);
 }
@@ -5761,7 +5757,7 @@ div.barra-viento { cursor: default; }
   gap: 0.75rem;
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--borde-suave);
-  border-radius: 10px;
+  border-radius: 14px;
   background: var(--fondo);
 }
 
@@ -5801,7 +5797,7 @@ div.barra-viento { cursor: default; }
 .ficha-rapida-vermas {
   padding: 0.5rem 1rem;
   border: none;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--acento);
   color: #fff;
   font-family: inherit;
@@ -6105,4 +6101,106 @@ div.barra-viento { cursor: default; }
 @media (max-width: 560px) {
   .lugar-item { padding: 0.75rem 0.85rem; gap: 0.7rem; }
   .lugar-item-emoji { font-size: 1.3rem; }
+}
+
+/* ===========================================================================
+   EL MAPA A PANTALLA COMPLETA EN EL CELULAR
+   ---------------------------------------------------------------------------
+   Igual que la maqueta de la landing y que la app nativa: en un telefono el
+   mapa ES la pantalla. La barra superior le comia una franja fija arriba, que
+   es justo donde uno mira, y el <main> le sumaba padding por los cuatro lados.
+
+   El acceso al menu no desaparece: pasa a flotar en vidrio dentro del mapa,
+   en la misma fila que el cartel del rio.
+   =========================================================================== */
+
+/* Se esconde en escritorio, donde el menu vive en la barra lateral. */
+.boton-menu-mapa { display: none; }
+
+@media (max-width: 880px) {
+  .app-nauta.mapa-pleno .barra-superior { display: none; }
+
+  .app-nauta.mapa-pleno .main-mapa {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    /* dvh y no vh: en el navegador del celular 100vh incluye la barra de
+       direcciones que despues se retrae, y el mapa quedaba cortado por abajo. */
+    height: 100dvh;
+  }
+
+  .app-nauta.mapa-pleno .mapa-nauta,
+  .app-nauta.mapa-pleno .mapa-nauta-columna,
+  .app-nauta.mapa-pleno .mapa-nauta-contenedor {
+    min-height: 0;
+    height: 100%;
+  }
+
+  /* Sin barra superior el borde y el radio no delimitan nada: solo recortan
+     mapa. */
+  .app-nauta.mapa-pleno .mapa-nauta-contenedor .mapa-contenedor {
+    border: none;
+    border-radius: 0;
+  }
+
+  /* La capa arranca debajo de la muesca / barra de estado del telefono. */
+  .app-nauta.mapa-pleno .capa-mapa {
+    padding-top: calc(0.6rem + env(safe-area-inset-top));
+  }
+
+  .boton-menu-mapa {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4.5px;
+    width: 46px;
+    padding: 0;
+    border: 1px solid var(--vidrio-borde);
+    border-radius: 999px;
+    background: var(--vidrio-denso);
+    -webkit-backdrop-filter: var(--vidrio-desenfoque);
+    backdrop-filter: var(--vidrio-desenfoque);
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(4, 18, 28, 0.28);
+    pointer-events: auto;
+  }
+
+  .boton-menu-mapa span {
+    display: block;
+    width: 17px;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--vidrio-texto);
+  }
+}
+
+/* --- El cajon del menu, tambien en vidrio --------------------------------- */
+
+/* Antes era azul marino liso. Sobre el mapa a pantalla completa eso lo tapaba
+   entero y rompia con el resto de los controles, que ya son de vidrio. */
+.menu-movil {
+  border-right: 1px solid var(--vidrio-borde);
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+
+.menu-movil-fondo {
+  /* Un velo mas suave: con el cajon translucido, un fondo muy oscuro detras
+     anula el efecto. */
+  background: rgba(4, 18, 28, 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+/* --- Pantalla completa: solo en escritorio -------------------------------- */
+
+/* En el celular el mapa YA ocupa la pantalla entera (ver .mapa-pleno), asi que
+   un boton para expandirlo no expande nada: solo gasta lugar en la unica fila
+   que compite con el cartel del rio. Queda para escritorio, donde el mapa
+   convive con la barra lateral y la superior y ahi si hay algo que ganar. */
+@media (max-width: 880px) {
+  .mapa-nauta .boton-expandir-mapa { display: none; }
 }

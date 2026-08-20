@@ -118,7 +118,7 @@ function CapturarPuntoReporte({ activo, onElegir }) {
   return null;
 }
 
-export default function MapaNauta({ onIrAClima }) {
+export default function MapaNauta({ onIrAClima, onAbrirMenu }) {
   // Todo sale del mismo proveedor: si el mapa y la pantalla de Clima pidieran
   // la ubicacion por su cuenta, cada una podria resolverla en un momento
   // distinto y terminar mostrando pronosticos de coordenadas diferentes.
@@ -226,6 +226,20 @@ export default function MapaNauta({ onIrAClima }) {
               mapa se sigue arrastrando como si la capa no existiera. */}
           <div className="capa-mapa">
             <div className="capa-mapa-fila">
+              {/* El acceso al menu va flotando aca y no en una barra superior:
+                  en el celular el mapa ocupa la pantalla entera y una franja
+                  fija arriba le comeria el alto justo donde uno esta mirando.
+                  Es la misma decision que ya tomo la app nativa. Se esconde en
+                  pantalla ancha, donde existe la barra lateral. */}
+              <button
+                type="button"
+                className="boton-menu-mapa"
+                onClick={onAbrirMenu}
+                aria-label="Abrir menú"
+              >
+                <span /><span /><span />
+              </button>
+
               <BarraViento
                 clima={clima}
                 cargando={cargandoClima}

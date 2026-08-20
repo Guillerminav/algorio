@@ -74,7 +74,7 @@ export default function ShellNauta() {
 
   return (
     <ProveedorRio>
-    <div className="app app-nauta">
+    <div className={`app app-nauta${seccionActiva === "mapa" ? " mapa-pleno" : ""}`}>
       <Sidebar
         secciones={secciones}
         seccionActiva={seccionActiva}
@@ -95,7 +95,10 @@ export default function ShellNauta() {
 
         <main className={seccionActiva === "mapa" ? "main-mapa" : undefined}>
           {seccionActiva === "mapa" && (
-            <MapaNauta onIrAClima={() => setSeccionActiva("clima")} />
+            <MapaNauta
+              onIrAClima={() => setSeccionActiva("clima")}
+              onAbrirMenu={() => setMenuMovilAbierto(true)}
+            />
           )}
           {seccionActiva === "lugares" && (
             <ListaLugares onVerLugar={(poiId) => setLugarSuelto(poiId)} />

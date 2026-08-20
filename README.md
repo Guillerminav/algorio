@@ -206,6 +206,25 @@ metros no significa lo mismo si viene hacia vos que si se esta yendo. Cuando no
 informa rumbo se dibuja un rombo, que no apunta a ningun lado — mejor eso que
 una flecha al norte por defecto, que seria mentir.
 
+## En el celular, el mapa es la pantalla
+
+Abajo de 880px —el mismo corte donde desaparece la barra lateral— la seccion
+del mapa se va a sangre: se esconde la barra superior, el `<main>` pierde el
+padding y el mapa toma `100dvh` (dvh y no vh, porque en el navegador del
+celular 100vh incluye la barra de direcciones que despues se retrae y el mapa
+quedaba cortado por abajo). Es la maqueta de la landing y es lo que ya hacia la
+app nativa: una franja fija arriba se come el alto justo donde uno esta
+mirando.
+
+El acceso al menu no se pierde, se muda: pasa a flotar en vidrio dentro del
+mapa, en la misma fila que el cartel del rio. El cajon (`.menu-movil`) tambien
+paso a vidrio — era azul marino liso, y sobre el mapa a pantalla completa lo
+tapaba entero y rompia con el resto de los controles.
+
+El boton de **pantalla completa queda solo en escritorio**: en el celular el
+mapa ya ocupa todo, asi que ahi no expandia nada y solo gastaba lugar en la
+unica fila que compite con el cartel del rio.
+
 ## Listado de lugares: la alternativa al mapa
 
 El mapa contesta bien "que tengo cerca", pero es malo para dos cosas muy
