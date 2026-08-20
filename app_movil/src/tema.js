@@ -35,6 +35,29 @@ export const COLORES = {
   peligro: "#c0392b",
 };
 
+/**
+ * El mismo color, con alfa. Devuelve "rgba(...)".
+ *
+ * React Native no tiene `color-mix()` ni acepta "#4fb3d9AA" en todas las
+ * plataformas de forma pareja, y los pines del mapa necesitan justamente eso:
+ * el color del rubro o de la severidad, translucido, sobre la imagen
+ * satelital (ver CuerpoVidrio en app/(tabs)/index.jsx).
+ *
+ * Acepta hex de 3 o 6 digitos. Si le llega algo que no entiende lo devuelve
+ * tal cual: un pin con el color pleno es feo, pero es mejor que un pin
+ * invisible por un color que no se pudo parsear.
+ */
+export function conAlfa(color, alfa) {
+  const hex = String(color).trim();
+  const corto = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(hex);
+  const largo = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!corto && !largo) return color;
+  const [r, g, b] = corto
+    ? corto.slice(1).map((c) => parseInt(c + c, 16))
+    : largo.slice(1).map((c) => parseInt(c, 16));
+  return `rgba(${r}, ${g}, ${b}, ${alfa})`;
+}
+
 // El vidrio de las capas que van ARRIBA del mapa. No es un color mas de la
 // paleta: es la unica superficie de la app que se apoya sobre imagen
 // satelital, y por eso se define aparte.
@@ -118,10 +141,46 @@ export const tipoReporte = (clave) =>
 // Cuanto pesa el aviso. No es lo mismo "vi carpinchos, lindo lugar" que "hay
 // un tronco cruzado en el paso": el mapa los pinta distinto y el nauta decide
 // de un vistazo a que prestarle atencion.
+// El color de la severidad EN EL MAPA es otro que el de la interfaz, por la
+// misma razon que existe --vidrio-picado al lado de --alerta: los de la paleta
+// estan pensados para chips y texto sobre crema, y sobre el rio no funcionan.
+// `--alerta` es #b8790b, un ocre a CINCO grados de tono del agua del Parana:
+// el pin de advertencia era invisible sobre el rio.
+//
+// El pin de aviso es vidrio CLARO, al reves que el de un lugar. No es solo
+// estetica: sobre el satelital —que es oscuro— un cuerpo palido da 6,0 de
+// contraste donde el navy da 2,4. Lo que lo sostiene sobre los fondos claros
+// (arena, bancos) es un filo fino de navy de marca, que ahi da 3,7 y 5,3. Dos
+// mecanismos complementarios otra vez, pero invertidos respecto del pin de
+// lugar. Ver .marcador-reporte en index.css / app/(tabs)/index.jsx, que tiene la medicion.
+//
+// La severidad escala por dos canales, los dos discretos:
+//
+//   clave        cuerpo     tamaño
+//   comentario   #f4fbfe    28 px
+//   advertencia  #cfe9f7    32 px
+//   alerta       #a9d8ee    36 px
+//
+// El segundo canal es el TAMAÑO y no el grosor del filo. Se probo con el
+// grosor (1 / 1,5 / 2 px) y no funciona: el navegador redondea los bordes a
+// pixeles del dispositivo y el escalon del medio colapsa contra el primero
+// (medido: 1 px y 1,5 px terminaban los dos en 0,8 px reales). El tamaño no se
+// redondea, se lee de lejos, y —a diferencia de un anillo— no agrega nada
+// brillante ni grueso: el filo queda en 1 px parejo para los tres.
+//
+// Y aca hay una concesion que conviene tener escrita, porque no es un descuido:
+// con la gama de la marca (azules y celestes), cuerpo claro y sin anillos
+// gruesos, los tres tintes no pueden ser muy distintos entre si — quedan a 1,2
+// de contraste. Se probaron rampas mas largas, llegando a #5aa8d0 para alerta,
+// y ese escalon caia a 2,30 sobre el agua turbia, abajo del umbral. El color
+// hace lo que puede; el tamaño hace el resto.
 export const SEVERIDADES = [
-  { clave: "comentario", etiqueta: "Comentario", ayuda: "Está bueno saberlo.", color: COLORES.acento },
-  { clave: "advertencia", etiqueta: "Advertencia", ayuda: "Ojo con esto.", color: COLORES.alerta },
-  { clave: "alerta", etiqueta: "Alerta", ayuda: "Peligro real.", color: COLORES.peligro },
+  { clave: "comentario", etiqueta: "Comentario", ayuda: "Está bueno saberlo.",
+    color: COLORES.acento, colorMapa: "#f4fbfe", tamanoMapa: 28 },
+  { clave: "advertencia", etiqueta: "Advertencia", ayuda: "Ojo con esto.",
+    color: COLORES.alerta, colorMapa: "#cfe9f7", tamanoMapa: 32 },
+  { clave: "alerta", etiqueta: "Alerta", ayuda: "Peligro real.",
+    color: COLORES.peligro, colorMapa: "#a9d8ee", tamanoMapa: 36 },
 ];
 
 export const severidadPorClave = (clave) =>

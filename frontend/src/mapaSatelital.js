@@ -19,16 +19,21 @@ export const TILES_ETIQUETAS =
 export const CENTRO_POR_DEFECTO = [-27.47, -58.83];
 
 /**
- * Marcador circular de color.
+ * Marcador circular del color del rubro.
  *
  * Se usa un divIcon y no el marcador por defecto de Leaflet porque ese carga
  * sus PNG por una ruta relativa que el build de Vite rompe. De paso permite
  * pintarlo con el color del rubro.
+ *
+ * El color viaja como `--tono-pin` y no como `background`: el pin ya no es un
+ * disco de color liso sino vidrio teñido (ver .pin-vidrio en index.css), y el
+ * tono lo usan tres capas distintas —el cuerpo translucido, el nucleo solido y
+ * el halo—. Con `background` inline solo se podia pintar una.
  */
-export function iconoCircular(color, { tamano = 22, clase = "marcador-poi" } = {}) {
+export function iconoCircular(color, { tamano = 26, clase = "marcador-poi" } = {}) {
   return L.divIcon({
-    className: clase,
-    html: `<span style="background:${color}"></span>`,
+    className: `${clase} pin-vidrio`,
+    html: `<span style="--tono-pin:${color}"><i></i></span>`,
     iconSize: [tamano, tamano],
     iconAnchor: [tamano / 2, tamano / 2],
     popupAnchor: [0, -tamano / 2],
@@ -69,8 +74,8 @@ export function iconoTerminal({ color = "#0b3252", estado = null } = {}) {
     ? `<i class="marcador-terminal-estado" style="background:${estado}"></i>`
     : "";
   return L.divIcon({
-    className: "marcador-terminal",
-    html: `<span style="--tono-terminal:${color}">${GLIFO_LANCHA}${punto}</span>`,
+    className: "marcador-terminal pin-vidrio",
+    html: `<span style="--tono-pin:${color}">${GLIFO_LANCHA}${punto}</span>`,
     iconSize: [30, 38],
     iconAnchor: [15, 37],
     popupAnchor: [0, -32],

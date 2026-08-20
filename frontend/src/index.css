@@ -4030,20 +4030,125 @@ div.barra-viento { cursor: default; }
   border: 1px solid var(--borde);
 }
 
-/* Pin de un lugar. El span lo dibuja iconoCircular() en src/mapaSatelital.js,
-   que pasa el color del rubro por style; acá va todo lo demás. Comparte
-   estilo con el pin del comerciante a propósito: es el mismo objeto. */
-.marcador-poi span,
-.marcador-comercio span {
-  display: block;
+/* ===========================================================================
+   LOS PINES DEL MAPA: VIDRIO SOBRE EL SATELITAL
+   ---------------------------------------------------------------------------
+   Los pines son lo unico del mapa que NO era de vidrio: discos de color liso
+   con borde blanco, de cuando el resto de la capa flotante todavia no existia.
+   Al lado del cartel del rio y de los chips —que si son vidrio— se veian de
+   otra app.
+
+   Pasarlos a vidrio tiene un problema que hay que resolver y no ignorar: un
+   pin translucido sobre imagen satelital pierde el contraste que le daba el
+   borde blanco de 3 px. Asi que el contraste se reconstruye con cuatro capas,
+   y cada una tiene un trabajo:
+
+   1. **Cuerpo**: vidrio oscuro teñido con el color del rubro. Es lo que da la
+      materia y lo que desenfoca el mapa de atras.
+   2. **Filo**: una linea de 1 px en el celeste palido de la marca. Es lo que
+      despega el pin del fondo, el reemplazo del borde de 3 px.
+   3. **Nucleo solido**: un punto del color pleno en el centro. El tono tiene
+      que leerse SIEMPRE, y una tinta translucida cambia de tono segun lo que
+      haya debajo. Este punto no.
+   4. **Sombra**: el pin flota, no esta pegado.
+
+   LO QUE NO LLEVA, Y POR QUE
+
+   No hay reflejo especular arriba, ni sombra interior abajo, ni resplandor
+   alrededor. Eso es lo que hacia que el pin se viera brillante y con relieve,
+   como un boton de hace quince años. El vidrio de hoy no simula una fuente de
+   luz: es una superficie plana, translucida y desenfocada, con un filo fino y
+   una sombra suave, y nada mas.
+
+   El filo tampoco es blanco puro sino #eaf6fb, que es --chip-fondo. Cuesta
+   0,24 de contraste contra el blanco (3,07 en vez de 3,31 en el peor fondo) y
+   a cambio el pin deja de tener un borde que no pertenece a la paleta.
+
+   El `backdrop-filter` es lo unico que puede faltar (Firefox con la
+   preferencia apagada). Por eso el cuerpo lleva alpha alto de por si: sin
+   desenfoque el pin se ve igual de solido, solo que sin el mapa difuminado
+   adentro.
+
+   POR QUE ESTO NO SE LAVA EN NINGUN FONDO
+
+   Medido sobre los cuatro fondos reales del satelital (ratio de contraste
+   contra el fondo, compuesto con el alpha de cada capa):
+
+       fondo             cuerpo   filo blanco
+       agua oscura        1,49       5,18
+       agua clara         7,78       1,57
+       monte              2,00       4,24
+       banco de arena     8,56       1,47
+
+   Los dos mecanismos son COMPLEMENTARIOS y por eso hay dos: sobre fondo
+   oscuro el cuerpo se funde y lo salva el filo; sobre fondo claro el filo se
+   lava y el cuerpo tiene 8:1. El peor caso de la mejor de las dos capas es
+   4,24 (monte), comodo arriba del 3:1 que pide WCAG para objetos graficos.
+
+   Corolario practico: no bajar el alpha del cuerpo NI el del filo pensando en
+   un solo fondo. Cada uno es el piso del otro.
+
+   Lo mismo sobre el agua marron, que es el fondo dominante del Parana y el que
+   destapo todo esto (un pin ambar era invisible ahi):
+
+       fondo             cuerpo   filo    mejor
+       #5d4c38 oscuro     2,37    4,00     4,00
+       #7a6244 turbio     3,30    3,07     3,30
+       #9c8560 claro      5,11    2,17     5,11
+       #b9a07a arena      6,91    1,71     6,91
+
+   Peor caso 3,30 (el marron medio, que es el mas dificil: esta justo entre los
+   dos mecanismos, y ahi lo sostiene el cuerpo por poco). El filo va en 0,62 y
+   no mas bajo por eso mismo — con 0,50 ese caso caia a 2,48, abajo del
+   umbral. Y como el marron va de casi negro a arena clara, NINGUN
+   color plano llega a 2,1:1 contra todo el rango — por eso el contraste tiene
+   que salir de la estructura del pin y no del color de severidad, que solo
+   identifica. Ver SEVERIDADES en nauta/constantes.js.
+   =========================================================================== */
+
+/* Lo comun a los tres pines: lugar, aviso y terminal. La forma es lo que los
+   distingue —circulo, gota, cartel— y por eso el material tiene que ser el
+   mismo en los tres: si ademas cambiara el material, la forma dejaria de ser
+   la señal. */
+.pin-vidrio span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
-  border: 3px solid #fff;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+  /* El tono entra al 42%: suficiente para que el rubro se lea, poco para que
+     el vidrio siga pareciendo vidrio. */
+  background: color-mix(in srgb, var(--tono-pin, var(--acento)) 42%, var(--vidrio-denso));
+  border: 1px solid rgba(234, 246, 251, 0.62);
+  -webkit-backdrop-filter: blur(10px) saturate(125%);
+  backdrop-filter: blur(10px) saturate(125%);
+  /* Sombra en dos capas y sin nada inset: una corta que define el borde
+     contra el mapa y una larga y difusa que lo levanta. Es lo unico que da
+     profundidad; el relieve simulado se fue. */
+  box-shadow:
+    0 1px 2px rgba(4, 18, 28, 0.45),
+    0 4px 14px rgba(4, 18, 28, 0.3);
 }
 
-.marcador-comercio span { background: var(--acento); }
+/* Pin de un lugar: circulo. Comparte estilo con el pin del comerciante a
+   proposito, es el mismo objeto. */
+.marcador-poi span,
+.marcador-comercio span {
+  border-radius: 50%;
+}
+
+/* El nucleo solido. Es lo que hace que el rubro se distinga sobre agua clara,
+   donde la tinta translucida sola se lava. */
+.marcador-poi i,
+.marcador-comercio i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tono-pin, var(--acento));
+}
+
+.marcador-comercio span { --tono-pin: var(--acento); }
 
 /* "Acá estás": más chico y con halo, para no confundirlo con un parador. */
 .marcador-yo span {
@@ -4953,20 +5058,47 @@ div.barra-viento { cursor: default; }
 
 /* --- Pin del reporte ------------------------------------------------------ */
 
-/* Gota con el emoji del tipo adentro y el borde del color de la severidad.
-   Los lugares son círculos de color liso (.marcador-poi): la diferencia de
-   forma es lo que permite distinguirlos de un vistazo, sin leer nada. */
+/* Gota de vidrio CLARO con el emoji del tipo adentro.
+
+   Al reves que el pin de un lugar, y a proposito. Sobre el satelital —que es
+   oscuro— un cuerpo palido despega mucho mas que uno navy, y ademas invierte
+   la jerarquia como corresponde: los destinos quedan atras, los avisos se
+   adelantan. La forma sigue siendo lo que los distingue sin leer nada.
+
+   El contraste vuelve a salir de dos mecanismos complementarios, pero dados
+   vuelta respecto del pin de lugar: el cuerpo claro manda sobre fondo oscuro y
+   el filo de navy manda sobre fondo claro.
+
+       fondo             cuerpo   filo navy   mejor
+       #5d4c38 oscuro     6,30      1,61      6,30
+       #7a6244 turbio     4,56      2,30      4,56
+       #9c8560 claro      2,94      3,73      3,73
+       #b9a07a arena      2,16      5,26      5,26
+
+   (Los del cuerpo son los del tinte mas claro. Con el mas cargado de la rampa
+   —#a9d8ee, el de alerta— el peor caso baja a 3,21, que sigue arriba del 3:1.)
+
+   El filo es FINO y OSCURO: 1 px de navy de marca, parejo para las tres
+   severidades. Antes habia un anillo de celeste de hasta 3,5 px, y era justo
+   lo que hacia que el pin se viera pesado y encendido. Un borde oscuro
+   delgado hace el mismo trabajo de contraste sin gritar.
+
+   La severidad no esta en el filo sino en el tinte y en el TAMAÑO del pin (28,
+   32 y 36 px, ver SEVERIDADES en nauta/constantes.js). El tamaño se lee de
+   lejos y no agrega nada brillante. */
 .marcador-reporte span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
   border-radius: 50% 50% 50% 8%;
-  background: var(--superficie);
-  border: 2.5px solid var(--acento);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
   transform: rotate(-45deg);
+  background: color-mix(in srgb, var(--tono-pin, #eaf6fb) 86%, transparent);
+  border: 1px solid var(--marca);
+}
+
+/* El emoji crece con el pin, si no la gota de "alerta" queda con un icono
+   perdido en el medio. Se calcula desde `--tamano-pin` y no con un porcentaje:
+   en `font-size`, el % es relativo al del padre, no al ancho del elemento — y
+   ahi los tres tamaños daban el mismo emoji diminuto. */
+.marcador-reporte span > i {
+  font-size: calc(var(--tamano-pin, 32px) * 0.47);
 }
 
 .marcador-reporte i {
@@ -6115,13 +6247,20 @@ div.barra-viento { cursor: default; }
    en la misma fila que el cartel del rio.
    =========================================================================== */
 
+/* Las reglas de esta seccion van sobre `.mapa-pleno` y no sobre
+   `.app-nauta.mapa-pleno`, que es como estaban: el comerciante mira el mismo
+   mapa, con el mismo componente y parado en el mismo lugar (arriba de una
+   lancha). Atarlas al shell del nauta hacia que el mapa del panel de comercio
+   quedara a media pantalla, con la barra superior comiendose el alto, sin que
+   nada explicara por que. */
+
 /* Se esconde en escritorio, donde el menu vive en la barra lateral. */
 .boton-menu-mapa { display: none; }
 
 @media (max-width: 880px) {
-  .app-nauta.mapa-pleno .barra-superior { display: none; }
+  .mapa-pleno .barra-superior { display: none; }
 
-  .app-nauta.mapa-pleno .main-mapa {
+  .mapa-pleno .main-mapa {
     max-width: none;
     margin: 0;
     padding: 0;
@@ -6130,22 +6269,22 @@ div.barra-viento { cursor: default; }
     height: 100dvh;
   }
 
-  .app-nauta.mapa-pleno .mapa-nauta,
-  .app-nauta.mapa-pleno .mapa-nauta-columna,
-  .app-nauta.mapa-pleno .mapa-nauta-contenedor {
+  .mapa-pleno .mapa-nauta,
+  .mapa-pleno .mapa-nauta-columna,
+  .mapa-pleno .mapa-nauta-contenedor {
     min-height: 0;
     height: 100%;
   }
 
   /* Sin barra superior el borde y el radio no delimitan nada: solo recortan
      mapa. */
-  .app-nauta.mapa-pleno .mapa-nauta-contenedor .mapa-contenedor {
+  .mapa-pleno .mapa-nauta-contenedor .mapa-contenedor {
     border: none;
     border-radius: 0;
   }
 
   /* La capa arranca debajo de la muesca / barra de estado del telefono. */
-  .app-nauta.mapa-pleno .capa-mapa {
+  .mapa-pleno .capa-mapa {
     padding-top: calc(0.6rem + env(safe-area-inset-top));
   }
 
@@ -6231,32 +6370,32 @@ div.barra-viento { cursor: default; }
 @media (max-width: 880px) {
   /* La capa de controles del mapa: baja por la isla y se aparta de los
      costados al rotar. */
-  .app-nauta.mapa-pleno .capa-mapa {
+  .mapa-pleno .capa-mapa {
     padding-top: calc(0.6rem + var(--seguro-arriba));
     padding-left: calc(0.6rem + var(--seguro-izq));
     padding-right: calc(0.6rem + var(--seguro-der));
   }
 
   /* Los botones flotantes de abajo, por encima de la barra de inicio. */
-  .app-nauta.mapa-pleno .boton-mi-ubicacion {
+  .mapa-pleno .boton-mi-ubicacion {
     bottom: calc(1.75rem + var(--seguro-abajo));
     right: calc(0.75rem + var(--seguro-der));
   }
 
-  .app-nauta.mapa-pleno.con-ficha .boton-mi-ubicacion,
+  .mapa-pleno.con-ficha .boton-mi-ubicacion,
   .mapa-nauta.con-ficha .boton-mi-ubicacion {
     bottom: calc(16.5rem + var(--seguro-abajo));
   }
 
-  .app-nauta.mapa-pleno .ficha-rapida {
+  .mapa-pleno .ficha-rapida {
     bottom: calc(0.6rem + var(--seguro-abajo));
     left: calc(0.6rem + var(--seguro-izq));
     right: calc(0.6rem + var(--seguro-der));
   }
 
   /* El zoom de Leaflet, que vive abajo a la izquierda. */
-  .app-nauta.mapa-pleno .leaflet-bottom.leaflet-left,
-  .app-nauta.mapa-pleno .leaflet-top.leaflet-left {
+  .mapa-pleno .leaflet-bottom.leaflet-left,
+  .mapa-pleno .leaflet-top.leaflet-left {
     margin-bottom: var(--seguro-abajo);
     margin-left: var(--seguro-izq);
   }
@@ -6630,17 +6769,10 @@ div.barra-viento { cursor: default; }
    Es la misma distincion que hacen los mapas de ciudad entre un comercio y una
    estacion. Ver iconoTerminal() en mapaSatelital.js. */
 .marcador-terminal span {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--tono-terminal, #0b3252);
-  border: 3px solid #fff;
   color: #fff;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
 /* El pie del cartel. Se dibuja con un pseudo-elemento rotado y no con otro
@@ -6649,15 +6781,23 @@ div.barra-viento { cursor: default; }
 .marcador-terminal span::after {
   content: "";
   position: absolute;
-  bottom: -6px;
+  bottom: -5px;
   left: 50%;
   width: 10px;
   height: 10px;
   transform: translateX(-50%) rotate(45deg);
-  background: var(--tono-terminal, #0b3252);
-  border-right: 3px solid #fff;
-  border-bottom: 3px solid #fff;
-  border-bottom-right-radius: 3px;
+  background: color-mix(in srgb, var(--tono-pin, #0b3252) 42%, var(--vidrio-denso));
+  border-right: 1px solid rgba(234, 246, 251, 0.62);
+  border-bottom: 1px solid rgba(234, 246, 251, 0.62);
+  border-bottom-right-radius: 2px;
+}
+
+/* El barquito es el contenido del cartel: va solido y con sombra, no
+   translucido. Es lo que hay que reconocer de lejos. */
+.marcador-terminal svg {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 1px rgba(4, 18, 28, 0.5));
 }
 
 /* El punto de alteracion del tablero: solo aparece si hay una demora, un cruce

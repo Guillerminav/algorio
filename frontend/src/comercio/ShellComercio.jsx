@@ -218,7 +218,11 @@ export default function ShellComercio() {
 
   return (
     <ProveedorRio>
-    <div className="app app-comercio">
+    {/* `mapa-pleno` saca la barra superior y estira el mapa a la pantalla
+        entera en el celular, igual que en el shell del nauta. El comerciante
+        mira el mismo mapa y desde el mismo lugar — arriba de una lancha —,
+        asi que no hay razon para que le quede la mitad del alto. */}
+    <div className={`app app-comercio${seccionActiva === "mapa" ? " mapa-pleno" : ""}`}>
       <Sidebar
         secciones={secciones}
         seccionActiva={seccionActiva}
@@ -257,7 +261,16 @@ export default function ShellComercio() {
           {seccionActiva === "horarios" && <EditorHorarios {...propsEdicion} />}
           {seccionActiva === "metricas" && <MetricasComercio comercio={comercio} />}
           {seccionActiva === "resenas" && <ResenasComercio comercio={comercio} />}
-          {seccionActiva === "mapa" && <MapaNauta onIrAClima={() => setSeccionActiva("nivel")} />}
+          {seccionActiva === "mapa" && (
+            <MapaNauta
+              onIrAClima={() => setSeccionActiva("nivel")}
+              // Sin esto el boton de hamburguesa que flota sobre el mapa se
+              // dibujaba igual (su CSS no depende del shell) pero no abria
+              // nada, y con la barra superior escondida no quedaba ninguna
+              // forma de salir de la seccion.
+              onAbrirMenu={() => setMenuMovilAbierto(true)}
+            />
+          )}
           {seccionActiva === "nivel" && <NivelRio />}
           {seccionActiva === "moderacion" && <ModeracionPois />}
           {seccionActiva === "suscripcion" && <PantallaSuscripcion onAbrirAyuda={abrirAyuda} />}

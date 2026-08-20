@@ -353,6 +353,108 @@ deberia dar ~300 por segundo. O sea que el problema no es el recuadro ni el
 codigo. Hay que revisar del lado de aisstream que la cuenta este activada para
 streaming.
 
+## Los pines: vidrio sobre el satelital
+
+Los pines eran lo unico del mapa que no era de vidrio —discos de color liso con
+borde blanco de 3 px, de cuando la capa flotante todavia no existia— y al lado
+del cartel del rio y los chips se veian de otra app. Ahora los tres (lugar,
+aviso y terminal) comparten el mismo material: cuerpo translucido teñido,
+`backdrop-filter`, filo especular arriba y sombra.
+
+Lo que **no** cambia es la forma, que es la que hace el trabajo de
+distinguirlos sin leer nada: circulo el lugar, gota el aviso, cartel la
+lancha-taxi. Justamente porque el material ahora es comun, la forma tiene que
+seguir siendo la señal.
+
+El vidrio es **plano**: no lleva reflejo especular arriba, ni sombra interior
+abajo, ni resplandor alrededor. Eso es lo que hacia que el pin se viera
+brillante y con relieve, como un boton de hace quince años. Lo que da
+profundidad es una sombra en dos capas — una corta que define el borde contra
+el mapa y una larga y difusa que lo levanta — y nada mas. El filo tampoco es
+blanco puro sino `#eaf6fb`, que es `--chip-fondo`: cuesta dos decimas de
+contraste y a cambio el pin deja de tener un borde que no pertenece a la
+paleta.
+
+El problema real de pasar a vidrio es que un pin translucido pierde el
+contraste que le daba el borde blanco. Se resuelve con dos mecanismos
+complementarios, y esta medido sobre los cuatro fondos reales del satelital:
+
+| fondo | cuerpo | filo blanco |
+| --- | --- | --- |
+| agua oscura | 1,49 | **5,18** |
+| agua clara | **7,78** | 1,57 |
+| monte | 2,00 | **4,24** |
+| banco de arena | **8,56** | 1,47 |
+
+Sobre fondo oscuro el cuerpo se funde y lo salva el filo; sobre fondo claro el
+filo se lava y el cuerpo tiene 8:1. El peor caso de la mejor de las dos capas
+es 4,24, comodo arriba del 3:1 que pide WCAG para objetos graficos. **Ninguno
+de los dos alpha se puede bajar mirando un solo fondo: cada uno es el piso del
+otro.**
+
+Ademas, el pin de lugar lleva un nucleo solido del color del rubro en el
+centro. Una tinta translucida cambia de tono segun lo que tenga debajo, y el
+rubro tiene que leerse igual sobre agua clara que sobre monte.
+
+### El pin de aviso es vidrio claro, al reves que el de un lugar
+
+Los avisos usaban los colores de la paleta, y `--alerta` es `#b8790b` — un ocre
+a **cinco grados de tono** del agua del Parana. Sobre el rio el pin de
+advertencia era invisible.
+
+Medido contra cuatro marrones que cubren el rango del rio (de `#5d4c38` a
+`#b9a07a`), **ningun color plano pasa de 2,1:1**: el marron va de casi negro a
+arena clara, asi que cualquier tono se parece a alguno. El contraste no lo
+puede dar el color.
+
+Lo que lo da es invertir el material. El aviso es **vidrio claro** — al reves
+que el pin de un lugar, que es navy — y sobre el satelital, que es oscuro, un
+cuerpo palido despega mucho mas. Lo sostiene sobre los fondos claros un filo de
+1 px de navy de marca. Dos mecanismos complementarios otra vez, pero dados
+vuelta:
+
+| fondo | cuerpo claro | filo navy | mejor |
+| --- | --- | --- | --- |
+| `#5d4c38` oscuro | **6,30** | 1,61 | 6,30 |
+| `#7a6244` turbio | **4,56** | 2,30 | 4,56 |
+| `#9c8560` claro | 2,94 | **3,73** | 3,73 |
+| `#b9a07a` arena | 2,16 | **5,26** | 5,26 |
+
+De paso la inversion ordena la jerarquia: los destinos quedan atras, los avisos
+se adelantan.
+
+### Tres escalones sin nada brillante
+
+La severidad escala por el tinte del cuerpo y por el **tamaño** del pin:
+
+| | cuerpo | tamaño |
+| --- | --- | --- |
+| comentario | `#f4fbfe` | 28 px |
+| advertencia | `#cfe9f7` | 32 px |
+| alerta | `#a9d8ee` | 36 px |
+
+El segundo canal es el tamaño y no el grosor del filo. Se probo con el grosor
+(1 / 1,5 / 2 px) y **no funciona**: el navegador redondea los bordes a pixeles
+del dispositivo y el escalon del medio colapsa contra el primero — medido, 1 px
+y 1,5 px terminaban los dos en 0,8 px reales. El tamaño no se redondea, se lee
+de lejos y no agrega nada brillante ni grueso: el filo queda en 1 px parejo
+para los tres.
+
+Antes de esto hubo un anillo de celeste de hasta 3,5 px con resplandor. Era lo
+que hacia que el pin se viera pesado y encendido; un borde oscuro delgado hace
+el mismo trabajo de contraste sin gritar.
+
+Y una concesion que conviene tener escrita, porque no es un descuido: con la
+gama de la marca, cuerpo claro y sin anillos gruesos, los tres tintes no pueden
+ser muy distintos entre si — quedan a 1,2 de contraste. Se probaron rampas mas
+largas, llegando a `#5aa8d0` para alerta, y ese escalon caia a 2,30 sobre el
+agua turbia, abajo del umbral. El color hace lo que puede; el tamaño hace el
+resto.
+
+El chip del popup y los del modal de reporte siguen usando los colores de la
+paleta (`color`), que son para fondo crema; el mapa usa `colorMapa`. Es la
+misma separacion que ya existia entre `--alerta` y `--vidrio-picado`.
+
 ## Las dos capas del mapa: lugares y embarcaciones
 
 Los chips de rubro dejaron de llevar cada uno el color de su rubro. Lo que el
@@ -415,6 +517,14 @@ tapaba entero y rompia con el resto de los controles.
 El boton de **pantalla completa queda solo en escritorio**: en el celular el
 mapa ya ocupa todo, asi que ahi no expandia nada y solo gastaba lugar en la
 unica fila que compite con el cartel del rio.
+
+Todo esto vale para **los dos perfiles que muestran el mapa**, el nauta y el
+comerciante. Las reglas cuelgan de `.mapa-pleno` a secas y no de
+`.app-nauta.mapa-pleno`, que es como estaban al principio: el comerciante mira
+el mismo mapa, con el mismo componente y parado en el mismo lugar —arriba de
+una lancha—, y no habia ninguna razon para que le quedara a media pantalla con
+la barra superior comiendose el alto. Atar esas reglas a un shell hacia que
+sumar el mapa a otro perfil lo dejara roto sin que nada explicara por que.
 
 ## Listado de lugares: la alternativa al mapa
 

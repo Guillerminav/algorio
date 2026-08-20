@@ -15,6 +15,7 @@ import { useSesion } from "../../src/sesion.jsx";
 import {
   COLOR_ESTADO_SOBRE_VIDRIO,
   COLORES,
+  conAlfa,
   TIPOS_POI,
   VIDRIO,
   severidadPorClave,
@@ -173,6 +174,78 @@ function ChipsTipo({ activos, onAlternar }) {
 }
 
 /**
+ * Los pines del mapa, en el mismo vidrio que la capa flotante.
+ *
+ * Espeja .pin-vidrio de frontend/src/index.css: cuerpo translucido teñido,
+ * filo claro arriba, nucleo solido y sombra. Lo unico que falta respecto de la
+ * web es el desenfoque del fondo — React Native no tiene `backdrop-filter` y
+ * meter un BlurView por marcador es caro y parpadea al desplazar el mapa.
+ *
+ * No se pierde gran cosa: el desenfoque es justamente la capa prescindible del
+ * diseño. Lo que sostiene el contraste sobre el satelital son las otras dos, y
+ * estan medidas (ver el comentario de .pin-vidrio): sobre fondo oscuro lo
+ * salva el filo claro, sobre fondo claro el cuerpo teñido llega a 8:1.
+ *
+ * `tono` es el color del rubro o de la severidad; `forma` decide el recorte,
+ * que es lo que distingue un destino de un aviso sin leer nada.
+ */
+function CuerpoVidrio({ tono, forma, children }) {
+  return (
+    <View style={[estilos.pinVidrio, forma, { backgroundColor: conAlfa(tono, 0.82) }]}>
+      {children}
+    </View>
+  );
+}
+
+/** El pin de un parador o un alojamiento: circulo con nucleo solido. */
+function PinLugar({ lugar }) {
+  const tono = tipoPoi(lugar.tipo).color;
+  return (
+    <CuerpoVidrio tono={tono} forma={estilos.pinCirculo}>
+      {/* El nucleo va solido: una tinta translucida cambia de tono segun lo
+          que tenga debajo, y el rubro tiene que leerse igual sobre agua clara
+          que sobre monte. */}
+      <View style={[estilos.pinNucleo, { backgroundColor: tono }]} />
+    </CuerpoVidrio>
+  );
+}
+
+/**
+ * El pin de un aviso: gota de vidrio CLARO con el emoji del tipo adentro.
+ *
+ * Al reves que el de un lugar, y a proposito: sobre el satelital —que es
+ * oscuro— un cuerpo palido despega mucho mas que uno navy, y de paso los
+ * destinos quedan atras y los avisos se adelantan. El filo fino de navy es lo
+ * que lo sostiene sobre los fondos claros (arena, bancos).
+ *
+ * La severidad va en el tinte del cuerpo y en el grosor del filo, los dos
+ * discretos. Antes habia un anillo de celeste de hasta 3,5 px y era lo que
+ * hacia que el pin se viera pesado y encendido.
+ */
+function PinReporte({ reporte }) {
+  const def = tipoReporte(reporte.tipo);
+  const sev = severidadPorClave(reporte.severidad);
+  return (
+    <View
+      style={[
+        estilos.pinGota,
+        {
+          backgroundColor: conAlfa(sev.colorMapa, 0.86),
+          // El tamaño es el canal fuerte de la severidad (ver tema.js).
+          width: sev.tamanoMapa,
+          height: sev.tamanoMapa,
+          borderRadius: sev.tamanoMapa / 2,
+          borderBottomLeftRadius: 3,
+        },
+      ]}
+    >
+      <Text style={[estilos.pinEmoji, { fontSize: sev.tamanoMapa * 0.47 }]}>{def.emoji}</Text>
+    </View>
+  );
+}
+
+
+/**
  * El pin de una lancha-taxi: un cartel de terminal, no un globo de color.
  *
  * Los otros dos rubros son "un lugar al que se llega" y les alcanza con el pin
@@ -189,12 +262,12 @@ function PinTerminal({ lugar }) {
   const alterado = estadoResumen(lugar.cruces);
   return (
     <View style={estilos.pinTerminal}>
-      <View style={estilos.pinTerminalCuerpo}>
+      <CuerpoVidrio tono={COLORES.marca} forma={estilos.pinCartel}>
         <Text style={estilos.pinTerminalGlifo}>⛴</Text>
         {alterado ? (
           <View style={[estilos.pinTerminalPunto, { backgroundColor: alterado.color }]} />
         ) : null}
-      </View>
+      </CuerpoVidrio>
       {/* El pie del cartel: esta parado sobre el muelle, no flotando encima. */}
       <View style={estilos.pinTerminalPie} />
     </View>
@@ -346,11 +419,11 @@ export default function PantallaMapa() {
   const [error, setError] = useState("");
   const [seleccionado, setSeleccionado] = useState(null);
   const [tiposActivos, setTiposActivos] = useState(Object.keys(TIPOS_POI));
-  // Los pines con vista propia —el cartel de terminal de las lanchas-taxi—
-  // necesitan dibujarse al menos una vez antes de congelarse: con
-  // `tracksViewChanges` en false desde el arranque, Android se queda con el
-  // marcador en blanco. Dejandolo prendido, en cambio, cada pin se vuelve a
-  // renderizar en cada frame y el mapa se arrastra al desplazarlo.
+  // Todos los pines tienen vista propia y necesitan dibujarse al menos una vez
+  // antes de congelarse: con `tracksViewChanges` en false desde el arranque,
+  // Android se queda con el marcador en blanco. Dejandolo prendido, en cambio,
+  // cada pin se vuelve a renderizar en cada frame y el mapa se arrastra al
+  // desplazarlo.
   const [pinesDibujados, setPinesDibujados] = useState(false);
   const [reportes, setReportes] = useState([]);
   const [modoReporte, setModoReporte] = useState(false);
@@ -478,9 +551,10 @@ export default function PantallaMapa() {
             <Marker
               key={`r-${reporte.id}`}
               coordinate={{ latitude: reporte.lat, longitude: reporte.lon }}
-              pinColor={sev.color}
+              tracksViewChanges={!pinesDibujados}
               onPress={(e) => e.stopPropagation()}
             >
+              <PinReporte reporte={reporte} />
               <Callout tooltip={false}>
                 <View style={estilos.callout}>
                   <Text style={[estilos.calloutSeveridad, { color: sev.color }]}>
@@ -507,14 +581,14 @@ export default function PantallaMapa() {
           <Marker
             key={lugar.id}
             coordinate={{ latitude: lugar.lat, longitude: lugar.lon }}
-            // La lancha-taxi lleva cartel propio; los otros dos rubros, el pin
-            // por defecto pintado del color del rubro (ver PinTerminal).
-            pinColor={tipoPoi(lugar.tipo).color}
-            anchor={lugar.tipo === "lancha_taxi" ? { x: 0.5, y: 1 } : undefined}
+            // La lancha-taxi lleva cartel; los otros dos rubros, circulo. Los
+            // tres son del mismo vidrio (ver CuerpoVidrio): lo que los
+            // distingue es la forma.
+            anchor={lugar.tipo === "lancha_taxi" ? { x: 0.5, y: 1 } : { x: 0.5, y: 0.5 }}
             // `tracksViewChanges` apagado despues del primer dibujo: con el
             // prendido, cada pin con vista propia se re-renderiza en cada
             // frame del mapa y en Android eso arrastra el scroll entero.
-            tracksViewChanges={lugar.tipo === "lancha_taxi" && !pinesDibujados}
+            tracksViewChanges={!pinesDibujados}
             onPress={(e) => {
               // Sin esto, en Android el toque tambien llega al mapa y el
               // onPress de arriba cierra la tarjeta apenas se abre.
@@ -522,7 +596,11 @@ export default function PantallaMapa() {
               setSeleccionado(lugar);
             }}
           >
-            {lugar.tipo === "lancha_taxi" ? <PinTerminal lugar={lugar} /> : null}
+            {lugar.tipo === "lancha_taxi" ? (
+              <PinTerminal lugar={lugar} />
+            ) : (
+              <PinLugar lugar={lugar} />
+            )}
           </Marker>
         ))}
       </MapView>
@@ -775,18 +853,66 @@ const estilos = StyleSheet.create({
   tarjetaCruceEstado: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   tarjetaCruceEstadoTexto: { fontSize: 9.5, fontWeight: "800", color: "#fff", letterSpacing: 0.6 },
 
-  // --- El pin de terminal --------------------------------------------------
-  pinTerminal: { alignItems: "center" },
-  pinTerminalCuerpo: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    backgroundColor: COLORES.marca,
-    borderWidth: 3,
-    borderColor: "#fff",
+  // --- Los pines, todos del mismo vidrio -----------------------------------
+  // Superficie plana: filo fino en el celeste palido de la marca y sombra
+  // suave. Sin reflejo especular ni relieve — eso es lo que hacia que el pin
+  // se viera brillante y de otra epoca (ver .pin-vidrio en index.css).
+  pinVidrio: {
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(234,246,251,0.62)",
+    shadowColor: "#04121c",
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
+
+  // El anillo del color de la severidad, por dentro del filo blanco: ahi el
+  // tono se apoya contra blanco y se lee sin depender de que haya debajo.
+  pinAnillo: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    /* El ancho lo pone cada severidad; esto es solo el piso. */
+    borderWidth: 1.5,
+  },
+
+  pinCirculo: { width: 26, height: 26, borderRadius: 13 },
+  pinNucleo: { width: 9, height: 9, borderRadius: 5 },
+
+  pinGota: {
+    alignItems: "center",
+    justifyContent: "center",
+    // Filo fino y oscuro, parejo para las tres severidades: lo que escala es
+    // el tinte y el tamaño (ver SEVERIDADES en tema.js).
+    borderWidth: 1,
+    borderColor: COLORES.marca,
+    // La gota: tres esquinas redondas y una en punta, rotada para que la punta
+    // mire hacia abajo. El radio real lo pone cada severidad con su tamaño.
+    transform: [{ rotate: "-45deg" }],
+    shadowColor: "#04121c",
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  pinGotaFilo: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+    borderBottomLeftRadius: 3,
+  },
+  // Contrarresta la rotacion de la gota para que el emoji quede derecho.
+  pinEmoji: { transform: [{ rotate: "45deg" }] },
+
+  pinCartel: { width: 30, height: 30, borderRadius: 9 },
+
+  // --- El pin de terminal --------------------------------------------------
+  pinTerminal: { alignItems: "center" },
   pinTerminalGlifo: { fontSize: 15, lineHeight: 19, color: "#fff" },
   pinTerminalPunto: {
     position: "absolute",
@@ -807,6 +933,6 @@ const estilos = StyleSheet.create({
     borderTopWidth: 7,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#fff",
+    borderTopColor: "rgba(234,246,251,0.62)",
   },
 });
