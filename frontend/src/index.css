@@ -6343,6 +6343,27 @@ div.barra-viento { cursor: default; }
 @media (max-width: 700px) {
   .ficha-rapida { max-height: 15rem; overflow-y: auto; }
   .mapa-nauta.con-ficha .boton-mi-ubicacion { bottom: 16.5rem; }
+
+  /* Ese "algún día" llegó: la lancha-taxi sumó la fila del próximo cruce, y
+     con el bloque de rumbo puesto —o sea, en cualquier celular con la
+     ubicación activa— el contenido pasa a ~18rem. El recorte dejaba "Ver más"
+     35 px por debajo del corte, y como es el ÚNICO camino a la ficha completa,
+     el tablero de cruces quedaba inalcanzable desde el celular: se veía en la
+     compu, donde no hay `max-height`, y no en el teléfono.
+
+     Se fija al piso de la tarjeta en vez de agrandar el recorte. Subir el tope
+     tapa el mapa —que es lo que el recorte vino a evitar— y además solo
+     alcanza hasta el próximo renglón que alguien agregue: una nota del
+     lanchero, un chip de DEMORADO o un nombre que envuelve lo rompen de nuevo.
+     Pegado abajo, el botón se ve con cualquier alto de contenido.
+
+     `margin-top: auto` lo empuja al fondo cuando sobra lugar, para que en las
+     fichas cortas —un parador sin ubicación— siga cayendo donde caía. */
+  .ficha-rapida-vermas {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+  }
 }
 
 /* ===========================================================================
