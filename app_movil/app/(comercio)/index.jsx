@@ -18,7 +18,8 @@ const igual = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export default function MiComercio() {
   const router = useRouter();
-  const { comercio, reclamo, cargando, error, guardando, guardar, recargar } = useComercio();
+  const { comercio, reclamo, cargando, error, guardando, guardar, eliminar, recargar } =
+    useComercio();
   const [valores, setValores] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [errorGuardado, setErrorGuardado] = useState("");
@@ -92,12 +93,12 @@ export default function MiComercio() {
             </View>
           </View>
           <ChipEstado estado={comercio.estado} />
-          {/* El rubro se muestra pero no se edita: quedo atado a la cuenta en
+          {/* El rubro se muestra pero no se edita: quedo atado al comercio en
               el alta. Se aclara con todas las letras en vez de esconderlo —
               quien lo busque para cambiarlo merece enterarse de por que no
               esta (ver pois.CAMPOS_EDITABLES). */}
           <Text style={estilos.notaRubro}>
-            El rubro queda asociado a tu cuenta desde el alta y no se puede cambiar.
+            El rubro queda asociado a este comercio desde el alta y no se puede cambiar.
           </Text>
         </Tarjeta>
 
@@ -234,8 +235,105 @@ export default function MiComercio() {
           cargando={guardando}
           deshabilitado={!hayCambios}
         />
+
+        <ZonaRiesgo comercio={comercio} onEliminar={eliminar} />
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * Eliminar el comercio. Abajo de todo, apartado y en rojo.
+ *
+ * Está separado del formulario —y no es un botón más al lado de Guardar—
+ * porque no es una edición: es la única acción de esta pantalla que no se
+ * puede deshacer y que se lleva puestas cosas que no son del comerciante. Al
+ * borrar el POI caen con él las reseñas, las visitas y las fotos
+ * (ON DELETE CASCADE, ver db.py), así que las reseñas que dejaron los nautas
+ * desaparecen sin que nadie les avise.
+ *
+ * Por eso se confirma escribiendo el nombre y no con un "¿estás seguro?": el
+ * sí automático de un Alert se toca sin leerlo, y tipear el nombre del propio
+ * parador obliga a mirar qué se está por borrar.
+ *
+ * Espeja la ZonaRiesgo de frontend/src/comercio/MiComercio.jsx.
+ */
+function ZonaRiesgo({ comercio, onEliminar }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  const [error, setError] = useState("");
+
+  const nombre = (comercio.nombre ?? "").trim();
+  const coincide = texto.trim().toLocaleLowerCase() === nombre.toLocaleLowerCase();
+
+  async function eliminarAhora() {
+    setError("");
+    setEliminando(true);
+    try {
+      await onEliminar();
+      // Sin navegar: al quedar la ficha en null, esta misma pantalla pasa a
+      // mostrar SinComercio, que es de donde se sale a cargar otra o a
+      // reclamar una del mapa.
+    } catch (e) {
+      setError(e.message || "No pudimos eliminar el comercio.");
+      setEliminando(false);
+    }
+  }
+
+  return (
+    <View style={estilos.zonaRiesgo}>
+      <Text style={estilos.zonaRiesgoTitulo}>Eliminar el comercio</Text>
+      <Text style={estilos.zonaRiesgoTexto}>
+        <Text style={estilos.zonaRiesgoFuerte}>{nombre}</Text> se va del mapa y se borran
+        sus reseñas, sus fotos y las visitas que tenés en Métricas. No se puede deshacer.
+      </Text>
+      {/* La alternativa, dicha acá y no en Ayuda: la mayoría de las veces que
+          alguien busca este botón lo que quiere es dejar de figurar un tiempo,
+          no perder tres años de reseñas. */}
+      <Text style={estilos.zonaRiesgoAlternativa}>
+        Si solo querés dejar de aparecer por un tiempo, no hace falta borrar nada: vaciá
+        los horarios y tu ficha va a figurar como cerrada.
+      </Text>
+
+      <Error>{error}</Error>
+
+      {confirmando ? (
+        <>
+          <Text style={estilos.zonaRiesgoTexto}>
+            Escribí <Text style={estilos.zonaRiesgoFuerte}>{nombre}</Text> para confirmar
+          </Text>
+          <TextInput
+            style={estilos.zonaRiesgoCampo}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!eliminando}
+            value={texto}
+            onChangeText={setTexto}
+          />
+          <Boton
+            titulo={eliminando ? "Eliminando…" : "Eliminar para siempre"}
+            onPress={eliminarAhora}
+            cargando={eliminando}
+            deshabilitado={!coincide}
+          />
+          <Boton
+            titulo="Cancelar"
+            variante="secundario"
+            deshabilitado={eliminando}
+            onPress={() => {
+              setConfirmando(false);
+              setTexto("");
+              setError("");
+            }}
+          />
+        </>
+      ) : (
+        <Pressable style={estilos.botonPeligro} onPress={() => setConfirmando(true)}>
+          <Text style={estilos.botonPeligroTexto}>Eliminar comercio</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -251,6 +349,48 @@ const estilos = StyleSheet.create({
   emoji: { fontSize: 30 },
   nombre: { fontSize: 19, fontWeight: "800", color: COLORES.texto },
   tipo: { fontSize: 13, color: COLORES.textoSuave, marginTop: 1 },
+
+  // Apartada del resto y en rojo: no es una edicion mas, es lo unico de la
+  // pantalla que no se deshace. Ir a buscarla tiene que costar un poco.
+  zonaRiesgo: {
+    gap: 8,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORES.peligro,
+    backgroundColor: COLORES.superficie,
+  },
+  zonaRiesgoTitulo: { fontSize: 15.5, fontWeight: "700", color: COLORES.peligro },
+  zonaRiesgoTexto: { fontSize: 13, lineHeight: 19, color: COLORES.textoSuave },
+  zonaRiesgoFuerte: { fontWeight: "700", color: COLORES.texto },
+  zonaRiesgoAlternativa: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    padding: 9,
+    borderRadius: 9,
+    backgroundColor: COLORES.chipFondo,
+    color: COLORES.textoSuave,
+  },
+  zonaRiesgoCampo: {
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: COLORES.texto,
+    backgroundColor: COLORES.fondo,
+  },
+  botonPeligro: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: COLORES.peligro,
+  },
+  botonPeligroTexto: { fontSize: 14, fontWeight: "700", color: COLORES.peligro },
 
   campo: { gap: 6 },
   campoEtiqueta: { fontSize: 14, fontWeight: "600", color: COLORES.texto },

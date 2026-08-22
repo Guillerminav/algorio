@@ -175,6 +175,45 @@ def _crear_esquema() -> None:
         con.execute(
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_admin BOOLEAN NOT NULL DEFAULT FALSE"
         )
+
+        # Pedidos de "olvide mi contraseña".
+        #
+        # Se guarda el HASH del token y no el token: esta tabla es la llave de
+        # cualquier cuenta que haya pedido recuperarla, y con los tokens en
+        # claro alcanzaria con leer una fila para entrar. Con el hash, quien la
+        # lea tiene lo mismo que tiene el servidor cuando valida — nada que
+        # sirva para armar el mail.
+        #
+        # `usado_en` es lo que hace el token de un solo uso: un mail de
+        # recuperacion queda para siempre en la casilla, y sin esto seguiria
+        # abriendo la cuenta meses despues.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recuperaciones_password (
+                id SERIAL PRIMARY KEY,
+                usuario TEXT NOT NULL REFERENCES usuarios (usuario) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL UNIQUE,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+                vence_en TIMESTAMPTZ NOT NULL,
+                usado_en TIMESTAMPTZ
+            )
+            """
+        )
+        # Las dos consultas que hace el modulo: buscar por token al
+        # restablecer, y mirar el ultimo pedido de una cuenta para no dejar
+        # mandar cien mails seguidos.
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS recuperaciones_usuario_idx "
+            "ON recuperaciones_password (usuario, creado_en DESC)"
+        )
+        # Que contesto Resend. Sin esto, un mail rechazado se ve exactamente
+        # igual que uno entregado —el endpoint contesta lo mismo siempre, a
+        # proposito— y la unica forma de saber que paso es adivinar. Es el
+        # mismo criterio que mensajes_ayuda.error_envio.
+        con.execute(
+            "ALTER TABLE recuperaciones_password ADD COLUMN IF NOT EXISTS error_envio TEXT"
+        )
+
         con.execute(
             """
             CREATE TABLE IF NOT EXISTS activos (
@@ -408,11 +447,56 @@ def _crear_esquema() -> None:
         # coordenadas; el indice compuesto cubre esa consulta entera.
         con.execute("CREATE INDEX IF NOT EXISTS pois_estado_idx ON pois (estado)")
         con.execute("CREATE INDEX IF NOT EXISTS pois_ubicacion_idx ON pois (estado, lat, lon)")
-        # Un comercio por cuenta: el panel del comerciante es "mi comercio", no
-        # una lista. Indice unico parcial para no contar los POIs sin dueño.
+        # VARIOS comercios por cuenta, y de rubros distintos.
+        #
+        # Hasta acá era uno solo, con un indice UNICO parcial sobre `usuario`
+        # (parcial para no contar los POIs sin dueño entre si). Se cae porque
+        # dejo de ser cierto: quien tiene un parador y ademas alquila cabañas
+        # es una sola persona con una sola cuenta, y obligarla a manejar dos
+        # logins para dos pines es un limite del modelo, no del negocio.
+        #
+        # El resto del esquema ya soportaba esto sin tocar nada: fotos,
+        # reseñas, visitas, reclamos y el tablero cuelgan de `poi_id`, no de la
+        # cuenta. Lo unico que ataba era este indice — y las consultas de la
+        # aplicacion, que asumian `fetchone()`.
+        #
+        # DROP explicito y no "IF NOT EXISTS" al reves: las bases que ya
+        # existen lo tienen creado, y sin borrarlo el segundo comercio de una
+        # cuenta falla con una violacion de unicidad.
+        con.execute("DROP INDEX IF EXISTS pois_usuario_key")
+        # Sigue haciendo falta un indice, ahora NO unico: el panel pide "los
+        # comercios de esta cuenta" en cada pantalla, y son varias filas.
         con.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS pois_usuario_key ON pois (usuario) WHERE usuario IS NOT NULL"
+            "CREATE INDEX IF NOT EXISTS pois_usuario_idx ON pois (usuario) WHERE usuario IS NOT NULL"
         )
+
+        # Las fotos que sube el comerciante, cuando se guardan en la base.
+        #
+        # Los bytes en Postgres no son la primera opcion de nadie, pero aca es
+        # la unica que funciona sin crear cuentas en ningun lado: el disco de
+        # Render es efimero (se borra en cada deploy) y Vercel es solo el
+        # frontend. Con el plan free de Neon —0,5 GB, de los que hoy se usan
+        # 12 MB— entran unas 1.900 fotos de 250 KB, que para este producto es
+        # de sobra.
+        #
+        # Si se configura Cloudinary (ver backend/almacen_fotos.py) las fotos
+        # nuevas van alla y esta tabla deja de crecer, sin migrar nada: lo que
+        # se guarda en `pois.fotos` es una URL en los dos casos.
+        #
+        # ON DELETE CASCADE: una foto sin su POI no se muestra en ningun lado.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS poi_fotos (
+                id SERIAL PRIMARY KEY,
+                poi_id INTEGER NOT NULL REFERENCES pois (id) ON DELETE CASCADE,
+                usuario TEXT REFERENCES usuarios (usuario) ON DELETE SET NULL,
+                mime TEXT NOT NULL,
+                datos BYTEA NOT NULL,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        con.execute("CREATE INDEX IF NOT EXISTS poi_fotos_poi_idx ON poi_fotos (poi_id)")
 
         # "Ese lugar del mapa es mio": pedido de propiedad de un POI huerfano.
         #

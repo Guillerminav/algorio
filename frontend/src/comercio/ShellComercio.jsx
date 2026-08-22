@@ -20,7 +20,12 @@ import EditorTablero from "./EditorTablero.jsx";
 import MetricasComercio from "./MetricasComercio.jsx";
 import MiComercio from "./MiComercio.jsx";
 import ResenasComercio from "./ResenasComercio.jsx";
+import SelectorComercio from "./SelectorComercio.jsx";
 import { tipoDe } from "./tiposComercio.js";
+
+// Tiene que coincidir con pois.MAX_COMERCIOS del backend, que es el que manda:
+// aca solo apaga el boton para no ofrecer algo que el servidor va a rechazar.
+const MAX_COMERCIOS = 3;
 
 // Aviso de arriba de todo: el estado de publicacion es lo primero que el
 // comerciante quiere saber al entrar ("¿ya me ven?").
@@ -47,7 +52,11 @@ function BannerEstado({ comercio }) {
 
 export default function ShellComercio() {
   const { usuario, suscripcion } = useAuth();
-  const [comercio, setComercio] = useState(null);
+  // Una cuenta puede tener varios comercios, de rubros distintos. El shell
+  // guarda la lista y CUAL se esta mirando; todo lo demas —que secciones
+  // existen, que se edita— sale del seleccionado.
+  const [comercios, setComercios] = useState([]);
+  const [idActivo, setIdActivo] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -55,13 +64,37 @@ export default function ShellComercio() {
   const [modalPerfilAbierto, setModalPerfilAbierto] = useState(false);
   const [modalAyudaAbierto, setModalAyudaAbierto] = useState(false);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  const [pendientes, setPendientes] = useState({ pois: 0, reclamos: 0 });
+
+  // Cuánto hay esperando en cada cola de moderación, para el numerito del
+  // menú. Se pide al entrar y cada vez que se cambia de sección: alcanza para
+  // que el admin que está trabajando vea aparecer lo que entra, y no justifica
+  // un polling contra el servidor cada treinta segundos.
+  useEffect(() => {
+    if (!usuario?.es_admin) return;
+    let cancelado = false;
+    pedirJSON("/api/admin/pendientes")
+      .then((d) => !cancelado && setPendientes(d))
+      // Sin catch visible: que no se pueda contar la cola no es motivo para
+      // ensuciar la pantalla con un error. El numerito no aparece y ya.
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, [usuario?.es_admin, seccionActiva]);
 
   useEffect(() => {
     let cancelado = false;
-    pedirJSON("/api/mi-comercio")
-      .then((d) => !cancelado && setComercio(d))
-      // Un 404 no llega por aca: el backend devuelve null cuando la cuenta
-      // todavia no cargo nada, que es un estado normal y no un error.
+    pedirJSON("/api/mis-comercios")
+      .then((lista) => {
+        if (cancelado) return;
+        setComercios(lista);
+        // Se abre en el primero. Lista vacia es un estado normal —la cuenta
+        // todavia no cargo ninguno— y no un error.
+        setIdActivo((previo) =>
+          lista.some((c) => c.id === previo) ? previo : (lista[0]?.id ?? null),
+        );
+      })
       .catch((e) => !cancelado && setErrorCarga(e.message))
       .finally(() => !cancelado && setCargando(false));
     return () => {
@@ -69,73 +102,110 @@ export default function ShellComercio() {
     };
   }, []);
 
+  // El que se esta mirando. Se deriva de la lista y no se guarda aparte: con
+  // dos copias del mismo comercio, guardar en una pantalla dejaba la otra
+  // mostrando lo viejo.
+  const comercio = comercios.find((c) => c.id === idActivo) ?? null;
+
+  /** Reemplaza en la lista el que volvio del servidor. */
+  const reemplazar = useCallback((actualizado) => {
+    setComercios((previos) =>
+      previos.map((c) => (c.id === actualizado.id ? actualizado : c)),
+    );
+    return actualizado;
+  }, []);
+
+  const agregar = useCallback((creado) => {
+    setComercios((previos) => [...previos, creado]);
+    setIdActivo(creado.id);
+    return creado;
+  }, []);
+
+  const quitar = useCallback((id) => {
+    setComercios((previos) => {
+      const quedan = previos.filter((c) => c.id !== id);
+      setIdActivo(quedan[0]?.id ?? null);
+      return quedan;
+    });
+  }, []);
+
   // Un solo guardar para las cuatro pantallas de edicion: todas mandan un
   // PUT parcial al mismo endpoint y se quedan con la ficha que vuelve.
-  const guardar = useCallback(async (cambios) => {
-    setGuardando(true);
-    try {
-      const actualizado = await pedirJSON("/api/mi-comercio", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cambios),
-      });
-      setComercio(actualizado);
-      return actualizado;
-    } finally {
-      setGuardando(false);
-    }
-  }, []);
+  const guardar = useCallback(
+    async (cambios) => {
+      setGuardando(true);
+      try {
+        return reemplazar(
+          await pedirJSON(`/api/mis-comercios/${idActivo}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cambios),
+          }),
+        );
+      } finally {
+        setGuardando(false);
+      }
+    },
+    [idActivo, reemplazar],
+  );
 
   // El tablero de cruces tiene su propio endpoint y no viaja por el PUT de
   // arriba: es la unica edicion del panel que NO pasa por moderacion y que
   // nunca devuelve la ficha a 'pendiente' (ver backend/tablero.py). Separarlo
   // aca tambien es lo que evita que un cambio futuro en `guardar` le aplique
   // sin querer las reglas de la ficha.
-  const guardarTablero = useCallback(async (cruces) => {
-    setGuardando(true);
-    try {
-      const actualizado = await pedirJSON("/api/mi-comercio/tablero", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cruces }),
-      });
-      setComercio(actualizado);
-      return actualizado;
-    } finally {
-      setGuardando(false);
-    }
-  }, []);
+  const guardarTablero = useCallback(
+    async (cruces) => {
+      setGuardando(true);
+      try {
+        return reemplazar(
+          await pedirJSON(`/api/mis-comercios/${idActivo}/tablero`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cruces }),
+          }),
+        );
+      } finally {
+        setGuardando(false);
+      }
+    },
+    [idActivo, reemplazar],
+  );
 
   // Un solo interruptor. No toca `guardando`: el boton de "Guardar cambios"
   // del editor no tiene por que apagarse porque alguien marco una demora, que
   // es otra operacion y se resuelve sola.
-  const cambiarEstadoCruce = useCallback(async (cruceId, cuerpo) => {
-    const actualizado = await pedirJSON(
-      `/api/mi-comercio/tablero/${encodeURIComponent(cruceId)}/estado`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cuerpo),
-      },
-    );
-    setComercio(actualizado);
-    return actualizado;
-  }, []);
+  const cambiarEstadoCruce = useCallback(
+    async (cruceId, cuerpo) =>
+      reemplazar(
+        await pedirJSON(
+          `/api/mis-comercios/${idActivo}/tablero/${encodeURIComponent(cruceId)}/estado`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo),
+          },
+        ),
+      ),
+    [idActivo, reemplazar],
+  );
 
   // El de UNA salida. `estado` en null le saca la marca propia y la devuelve a
   // seguir al recorrido, que es como se deshace sin afirmar otra cosa.
-  const cambiarEstadoSalida = useCallback(async (cruceId, hora, cuerpo) => {
-    const actualizado = await pedirJSON(
-      `/api/mi-comercio/tablero/${encodeURIComponent(cruceId)}/salidas/${encodeURIComponent(hora)}/estado`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cuerpo),
-      },
-    );
-    setComercio(actualizado);
-    return actualizado;
-  }, []);
+  const cambiarEstadoSalida = useCallback(
+    async (cruceId, hora, cuerpo) =>
+      reemplazar(
+        await pedirJSON(
+          `/api/mis-comercios/${idActivo}/tablero/${encodeURIComponent(cruceId)}/salidas/${encodeURIComponent(hora)}/estado`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo),
+          },
+        ),
+      ),
+    [idActivo, reemplazar],
+  );
 
   if (cargando) return null;
 
@@ -180,49 +250,121 @@ export default function ShellComercio() {
   // menu de nada), asi que el asistente ocupa la pantalla entera. Puede que la
   // cuenta no tenga ficha pero si un reclamo en curso: eso lo resuelve
   // InicioComercio, que decide entre cargar, reclamar y esperar.
-  if (!comercio) {
-    return <InicioComercio onCreado={setComercio} />;
+  //
+  // Un admin es la excepcion: no viene por su ficha, viene a moderar. Cortarle
+  // acá le escondía las dos colas detrás de "cargá tu comercio" — y como la de
+  // Reclamos solo existía en este shell, una cuenta de comercio con es_admin y
+  // sin ficha no podia aprobar nada desde ningun lado.
+  if (comercios.length === 0 && !usuario?.es_admin) {
+    return <InicioComercio onCreado={agregar} yaTiene={comercios.length} />;
   }
 
-  const definicion = tipoDe(comercio.tipo);
+  const definicion = tipoDe(comercio?.tipo);
+
+  // Las pantallas de UN comercio. Cuelgan de el en la barra —cada comercio es
+  // un desplegable con las suyas— porque son suyas y no de la cuenta: los
+  // horarios, las metricas y las reseñas de un parador no tienen nada que ver
+  // con las de la cabaña de al lado, aunque las administre la misma persona.
+  const seccionesDeComercio = (c) => {
+    const def = tipoDe(c.tipo);
+    return [
+      { id: "ficha", etiqueta: "Ficha" },
+      // La carta es solo del parador: es el unico rubro con una lista de
+      // precios que cambia seguido y que el nauta quiere ver antes de parar.
+      // Una cabaña o una lancha-taxi cuentan lo suyo en la descripcion y en
+      // los servicios, sin una pantalla mas que mantener.
+      ...(def.tieneCarta ? [{ id: "carta", etiqueta: def.etiquetaCarta }] : []),
+      // El tablero es solo de la lancha-taxi y va ARRIBA de los horarios: es
+      // lo que el lanchero abre todos los dias (marcar una demora), mientras
+      // que los horarios de atencion se cargan una vez y no se tocan mas.
+      ...(def.tieneTablero ? [{ id: "tablero", etiqueta: "Tablero de cruces" }] : []),
+      { id: "horarios", etiqueta: "Horarios" },
+    ];
+  };
+
+  const seccionesActivas = comercio ? seccionesDeComercio(comercio) : [];
+
+  /**
+   * Cambia de comercio sin dejar la pantalla en una seccion que ese rubro no
+   * tiene. Estando en "Menú" de un parador y saltando a la lancha-taxi, la
+   * seccion desaparecia de la barra pero seguia activa: quedaba el editor de
+   * carta abierto sobre una lancha.
+   */
+  const elegirComercio = (id) => {
+    const destino = comercios.find((c) => c.id === id);
+    setIdActivo(id);
+    if (destino && !seccionesDeComercio(destino).some((s) => s.id === seccionActiva)) {
+      setSeccionActiva("ficha");
+    }
+  };
+
+  // El arbol de comercios va arriba de la barra y no adentro de una seccion:
+  // cambia TODO lo que se ve —las metricas, las reseñas, el tablero—, asi que
+  // no puede vivir dentro de una de las pantallas que cambia.
+  const selector =
+    comercios.length > 0 ? (
+      <SelectorComercio
+        comercios={comercios}
+        activo={idActivo}
+        seccionActiva={seccionActiva}
+        seccionesDe={seccionesDeComercio}
+        onElegir={elegirComercio}
+        onElegirSeccion={setSeccionActiva}
+        puedeAgregar={usuario?.es_admin || comercios.length < MAX_COMERCIOS}
+        onAgregar={() => {
+          setIdActivo(null);
+          setSeccionActiva("ficha");
+        }}
+      />
+    ) : null;
+
+  // Las de la cuenta, que no cuelgan de ningun comercio. El orden importa:
+  //
+  //   1. El MAPA arriba de todo. Es lo que el comerciante mira aunque no venga
+  //      a editar nada — donde esta la competencia, que reporto la gente cerca,
+  //      como viene el viento del fin de semana.
+  //   2. Los COMERCIOS, cada uno con su desplegable de edicion.
+  //   3. METRICAS y RESEÑAS, que son de la cuenta entera y no de un comercio:
+  //      "¿como me esta yendo?" se pregunta una vez, no una por pin. Adentro
+  //      de cada desplegable, el total de la cuenta no existia en ningun lado
+  //      y habia que sumar de cabeza.
   const secciones = [
-    { id: "ficha", etiqueta: "Mi comercio" },
-    // La carta es solo del parador: es el unico rubro con una lista de precios
-    // que cambia seguido y que el nauta quiere ver antes de parar. Una cabaña
-    // o una lancha-taxi cuentan lo suyo en la descripcion y en los servicios,
-    // sin una pantalla mas que mantener.
-    ...(definicion.tieneCarta ? [{ id: "carta", etiqueta: definicion.etiquetaCarta }] : []),
-    // El tablero es solo de la lancha-taxi y va ARRIBA de los horarios: es lo
-    // que el lanchero abre todos los dias (marcar una demora), mientras que
-    // los horarios de atencion se cargan una vez y no se tocan mas.
-    ...(definicion.tieneTablero ? [{ id: "tablero", etiqueta: "Tablero de cruces" }] : []),
-    { id: "horarios", etiqueta: "Horarios" },
-    { id: "metricas", etiqueta: "Métricas" },
-    { id: "resenas", etiqueta: "Reseñas" },
-    // El mismo mapa que ve el nauta. El comerciante esta sobre el rio igual
-    // que sus clientes: le sirve ver donde esta la competencia, que reporto
-    // la gente cerca y como viene el viento del fin de semana. Ademas puede
-    // dejar sus propios reportes.
     { id: "mapa", etiqueta: "Mapa del río" },
+    ...(comercios.length > 0 ? [{ id: "__comercios", nodo: selector }] : []),
+    ...(comercios.length > 0
+      ? [
+          { id: "metricas", etiqueta: "Métricas" },
+          { id: "resenas", etiqueta: "Reseñas" },
+        ]
+      : []),
     // Al final y no arriba: no es lo que el comerciante viene a hacer acá,
     // pero saber si el río está creciendo le cambia el fin de semana tanto
     // como al nauta. Es la misma pantalla que ve el nauta.
     { id: "nivel", etiqueta: "Nivel del río" },
     ...(usuario?.es_admin
       ? [
-          { id: "moderacion", etiqueta: "Moderación" },
-          { id: "reclamos", etiqueta: "Reclamos" },
+          { id: "moderacion", etiqueta: "Moderación", pendientes: pendientes.pois },
+          { id: "reclamos", etiqueta: "Reclamos", pendientes: pendientes.reclamos },
         ]
       : []),
   ];
 
+  // El titulo de arriba junta las dos listas. Para las pantallas de un
+  // comercio dice el nombre del comercio y no "Ficha": con tres cargados, el
+  // encabezado es lo unico que confirma en cual estas parado.
+  // Para las pantallas de un comercio el titulo es el NOMBRE del comercio y no
+  // "Ficha": con tres cargados, el encabezado es lo unico que confirma en cual
+  // estas parado. Metricas y reseñas son de la cuenta y conservan el suyo.
   const titulos = {
-    ...Object.fromEntries(secciones.map((s) => [s.id, s.etiqueta])),
+    ...Object.fromEntries(seccionesActivas.map((s) => [s.id, comercio?.nombre ?? s.etiqueta])),
+    ...Object.fromEntries(secciones.filter((s) => s.etiqueta).map((s) => [s.id, s.etiqueta])),
+    ficha: comercio?.nombre ?? "Cargar mi comercio",
     suscripcion: "Suscripción",
   };
 
   const abrirAyuda = () => setModalAyudaAbierto(true);
   const propsEdicion = { comercio, onGuardar: guardar, guardando };
+
 
   return (
     <ProveedorRio>
@@ -251,11 +393,25 @@ export default function ShellComercio() {
           {/* El estado de publicación acompaña a las pantallas del propio
               comercio; en suscripción, moderación y nivel del río no viene a
               cuento y sería ruido fijo arriba de todo. */}
-          {!["suscripcion", "moderacion", "reclamos", "nivel", "mapa"].includes(seccionActiva) && (
-            <BannerEstado comercio={comercio} />
-          )}
+          {comercio &&
+            !["suscripcion", "moderacion", "reclamos", "nivel", "mapa"].includes(
+              seccionActiva,
+            ) && <BannerEstado comercio={comercio} />}
 
-          {seccionActiva === "ficha" && <MiComercio {...propsEdicion} />}
+          {/* `onEliminado` deja el shell sin ficha, que es exactamente el
+              estado del que se sale por InicioComercio: la cuenta sigue viva y
+              puede cargar otro comercio o reclamar uno del mapa.
+
+              Sin ficha esta seccion ES el asistente de alta. Para una cuenta
+              comun eso no cambia nada —es la unica seccion que tiene—, y para
+              un admin es lo que le deja cargar la suya sin perder de vista las
+              colas de moderacion. */}
+          {seccionActiva === "ficha" &&
+            (comercio ? (
+              <MiComercio {...propsEdicion} onEliminado={() => quitar(comercio.id)} />
+            ) : (
+              <InicioComercio onCreado={agregar} yaTiene={comercios.length} />
+            ))}
           {seccionActiva === "carta" && <EditorCarta {...propsEdicion} />}
           {seccionActiva === "tablero" && (
             <EditorTablero
@@ -267,8 +423,8 @@ export default function ShellComercio() {
             />
           )}
           {seccionActiva === "horarios" && <EditorHorarios {...propsEdicion} />}
-          {seccionActiva === "metricas" && <MetricasComercio comercio={comercio} />}
-          {seccionActiva === "resenas" && <ResenasComercio comercio={comercio} />}
+          {seccionActiva === "metricas" && <MetricasComercio comercios={comercios} />}
+          {seccionActiva === "resenas" && <ResenasComercio comercios={comercios} />}
           {seccionActiva === "mapa" && (
             <MapaNauta
               onIrAClima={() => setSeccionActiva("nivel")}

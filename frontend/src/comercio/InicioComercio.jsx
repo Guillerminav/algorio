@@ -1,8 +1,34 @@
 import React, { useCallback, useEffect, useState } from "react";
 
 import { formatearFecha, pedirJSON } from "../api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import AltaComercio from "./AltaComercio.jsx";
 import ReclamarComercio from "./ReclamarComercio.jsx";
+
+/**
+ * La salida de estas pantallas.
+ *
+ * Sin esto no hay ninguna: ShellComercio devuelve InicioComercio ANTES de
+ * dibujar la barra superior, asi que acá no existen el menú de perfil ni el
+ * botón de cerrar sesión que tiene el resto del panel. Y la pantalla que
+ * espera la respuesta de un reclamo no ofrece nada más, así que una cuenta que
+ * pidió un lugar quedaba encerrada ahí hasta que alguien del equipo le
+ * contestara — sin poder salir, ni entrar con otra cuenta.
+ *
+ * En la app móvil no pasa: SinComercio vive adentro del cajón, que siempre
+ * tiene "Cuenta".
+ */
+function SalirDeAca() {
+  const { usuario, logout } = useAuth();
+  return (
+    <p className="enlace-alternativo inicio-comercio-salir">
+      Entraste como <strong>{usuario?.nombre_completo || usuario?.usuario}</strong>.{" "}
+      <button type="button" className="enlace-boton" onClick={logout}>
+        Cerrar sesión
+      </button>
+    </p>
+  );
+}
 
 /**
  * Lo que ve una cuenta de comercio que todavía no tiene ficha.
@@ -16,7 +42,7 @@ import ReclamarComercio from "./ReclamarComercio.jsx";
  * elegir camino, cargar, reclamar, o esperar la respuesta de un reclamo. Vive
  * aparte de ShellComercio para que el shell siga siendo solo layout.
  */
-export default function InicioComercio({ onCreado }) {
+export default function InicioComercio({ onCreado, yaTiene = 0 }) {
   const [reclamo, setReclamo] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [camino, setCamino] = useState(null);
@@ -53,53 +79,41 @@ export default function InicioComercio({ onCreado }) {
 
   if (cargando) return null;
 
-  // --- Esperando respuesta ---------------------------------------------------
-  // Gana sobre todo lo demás: mientras haya un pedido en curso, ofrecer "cargá
-  // tu comercio" sería invitar a duplicar justo lo que se pidió unificar.
-  if (reclamo?.estado === "pendiente") {
-    return (
-      <div className="alta-comercio">
-        <div className="alta-comercio-tarjeta">
-          <h1>Estamos revisando tu pedido</h1>
-          <p className="descripcion">
-            Pediste ser el dueño de <strong>{reclamo.nombre_poi}</strong> el{" "}
-            {formatearFecha(reclamo.creado_en)}. Cuando lo confirmemos vas a poder editar
-            la ficha, los horarios y las fotos desde acá.
-          </p>
-          <p className="descripcion">
-            Mientras tanto el lugar sigue publicado en el mapa tal como está: nadie pierde
-            nada esperando.
-          </p>
-
-          {error && <div className="mensaje-error">{error}</div>}
-
-          {/* Poder arrepentirse importa: sin esto, quien se equivocó de lugar
-              queda bloqueado hasta que un admin conteste. */}
-          <div className="fila-acciones">
-            <button
-              type="button"
-              className="boton-secundario"
-              onClick={cancelar}
-              disabled={cancelando}
-            >
-              {cancelando ? "Cancelando…" : "Cancelar el pedido"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const esperando = reclamo?.estado === "pendiente";
 
   // --- Elegir camino ---------------------------------------------------------
   if (camino === null) {
     return (
       <div className="alta-comercio">
         <div className="alta-comercio-tarjeta">
-          <h1>Empecemos por tu comercio</h1>
+          <h1>{yaTiene > 0 ? "Cargar otro comercio" : "Empecemos por tu comercio"}</h1>
           <p className="descripcion">
             Podés cargarlo de cero o, si tu lugar ya aparece en el mapa, pedir que te lo
             asignemos para editarlo vos.
           </p>
+
+          {/* El pedido en curso se avisa acá arriba y ya no ocupa la pantalla
+              entera. Antes la tapaba: mientras hubiera un reclamo esperando no
+              se podía cargar nada, porque con un comercio por cuenta ofrecer
+              el alta era invitar a duplicar justo lo que se pidió unificar.
+              Con varios por cuenta eso dejó de ser cierto — se puede tener el
+              parador cargado y estar esperando que aprueben la cabaña. */}
+          {esperando && (
+            <div className="aviso-revision">
+              <strong>Tenés un pedido en revisión.</strong> Pediste ser el dueño de{" "}
+              <strong>{reclamo.nombre_poi}</strong> el {formatearFecha(reclamo.creado_en)}.
+              Mientras tanto el lugar sigue publicado tal como está: nadie pierde nada
+              esperando.{" "}
+              <button
+                type="button"
+                className="enlace-boton"
+                onClick={cancelar}
+                disabled={cancelando}
+              >
+                {cancelando ? "Cancelando…" : "Cancelar el pedido"}
+              </button>
+            </div>
+          )}
 
           {/* El rechazo se muestra acá y no en una pantalla aparte: es
               exactamente el momento en que la persona vuelve a decidir qué
@@ -121,18 +135,26 @@ export default function InicioComercio({ onCreado }) {
                 revisarlo.
               </span>
             </button>
+            {/* Un reclamo por vez: el backend rechaza el segundo mientras
+                haya uno esperando, asi que se apaga en vez de dejar tocarlo
+                para que conteste que no. */}
             <button
               type="button"
               className="opcion-camino"
+              disabled={esperando}
+              title={esperando ? "Ya tenés un pedido esperando respuesta" : undefined}
               onClick={() => setCamino("reclamar")}
             >
               <strong>Ya está en el mapa y es mío</strong>
               <span>
-                Lo buscás en la lista y pedís que te lo asignemos. Conservás las reseñas y
-                las visitas que ya tiene.
+                {esperando
+                  ? "Ya tenés un pedido esperando respuesta. Cuando se resuelva vas a poder pedir otro."
+                  : "Lo buscás en la lista y pedís que te lo asignemos. Conservás las reseñas y las visitas que ya tiene."}
               </span>
             </button>
           </div>
+
+          <SalirDeAca />
         </div>
       </div>
     );

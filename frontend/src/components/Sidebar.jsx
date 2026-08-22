@@ -27,7 +27,12 @@ export function seccionesVisibles(suscripcion) {
 // `secciones` permite que otro shell (el del comerciante) reuse esta barra con
 // su propia navegacion. Sin el prop se comporta como siempre: las secciones del
 // producto de navieras que habilite el plan de la cuenta.
-export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda, secciones: seccionesProp }) {
+export default function Sidebar({
+  seccionActiva,
+  onCambiarSeccion,
+  onAbrirAyuda,
+  secciones: seccionesProp,
+}) {
   const { suscripcion } = useAuth();
   const secciones = seccionesProp ?? seccionesVisibles(suscripcion);
 
@@ -37,7 +42,13 @@ export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda,
         <div className="marca-texto">AlgoRio</div>
       </div>
       <nav className="nav-secciones">
-        {secciones.map((s) => (
+        {secciones.map((s) =>
+          // Una seccion puede traer su propio nodo en vez de ser un boton: es
+          // como el panel del comerciante mete el arbol de sus comercios en el
+          // lugar exacto de la lista donde va, y no pegado arriba de todo.
+          s.nodo ? (
+            <React.Fragment key={s.id}>{s.nodo}</React.Fragment>
+          ) : (
           <button
             key={s.id}
             type="button"
@@ -46,8 +57,17 @@ export default function Sidebar({ seccionActiva, onCambiarSeccion, onAbrirAyuda,
           >
             <span className="nav-boton-punto" />
             {s.etiqueta}
+            {/* El pendiente de moderacion se cuenta en la barra y no adentro
+                de la seccion: si hay que entrar para enterarse de que hay algo
+                esperando, la cola se mira cuando alguien se acuerda. */}
+            {s.pendientes > 0 && (
+              <span className="nav-boton-cuenta" aria-label={`${s.pendientes} esperando`}>
+                {s.pendientes}
+              </span>
+            )}
           </button>
-        ))}
+          ),
+        )}
       </nav>
       {/* Al final de la barra (margin-top:auto en el CSS): no es una seccion
           mas de navegacion, abre el formulario de contacto. En mobile, donde

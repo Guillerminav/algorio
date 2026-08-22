@@ -88,7 +88,10 @@ export default function MenuMovil({
         </div>
 
         <nav className="menu-movil-secciones">
-          {secciones.map((s) => (
+          {secciones.map((s) =>
+            s.nodo ? (
+              <React.Fragment key={s.id}>{s.nodo}</React.Fragment>
+            ) : (
             <button
               key={s.id}
               type="button"
@@ -97,8 +100,14 @@ export default function MenuMovil({
             >
               <span className="nav-boton-punto" />
               {s.etiqueta}
+              {s.pendientes > 0 && (
+                <span className="nav-boton-cuenta" aria-label={`${s.pendientes} esperando`}>
+                  {s.pendientes}
+                </span>
+              )}
             </button>
-          ))}
+            ),
+          )}
         </nav>
 
         {/* Pegado al borde inferior del cajon (lo hace `margin-top: auto` en

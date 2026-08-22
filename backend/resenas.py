@@ -86,12 +86,3 @@ def mias(usuario: str) -> list[dict]:
             (usuario,),
         ).fetchall()
     return [dict(f) for f in filas]
-
-
-def de_mi_comercio(usuario: str) -> list[dict]:
-    """Lo que dicen del comercio de esa cuenta. Lo consume el panel del
-    comerciante, que no conoce el id de su propio POI."""
-    inicializar_db()
-    with conexion() as con:
-        poi = con.execute("SELECT id FROM pois WHERE usuario = %s", (usuario,)).fetchone()
-    return listar(poi["id"]) if poi else []

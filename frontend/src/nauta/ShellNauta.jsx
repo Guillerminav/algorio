@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import ModeracionPois from "../admin/ModeracionPois.jsx";
+import ModeracionReclamos from "../admin/ModeracionReclamos.jsx";
 import PantallaSuscripcion from "../components/PantallaSuscripcion.jsx";
 import MenuMovil from "../components/MenuMovil.jsx";
 import ModalAyuda from "../components/ModalAyuda.jsx";
@@ -34,6 +35,7 @@ const SECCIONES = [
 const TITULOS = {
   ...Object.fromEntries(SECCIONES.map((s) => [s.id, s.etiqueta])),
   moderacion: "Moderación",
+  reclamos: "Reclamos",
   // No va en SECCIONES: se llega desde el menú de perfil, no desde la barra.
   // Es un dato de la cuenta, no una sección más del producto (mismo criterio
   // que AppShell).
@@ -63,11 +65,22 @@ export default function ShellNauta() {
   // la app.
   if (!usuario?.tipo_embarcacion) return <OnboardingEmbarcacion />;
 
-  // La cola de moderacion de comercios no depende del rol sino del permiso de
-  // la cuenta: quien aprueba paradores puede ser un nauta.
+  // Las dos colas de moderacion no dependen del rol sino del permiso de la
+  // cuenta: quien aprueba paradores puede ser un nauta.
+  //
+  // "Reclamos" va junto a "Moderación" y no solo en el panel del comerciante,
+  // que es donde estaba: ahi lo unico que podia aprobar un reclamo era una
+  // cuenta de comercio CON ficha cargada — sin ficha, el shell devuelve el
+  // asistente de alta antes de llegar a las secciones. O sea que darle el
+  // permiso a un nauta no alcanzaba para lo que el permiso dice que hace.
   const secciones = [
     ...SECCIONES,
-    ...(usuario?.es_admin ? [{ id: "moderacion", etiqueta: "Moderación" }] : []),
+    ...(usuario?.es_admin
+      ? [
+          { id: "moderacion", etiqueta: "Moderación" },
+          { id: "reclamos", etiqueta: "Reclamos" },
+        ]
+      : []),
   ];
 
   const abrirAyuda = () => setModalAyudaAbierto(true);
@@ -106,6 +119,7 @@ export default function ShellNauta() {
           {seccionActiva === "clima" && <ClimaNauta />}
           {seccionActiva === "nivel" && <NivelRio />}
           {seccionActiva === "moderacion" && <ModeracionPois />}
+          {seccionActiva === "reclamos" && <ModeracionReclamos />}
           {seccionActiva === "suscripcion" && <PantallaSuscripcion onAbrirAyuda={abrirAyuda} />}
           {seccionActiva === "perfil" && (
             <PerfilNauta onVerLugar={(poiId) => setLugarSuelto(poiId)} />

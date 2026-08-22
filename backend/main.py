@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Optional
 
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
@@ -23,8 +24,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from db import cerrar_pool, inicializar_db
 
-from backend import activos, ais, auth, ayuda, clima, datos, pois, reclamos, reportes
-from backend import resenas, rutas, suscripciones
+from backend import activos, ais, almacen_fotos, auth, ayuda, clima, correo, datos, pois
+from backend import reclamos, recuperacion, reportes, resenas, rutas, suscripciones
 from backend import tokens, tramos_navegacion
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
@@ -224,6 +225,21 @@ def _exigir_cupo(plan: str, recurso: str, cantidad_actual: int, singular: str) -
 
 class CredencialesLogin(BaseModel):
     usuario: str
+    password: str
+
+
+class RecuperacionPedido(BaseModel):
+    """El mail al que mandar el link para cambiar la contraseña.
+
+    Pide el mail y no el usuario a proposito: quien se olvido la contraseña
+    muchas veces tambien se olvido con que nombre se registro, y el mail es lo
+    unico a lo que se puede mandar algo.
+    """
+    email: EmailStr
+
+
+class RestablecerPedido(BaseModel):
+    token: str
     password: str
 
 
@@ -427,6 +443,17 @@ class RechazoEntrada(BaseModel):
     motivo: Optional[str] = None
 
 
+class TitularEntrada(BaseModel):
+    """A quien pasa a pertenecer un lugar del mapa.
+
+    `usuario` en None es la operacion util y no un caso borde: significa
+    "sacale el dueño", que es como un lugar cargado por el equipo —o por la
+    cuenta de prueba con la que se llena el mapa— vuelve a estar disponible
+    para que su dueño real lo reclame.
+    """
+    usuario: Optional[str] = None
+
+
 class ReporteEntrada(BaseModel):
     """Un aviso del nauta sobre un punto del rio.
 
@@ -472,6 +499,22 @@ def login(credenciales: CredencialesLogin, request: Request):
 def registro(datos_registro: RegistroRequest, request: Request):
     if len(datos_registro.password) < 8:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres.")
+
+    # Que el dominio del mail reciba correo de verdad, y no solo que la
+    # direccion este bien escrita. `EmailStr` valida la forma, y con eso
+    # "alguien@gmail.com.ar" entra perfecto: es una direccion valida de un
+    # dominio que no existe. La cuenta queda creada con un mail al que nunca va
+    # a llegar nada — ni el link de recuperar la contraseña — y la persona se
+    # entera el dia que no puede entrar. Ver correo.dominio_acepta_mail: ante
+    # la duda deja pasar, asi que un DNS caido no frena ninguna alta.
+    if not correo.dominio_acepta_mail(datos_registro.email):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Ese correo no existe: el dominio no recibe mails. Fijate que esté bien "
+                "escrito — si no, no vas a poder recuperar la cuenta."
+            ),
+        )
 
     rol = auth.rol_valido(datos_registro.rol)
     try:
@@ -524,6 +567,44 @@ def login_google(payload: CredencialGoogle, request: Request):
         )
 
     return _iniciar_sesion(request, usuario)
+
+
+@app.post("/api/auth/recuperar", status_code=202)
+def api_recuperar_password(pedido: RecuperacionPedido):
+    """Manda el mail con el link para cambiar la contraseña.
+
+    Contesta 202 y lo mismo SIEMPRE: exista la cuenta o no, sea de Google o no,
+    haya salido el mail o no. Un endpoint que contesta distinto cuando el mail
+    no esta registrado es un verificador de casillas gratis — con una lista
+    filtrada de otro lado, cualquiera averigua cuales tienen cuenta aca.
+
+    Por eso tampoco devuelve si el envio funciono: eso se ve en los logs de
+    Resend, no en una respuesta que mira cualquiera.
+    """
+    recuperacion.pedir(pedido.email)
+    return {
+        "ok": True,
+        "mensaje": (
+            "Si esa dirección tiene una cuenta, le mandamos un mail con el link "
+            "para cambiar la contraseña. Fijate también en el correo no deseado."
+        ),
+    }
+
+
+@app.post("/api/auth/restablecer")
+def api_restablecer_password(pedido: RestablecerPedido):
+    """Cambia la contraseña con el token del mail.
+
+    No inicia sesion al terminar: el paso siguiente es entrar con la contraseña
+    nueva, que es ademas la unica forma de que quede probada. Loguear desde
+    aca convertiria un link de mail en una sesion abierta, que es justo lo que
+    el token de un solo uso trata de acotar.
+    """
+    try:
+        recuperacion.restablecer(pedido.token, pedido.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
 
 
 @app.post("/api/logout")
@@ -1004,39 +1085,99 @@ def api_clima(
 # --- Panel del comerciante -------------------------------------------------
 
 
-@app.get("/api/mi-comercio")
-def api_mi_comercio(usuario: dict = Depends(usuario_con_rol("comercio"))):
-    """La ficha de esta cuenta, en cualquier estado. Devuelve null (y no 404)
-    cuando todavia no cargo nada: "no tengo comercio" es un estado normal del
-    panel, el que dispara el asistente de alta."""
-    return pois.obtener_de_usuario(usuario["usuario"])
+def _comercio_propio(usuario: str, poi_id: int) -> dict:
+    """El comercio `poi_id` de esa cuenta, o 404.
+
+    "No existe" y "no es tuyo" contestan lo mismo a proposito: con el id en la
+    URL, distinguirlos convierte al endpoint en una forma de averiguar que ids
+    estan tomados y de quien.
+    """
+    poi = pois.obtener_propio(usuario, poi_id)
+    if poi is None:
+        raise HTTPException(status_code=404, detail="Ese comercio no existe o no es tuyo.")
+    return poi
 
 
-@app.post("/api/mi-comercio", status_code=201)
-def api_crear_mi_comercio(
+def _primer_comercio(usuario: str) -> dict:
+    """El comercio mas viejo de la cuenta. Solo lo usan los endpoints
+    `/api/mi-comercio`, que quedaron para no romper la app movil."""
+    mios = pois.listar_de_usuario(usuario)
+    if not mios:
+        raise HTTPException(status_code=404, detail="Todavía no cargaste tu comercio.")
+    return mios[0]
+
+
+@app.get("/api/mis-comercios")
+def api_mis_comercios(usuario: dict = Depends(usuario_con_rol("comercio"))):
+    """Los comercios de esta cuenta, en cualquier estado.
+
+    Lista vacia (y no 404) cuando todavia no cargo ninguno: "no tengo
+    comercio" es un estado normal del panel, el que dispara el asistente de
+    alta.
+    """
+    return pois.listar_de_usuario(usuario["usuario"])
+
+
+@app.post("/api/mis-comercios", status_code=201)
+def api_crear_comercio(
     entrada: ComercioEntrada, usuario: dict = Depends(usuario_con_rol("comercio"))
 ):
-    if pois.obtener_de_usuario(usuario["usuario"]) is not None:
-        raise HTTPException(status_code=409, detail="Esta cuenta ya tiene un comercio cargado.")
+    """Da de alta OTRO comercio de la cuenta.
+
+    El tope no es tecnico —la base aguanta los que sean— sino para que una
+    cuenta no siembre el mapa. Un admin no lo tiene: es quien carga los
+    lugares de demostracion y quien acomoda las fichas que reclama la gente.
+    """
+    if not usuario.get("es_admin"):
+        if pois.contar_de_usuario(usuario["usuario"]) >= pois.MAX_COMERCIOS:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Podés tener hasta {pois.MAX_COMERCIOS} comercios en una cuenta. "
+                    "Eliminá uno o escribinos por Ayuda."
+                ),
+            )
     try:
         return pois.crear(usuario["usuario"], entrada.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.put("/api/mi-comercio")
-def api_actualizar_mi_comercio(
-    cambios: ComercioActualizacion, usuario: dict = Depends(usuario_con_rol("comercio"))
+@app.put("/api/mis-comercios/{poi_id}")
+def api_actualizar_comercio(
+    poi_id: int,
+    cambios: ComercioActualizacion,
+    usuario: dict = Depends(usuario_con_rol("comercio")),
 ):
     try:
-        return pois.actualizar(usuario["usuario"], cambios.model_dump(exclude_unset=True))
+        return pois.actualizar(
+            usuario["usuario"], poi_id, cambios.model_dump(exclude_unset=True)
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.put("/api/mi-comercio/tablero")
+@app.delete("/api/mis-comercios/{poi_id}", status_code=204)
+def api_eliminar_comercio(
+    poi_id: int, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    """Saca UN comercio del mapa, con sus reseñas, visitas y fotos.
+
+    Borra y no huerfana: dejar el pin sin dueño es lo que corresponde cuando se
+    da de baja una CUENTA —el lugar sigue existiendo y alguien lo va a
+    reclamar— pero no cuando el dueño dice que ese lugar ya no esta. Los otros
+    comercios de la cuenta siguen donde estaban.
+    """
+    if pois.eliminar(usuario["usuario"], poi_id) is None:
+        raise HTTPException(status_code=404, detail="Ese comercio no existe o no es tuyo.")
+    return None
+
+
+@app.put("/api/mis-comercios/{poi_id}/tablero")
 def api_guardar_tablero(
-    entrada: TableroEntrada, usuario: dict = Depends(usuario_con_rol("comercio"))
+    poi_id: int,
+    entrada: TableroEntrada,
+    usuario: dict = Depends(usuario_con_rol("comercio")),
 ):
     """El tablero de cruces de una lancha-taxi, completo.
 
@@ -1047,13 +1188,14 @@ def api_guardar_tablero(
     aplicara la moderacion sin que nadie se de cuenta.
     """
     try:
-        return pois.guardar_tablero(usuario["usuario"], entrada.cruces)
+        return pois.guardar_tablero(usuario["usuario"], poi_id, entrada.cruces)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/mi-comercio/tablero/{cruce_id}/estado")
+@app.post("/api/mis-comercios/{poi_id}/tablero/{cruce_id}/estado")
 def api_cambiar_estado_cruce(
+    poi_id: int,
     cruce_id: str,
     entrada: EstadoCruceEntrada,
     usuario: dict = Depends(usuario_con_rol("comercio")),
@@ -1062,14 +1204,15 @@ def api_cambiar_estado_cruce(
     cuando un admin llegara a aprobar un "demorado", la lancha ya salio."""
     try:
         return pois.cambiar_estado_cruce(
-            usuario["usuario"], cruce_id, entrada.estado, entrada.demora_min, entrada.nota
+            usuario["usuario"], poi_id, cruce_id, entrada.estado, entrada.demora_min, entrada.nota
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/mi-comercio/tablero/{cruce_id}/salidas/{hora}/estado")
+@app.post("/api/mis-comercios/{poi_id}/tablero/{cruce_id}/salidas/{hora}/estado")
 def api_cambiar_estado_salida(
+    poi_id: int,
     cruce_id: str,
     hora: str,
     entrada: EstadoSalidaEntrada,
@@ -1083,10 +1226,101 @@ def api_cambiar_estado_salida(
     """
     try:
         return pois.cambiar_estado_salida(
-            usuario["usuario"], cruce_id, hora, entrada.estado, entrada.demora_min
+            usuario["usuario"], poi_id, cruce_id, hora, entrada.estado, entrada.demora_min
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# --- Compatibilidad: los endpoints en singular ------------------------------
+#
+# Eran los unicos hasta que una cuenta pudo tener varios comercios. Siguen
+# vivos apuntando al PRIMERO porque la app movil se publica aparte de la web:
+# el dia que se actualiza el backend, los telefonos que ya estan instalados
+# siguen pidiendo estas rutas, y sin ellas la app deja de andar sin que nadie
+# la haya tocado.
+#
+# Se van cuando el movil use /api/mis-comercios. Mientras tanto son una vista
+# de un solo comercio sobre el modelo nuevo, no una implementacion aparte: todo
+# termina en las mismas funciones de pois.py.
+
+
+@app.get("/api/mi-comercio")
+def api_mi_comercio_legado(usuario: dict = Depends(usuario_con_rol("comercio"))):
+    """El primero de la cuenta, o null. Null y no 404: "no tengo comercio" es
+    un estado normal del panel, el que dispara el asistente de alta."""
+    mios = pois.listar_de_usuario(usuario["usuario"])
+    return mios[0] if mios else None
+
+
+@app.post("/api/mi-comercio", status_code=201)
+def api_crear_mi_comercio_legado(
+    entrada: ComercioEntrada, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    return api_crear_comercio(entrada, usuario)
+
+
+@app.put("/api/mi-comercio")
+def api_actualizar_mi_comercio_legado(
+    cambios: ComercioActualizacion, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    return api_actualizar_comercio(_primer_comercio(usuario["usuario"])["id"], cambios, usuario)
+
+
+@app.delete("/api/mi-comercio", status_code=204)
+def api_eliminar_mi_comercio_legado(usuario: dict = Depends(usuario_con_rol("comercio"))):
+    return api_eliminar_comercio(_primer_comercio(usuario["usuario"])["id"], usuario)
+
+
+@app.put("/api/mi-comercio/tablero")
+def api_guardar_tablero_legado(
+    entrada: TableroEntrada, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    return api_guardar_tablero(_primer_comercio(usuario["usuario"])["id"], entrada, usuario)
+
+
+@app.post("/api/mi-comercio/tablero/{cruce_id}/estado")
+def api_cambiar_estado_cruce_legado(
+    cruce_id: str,
+    entrada: EstadoCruceEntrada,
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    return api_cambiar_estado_cruce(
+        _primer_comercio(usuario["usuario"])["id"], cruce_id, entrada, usuario
+    )
+
+
+@app.post("/api/mi-comercio/tablero/{cruce_id}/salidas/{hora}/estado")
+def api_cambiar_estado_salida_legado(
+    cruce_id: str,
+    hora: str,
+    entrada: EstadoSalidaEntrada,
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    return api_cambiar_estado_salida(
+        _primer_comercio(usuario["usuario"])["id"], cruce_id, hora, entrada, usuario
+    )
+
+
+@app.post("/api/mi-comercio/fotos", status_code=201)
+async def api_subir_foto_legado(
+    archivo: UploadFile = File(...),
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    return await api_subir_foto(_primer_comercio(usuario["usuario"])["id"], archivo, usuario)
+
+
+@app.get("/api/mi-comercio/metricas")
+def api_metricas_mi_comercio_legado(
+    dias: int = Query(default=30, ge=1, le=365),
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    return api_metricas_comercio(_primer_comercio(usuario["usuario"])["id"], dias, usuario)
+
+
+@app.get("/api/mi-comercio/resenas")
+def api_resenas_mi_comercio_legado(usuario: dict = Depends(usuario_con_rol("comercio"))):
+    return api_resenas_comercio(_primer_comercio(usuario["usuario"])["id"], usuario)
 
 
 @app.get("/api/comercios-sin-dueno")
@@ -1125,20 +1359,82 @@ def api_cancelar_reclamo(usuario: dict = Depends(usuario_con_rol("comercio"))):
     return None
 
 
-@app.get("/api/mi-comercio/metricas")
-def api_metricas_mi_comercio(
+@app.post("/api/mis-comercios/{poi_id}/fotos", status_code=201)
+async def api_subir_foto(
+    poi_id: int,
+    archivo: UploadFile = File(...),
+    usuario: dict = Depends(usuario_con_rol("comercio")),
+):
+    """Sube una foto de la ficha y devuelve su URL.
+
+    Devuelve la URL en vez de tocar `pois.fotos` directamente: el editor la
+    agrega a la lista y el comerciante guarda cuando termina, igual que con el
+    resto de la pantalla. Subir y publicar son dos cosas distintas — asi se
+    puede subir tres, borrar una y recien despues guardar.
+    """
+    poi = _comercio_propio(usuario["usuario"], poi_id)
+    if len(poi.get("fotos") or []) >= almacen_fotos.MAX_FOTOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya tenés {almacen_fotos.MAX_FOTOS} fotos. Borrá alguna para subir otra.",
+        )
+
+    contenido = await archivo.read()
+    try:
+        url = almacen_fotos.guardar(
+            usuario["usuario"], poi["id"], contenido, archivo.content_type or ""
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"url": url}
+
+
+@app.get("/api/fotos/{foto_id}")
+def api_foto(foto_id: int):
+    """Sirve una foto guardada en la base.
+
+    Sin autenticacion a proposito: son fotos que el comerciante subio para
+    publicar en el mapa, y pedir sesion romperia el `<img>` de cualquier
+    contexto sin cookies. El id es un serial, asi que no adivina nada que no
+    este ya publicado.
+
+    Cache larga e inmutable: el contenido de un id no cambia nunca — editar la
+    foto significa subir otra y quedarse con otro id.
+    """
+    guardada = almacen_fotos.leer(foto_id)
+    if guardada is None:
+        raise HTTPException(status_code=404, detail="Esa foto no existe.")
+    contenido, mime = guardada
+    return Response(
+        content=contenido,
+        media_type=mime,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@app.get("/api/mis-comercios/{poi_id}/metricas")
+def api_metricas_comercio(
+    poi_id: int,
     dias: int = Query(default=30, ge=1, le=365),
     usuario: dict = Depends(usuario_con_rol("comercio")),
 ):
-    poi = pois.obtener_de_usuario(usuario["usuario"])
-    if poi is None:
-        raise HTTPException(status_code=404, detail="Todavía no cargaste tu comercio.")
+    poi = _comercio_propio(usuario["usuario"], poi_id)
     return pois.metricas(poi["id"], dias)
 
 
-@app.get("/api/mi-comercio/resenas")
-def api_resenas_mi_comercio(usuario: dict = Depends(usuario_con_rol("comercio"))):
-    return resenas.de_mi_comercio(usuario["usuario"])
+@app.get("/api/mis-comercios/{poi_id}/resenas")
+def api_resenas_comercio(
+    poi_id: int, usuario: dict = Depends(usuario_con_rol("comercio"))
+):
+    """Lo que dicen de UN comercio propio.
+
+    La pertenencia la chequea `_comercio_propio`, que contesta 404 igual que
+    los demas endpoints de la coleccion. Antes esto devolvia 200 con lista
+    vacia para un comercio ajeno: no filtraba nada, pero "no es tuyo" y "no
+    tiene reseñas" no pueden contestar lo mismo.
+    """
+    poi = _comercio_propio(usuario["usuario"], poi_id)
+    return resenas.listar(poi["id"])
 
 
 # --- Moderacion ------------------------------------------------------------
@@ -1199,6 +1495,33 @@ def api_rechazar_poi(
     if poi is None:
         raise HTTPException(status_code=404, detail="El lugar no existe.")
     return poi
+
+
+@app.post("/api/admin/pois/{poi_id}/titular")
+def api_cambiar_titular(
+    poi_id: int, entrada: TitularEntrada, usuario: dict = Depends(usuario_admin)
+):
+    """Libera un lugar o se lo asigna a una cuenta.
+
+    Es la unica forma de mover un POI que YA tiene dueño: `reclamos.resolver`
+    solo entrega los que estan sin asignar, asi que sin esto un lugar cargado
+    desde la cuenta de prueba se quedaba ahi para siempre.
+    """
+    try:
+        return reclamos.transferir(poi_id, entrada.usuario)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/api/admin/pendientes")
+def api_contar_pendientes(usuario: dict = Depends(usuario_admin)):
+    """Cuanto hay esperando en cada cola. Es el numerito del menu del admin.
+
+    Existe aparte de las dos listas porque se pide en cada pantalla y solo para
+    dibujar dos numeros: traer las colas enteras para contarlas seria bajar
+    cada ficha pendiente con su menu y sus fotos para no mostrar ninguna.
+    """
+    return {"pois": pois.contar_pendientes(), "reclamos": reclamos.contar_pendientes()}
 
 
 # Se monta al final y en "/": las rutas /api/* de arriba, al estar declaradas

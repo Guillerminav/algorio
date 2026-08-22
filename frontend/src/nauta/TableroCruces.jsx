@@ -146,7 +146,7 @@ function FilaCruce({ cruce, ahoraMin }) {
  * La hora que manda es la de Argentina y no la del dispositivo (ver
  * minutosAhoraAR): el cartel es el del muelle, no el del que lo mira.
  */
-export default function TableroCruces({ cruces, actualizado }) {
+export default function TableroCruces({ cruces }) {
   const ahoraMin = useMinutoAR();
   if (!cruces?.length) return null;
 
@@ -165,14 +165,6 @@ export default function TableroCruces({ cruces, actualizado }) {
         ))}
       </ul>
 
-      {/* Quién dice esto y desde cuándo. Un tablero sin firma se lee como dato
-          oficial; este lo carga el lanchero, y saberlo cambia cuánto se le
-          confía a un "a horario" de hace tres horas. */}
-      <p className="tablero-pie">
-        Lo actualiza el lanchero. Los estados vuelven solos a &ldquo;a
-        horario&rdquo; al día siguiente.
-        {actualizado ? ` Última edición de la ficha: ${actualizado}.` : ""}
-      </p>
     </section>
   );
 }

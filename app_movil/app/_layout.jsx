@@ -52,6 +52,9 @@ export default function LayoutRaiz() {
             <Stack.Screen name="(comercio)" options={{ headerShown: false }} />
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
+            {/* Sin barra, como el login: es la misma pantalla de marca y la
+                vuelta se hace con su propio boton. */}
+            <Stack.Screen name="recuperar" options={{ headerShown: false }} />
             <Stack.Screen name="registro" options={{ title: "Crear cuenta" }} />
             <Stack.Screen name="embarcacion" options={{ headerShown: false }} />
             <Stack.Screen name="solo-web" options={{ headerShown: false }} />

@@ -177,11 +177,6 @@ export default function TableroCruces({ cruces }) {
         />
       ))}
 
-      {/* Quién firma esto. Un tablero sin firma se lee como dato oficial; este
-          lo carga el lanchero, y saberlo cambia cuánto se le confía. */}
-      <Text style={estilos.pie}>
-        Lo actualiza el lanchero. Los estados vuelven solos a “a horario” al día siguiente.
-      </Text>
     </View>
   );
 }
@@ -267,14 +262,4 @@ const estilos = StyleSheet.create({
   },
   salidaEstado: { fontSize: 9.5, fontWeight: "800", letterSpacing: 0.4 },
 
-  pie: {
-    paddingHorizontal: 14,
-    paddingTop: 9,
-    paddingBottom: 11,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.09)",
-    fontSize: 11.5,
-    lineHeight: 17,
-    color: "rgba(255,255,255,0.5)",
-  },
 });

@@ -305,15 +305,21 @@ próxima 14:20 · ahora · cada 6 h · $5.200 · vuelve hasta 18:45"—. Sin eso
 lanchero carga cinco numeros sueltos y no ve que frase arman hasta abrir la
 ficha del nauta en otra pantalla.
 
-Los horarios se cargan todos juntos en un renglon ("07:00, 09:30, 12:00") y
-debajo aparece un chip por salida para marcarlas de a una. El renglon **guarda
-su propio texto mientras se escribe** y solo lo interpreta al salir del campo:
-si el valor del campo se recalculara desde la lista en cada tecla, la coma que
-uno acaba de escribir desapareceria al instante —se parsea, queda un elemento
-vacio, se descarta y se vuelve a unir sin ella— y el campo seria intipeable.
-Al confirmar, los horarios se ordenan, se deduplican, "8" se vuelve "08:00" y
-**cada salida conserva el estado que ya tenia**: tocar una coma no puede borrar
-el "demorado" que se acaba de marcar.
+Los horarios se cargan de a uno: un **selector de hora** —el que abre el
+celular para poner una alarma; en el movil son dos ruedas propias, hora y
+minuto de a cinco— y un boton **`+`** que lo suma al dia elegido. Antes era un
+renglon de texto con comas, y tipear "07:00, 09:30, 12:00" sin equivocarse, con
+una mano y desde el muelle, es mas trabajo que elegir la hora y tocar mas. Cada
+hora cargada queda como un chip con su `✕`, que es tambien la unica forma de
+sacarla. La lista se ordena y se deduplica sola, y el estado de una salida vive
+aparte (`estados_salida`): agregar o sacar una hora no toca el "demorado" que
+se acaba de marcar en otra.
+
+En el dia de hoy —y solo ahi— el chip ademas se toca para abrir sus
+interruptores. La botonera arranca con el estado que la salida ya tiene y no en
+blanco: recien cargada eso es **"A horario"**, que es la verdad y no una
+casilla sin contestar. Por eso tampoco hay un boton aparte para deshacer una
+demora: se toca el estado que va.
 
 ## Trafico de embarcaciones en tiempo real (AIS)
 
@@ -422,6 +428,40 @@ vuelta:
 
 De paso la inversion ordena la jerarquia: los destinos quedan atras, los avisos
 se adelantan.
+
+### La planilla es semanal; el estado es de hoy
+
+La confusion mas facil de este tablero es mezclar el PLAN con el ESTADO, y
+estan separados a proposito:
+
+| | que es | caduca |
+| --- | --- | --- |
+| `salidas` | Los horarios de **cada dia de la semana**: `{lun: [...], mar: [...]}` | Nunca |
+| `estados_salida` | Lo de hoy: "el de las 09:30 va demorado" | Al cambiar el dia en Argentina |
+
+Que la planilla sea semanal importa de verdad: casi ningun lanchero cruza igual
+un martes que un domingo, y con una sola lista tenia que reescribirla cada vez.
+
+En el editor los siete dias van como **pestañas** —las siete en una sola fila,
+porque una semana cortada en 5 + 2 deja de leerse como semana— y no como siete
+campos apilados: se cargan uno o dos horarios distintos (semana y fin de
+semana) y el resto se repite con un boton, asi que mostrar siete renglones
+seria pedirle que mire cinco iguales para encontrar el que cambia.
+
+Un dia que tiene horarios queda **marcado**: pintado con el color del acento y
+con su cuenta de salidas debajo del nombre; uno vacio lleva un guion. No es
+decoracion, es lo que contesta de un vistazo **que dias sale la lancha a la
+isla** y lo que evita publicar un tablero al que le falta el domingo.
+
+Los chips son el plan de la pestaña que estes mirando, pero los **interruptores
+de estado** solo se abren en el dia de hoy — marcar el 09:30 del sabado un
+martes no significaria nada — y por eso el dia actual lleva un punto en su
+pestaña: sin esa marca no se entiende por que un chip se abre y otro no segun
+donde estes parado.
+
+Un detalle que el modelo cuida: si se borra el horario de las 09:30 de hoy, su
+estado se descarta al guardar. Un "demorado" sin salida a la que referirse no
+significa nada.
 
 ### Tres escalones sin nada brillante
 
@@ -667,6 +707,14 @@ Al entrar, una cuenta sin ficha elige camino:
 | **Cargar mi comercio** | El asistente de siempre. Nace en `pendiente`. |
 | **Ya esta en el mapa y es mio** | Busca su lugar entre los huerfanos y pide que se lo asignen. |
 
+Buscar el lugar propio se puede hacer de dos maneras, y son dos formas de
+reconocerlo y no la misma dos veces: en el **mapa**, que es como alguien
+encuentra su propio muelle ("el mio es el que esta pasando la curva"), y en la
+**lista**, que es como se lo encuentra por nombre cuando el pin quedo a cien
+metros de donde deberia. El que carga esto desde el celular en su parador
+quiere el mapa; el que lo carga desde una compu en la ciudad quiere la lista.
+En las dos, cada lugar sin dueño lleva su boton **"Este es mi comercio"**.
+
 ### Por que lo aprueba un admin
 
 Entregar la edicion de un POI es entregar el nombre, la ubicacion y el telefono
@@ -697,9 +745,220 @@ Tres cosas que el modelo cuida y que no se ven en la pantalla:
 - **Aprobar uno cierra los otros pendientes del mismo lugar**, con su motivo.
   Ya no hay nada que decidir ahi.
 
+### Que nadie mire la cola es el modo de fallar
+
+Un reclamo que nadie abre es un comerciante esperando, y la cola no le avisa a
+nadie por si sola. Van dos avisos, a proposito redundantes:
+
+- Un **mail** a `MAIL_SOPORTE` cuando entra el reclamo, con quien pide, que
+  lugar y con que argumento — lo mismo con lo que se decide en el panel.
+- El **numero de pendientes** al lado de "Moderacion" y "Reclamos" en el menu
+  del admin (`GET /api/admin/pendientes`).
+
+El numerito es el que importa: no depende de `RESEND_API_KEY` ni de que el mail
+no caiga en spam. El mail es el que llega sin entrar a la app. El envio nunca
+lanza (ver `backend/correo.py`): si el reclamo se guardo, el reclamo esta
+hecho, aunque el admin se entere entrando al panel.
+
+### Cambiar de mano un lugar que YA tiene dueño
+
+`reclamos.resolver` solo sabe entregar POIs **sin asignar**, asi que un lugar
+cargado desde una cuenta —la de prueba con la que se llena el mapa antes de
+salir a vender, sin ir mas lejos— no habia forma de pasarselo a su dueño real:
+no aparecia entre los reclamables y nadie podia pedirlo. Eso lo resuelve
+`POST /api/admin/pois/{id}/titular`, en la fila de cada lugar publicado de la
+pantalla de Moderacion:
+
+| | que hace | cuando |
+| --- | --- | --- |
+| **Liberar** (`usuario: null`) | Lo deja sin dueño y vuelve a la lista de reclamables. | Al dueño lo conoces por telefono y no esta ahi: que lo pida el, y queda el rastro de quien pidio que. |
+| **Asignar a una cuenta** (`usuario: "..."`) | Se lo entrega derecho a esa cuenta. | Lo tenes sentado al lado. Hacerle buscar su propio local en una lista para darle vos mismo la aprobacion es un tramite inventado. |
+
+Asignar valida que la cuenta exista, que sea de **rol comercio** (un nauta no
+tiene panel donde editar la ficha) y que no tenga ya otro comercio. Y no pisa a
+nadie en silencio: si el lugar tenia dueño, se lo saca — por eso lo hace un
+admin y no un formulario.
+
+## Eliminar el comercio
+
+`DELETE /api/mi-comercio`, desde "Mi comercio", abajo de todo y apartado del
+formulario. Borra de verdad: con el POI se van las reseñas, las visitas y las
+fotos (`ON DELETE CASCADE`, ver `db.py`). La cuenta sigue viva y puede cargar
+otro, que es lo que hace falta cuando alguien cierra el parador y abre una
+cabaña.
+
+Es distinto de dar de baja la CUENTA, que deja el pin puesto y solo lo
+huerfana: ahi el lugar sigue existiendo y alguien lo va a reclamar. Aca el
+lugar se va del mapa porque su dueño dijo que ya no esta.
+
+Se confirma **escribiendo el nombre del comercio**, no con un "¿estas seguro?":
+el si automatico de un confirm() se toca sin leerlo, y tipear el nombre del
+propio parador obliga a mirar que se esta por borrar. Al lado, la alternativa
+que la mayoria en realidad busca: para dejar de figurar un tiempo no hace falta
+borrar nada — vaciando los horarios la ficha figura como cerrada, y las reseñas
+de tres años siguen ahi.
+
+## Que el mail del registro exista
+
+`EmailStr` valida la **forma** de la direccion, y con eso
+`alguien@gmail.com.ar` entra perfecto: es una direccion bien escrita de un
+dominio que no recibe correo. La cuenta queda creada, y la persona se entera el
+dia que necesita recuperar la contraseña y no le llega nada. Eso ya paso en
+esta base.
+
+Asi que el alta ademas le pregunta al DNS: `correo.dominio_acepta_mail()`
+resuelve el MX del dominio y rechaza el registro si no hay. Cuesta entre 0,02 y
+0,3 segundos contra dominios reales.
+
+Las tres respuestas posibles, y que hace con cada una:
+
+| el DNS dice | que se hace |
+| --- | --- |
+| NXDOMAIN — el dominio no existe | **rechaza** |
+| Existe pero sin MX (o con "null MX", RFC 7505) | mira A/AAAA, que es el fallback de RFC 5321; si tampoco hay, **rechaza** |
+| Timeout, sin nameservers, cualquier otro error | **deja pasar** |
+
+Ante la duda deja pasar, y eso es deliberado: un DNS caido o bloqueado por la
+red del servidor no puede frenarle el alta a nadie. Solo dice que no cuando el
+DNS contesta, y contesta que no.
+
+Lo que **no** hace: saber si la casilla existe. `nadie@gmail.com` tiene MX
+igual, y `gmial.com` —el typo clasico— es un dominio registrado de verdad, con
+MX. Para eso hace falta mandar un mail con un link y esperar el clic. Hoy eso
+seria peor el remedio: sin un dominio verificado en Resend, el remitente de
+prueba solo entrega a la casilla del dueño de la cuenta (ver mas abajo), asi
+que exigir el clic dejaria a todo el mundo sin poder registrarse.
+
+## Olvide mi contraseña
+
+Dos endpoints y un token que vive una hora:
+
+| | |
+| --- | --- |
+| `POST /api/auth/recuperar` | Recibe un mail, manda el link. **Contesta 202 y lo mismo siempre.** |
+| `POST /api/auth/restablecer` | Recibe el token y la contraseña nueva. |
+
+Pide el **mail** y no el usuario porque quien se olvido la contraseña muchas
+veces tambien se olvido con que nombre se registro — y el mail es lo unico a lo
+que se puede mandar algo.
+
+Cinco decisiones que no se ven leyendo las firmas:
+
+- **Nunca dice si ese mail existe.** El endpoint contesta identico exista la
+  cuenta o no, sea de Google o no, y haya salido el mail o no. Un formulario que
+  dice "no encontramos esa direccion" es un verificador de casillas gratis:
+  alguien con una lista filtrada de otro lado averigua cuales tienen cuenta aca,
+  y esa lista vale para el phishing que viene despues.
+- **En la base va el hash del token, no el token.** `recuperaciones_password` es
+  la llave de toda cuenta que haya pedido recuperarla; con los tokens en claro,
+  leer una fila alcanza para entrar.
+- **Un solo uso.** El mail queda para siempre en la casilla: sin `usado_en`
+  seguiria abriendo la cuenta meses despues. Al usarlo se borran ademas los
+  otros pedidos de esa cuenta.
+- **Una cuenta de Google tambien puede pedir contraseña por aca**, y eso le
+  agrega una forma de entrar que antes no tenia. Es una decision de producto con
+  un costo que conviene tener escrito: quien tenga acceso a la casilla puede
+  ponerle contraseña local a una cuenta que su dueño habia elegido que abriera
+  solo con Google. Se acepto porque el mail ya era el factor de recuperacion de
+  la cuenta de Google tambien —quien controla la casilla recupera esa cuenta y
+  entra igual—, asi que no abre una puerta cerrada, la abre mas rapido. Lo que
+  compensa: el mail de esa cuenta **dice otra cosa** (asunto "crear tu
+  contraseña", no "cambiar") y su renglon final le avisa a quien no pidio nada
+  que alguien esta intentando abrirle una segunda puerta. Poner contraseña no
+  saca el boton de Google: la cuenta pasa a entrar de las dos formas.
+- **No inicia sesion al terminar.** El paso siguiente es entrar con la
+  contraseña nueva, que es ademas la unica forma de que quede probada.
+
+En la web se llega por el link (`?restablecer=<token>`, que lee `App.jsx`) y el
+token **sale de la barra de direcciones en el primer pintado**: una URL con el
+token adentro se comparte por WhatsApp, queda en el historial de una compu
+prestada y se guarda en favoritos. En la app se pega el codigo, que es el mismo
+token y viene en el mismo mail: el link abriria el navegador y obligaria a
+volver.
+
+### Cuando no llega el mail
+
+El endpoint contesta lo mismo salga o no el correo —eso es a proposito— asi que
+del lado de afuera "no llego" y "se rechazo" se ven identicos. Adentro no:
+`backend/correo.py` imprime `AVISO: no salio el mail a ...` con lo que contesto
+Resend, y el error queda ademas en `recuperaciones_password.error_envio`. Para
+mirarlo:
+
+    python -m scripts.revisar_recuperaciones --email alguien@ejemplo.com
+
+Las dos razones por las que no llega, en orden de frecuencia:
+
+1. **Resend rechaza al destinatario.** Sin un dominio propio verificado, el
+   remitente de prueba `onboarding@resend.dev` SOLO entrega al mail de la cuenta
+   que creo la API key. Los mensajes de "Ayuda" no lo notan porque van siempre a
+   esa misma casilla; los de recuperacion van al mail del usuario, que es otro.
+   Se arregla verificando un dominio y poniendolo en `MAIL_REMITENTE`.
+2. **La direccion registrada no es la que se esta escribiendo.** Un `.com.ar`
+   de mas en un gmail alcanza: la cuenta existe, el mail sale, y no llega a
+   ningun lado.
+
+Lo que este circuito **no** hace: cerrar las sesiones que ya estaban abiertas.
+No hay sesiones del lado del servidor —la web usa una cookie firmada y la app un
+token de itsdangerous (ver `backend/tokens.py`)—, asi que quien tenga una sesion
+viva la conserva despues del cambio. Para revocarlas habria que marcar en
+`usuarios` desde cuando vale una sesion y chequearlo en `usuario_actual`, que
+hoy resuelve la cookie **sin tocar la base**.
+
+## Varios comercios por cuenta
+
+Quien tiene un parador y ademas alquila cabañas es **una persona con una
+cuenta**, no dos logins. Hasta hace poco el modelo decia lo contrario: un
+indice UNICO parcial sobre `pois(usuario)` permitia un solo POI por cuenta, y
+el panel entero era "mi comercio", en singular.
+
+Lo que hizo falta en la base fue **una linea**: ese indice pasa a ser no unico
+(`pois_usuario_idx`). El resto del esquema ya lo soportaba — fotos, reseñas,
+visitas, reclamos y el tablero cuelgan de `poi_id`, no de la cuenta. No hubo
+que migrar un solo dato.
+
+Lo que costo fue la aplicacion, que asumia `fetchone()` en todos lados:
+
+| capa | que cambio |
+| --- | --- |
+| `pois.py` | `obtener_de_usuario` → `listar_de_usuario` + `obtener_propio` + `contar_de_usuario`; `actualizar`, `eliminar` y las cuatro del tablero pasan a recibir `poi_id` |
+| `main.py` | `/api/mi-comercio` → coleccion `/api/mis-comercios/{id}/…` |
+| `reclamos.py` | se caen los tres chequeos de "esta cuenta ya tiene un comercio" |
+| panel web | `ShellComercio` guarda la lista y cual esta activo; selector nuevo arriba de la barra |
+
+### La pertenencia va en el WHERE, no en un `if`
+
+Con el id viajando en la URL, cada endpoint del panel puede recibir el id de
+**otro**. La verificacion no se hace antes con un `if` sino dentro de la misma
+consulta que escribe:
+
+    UPDATE pois SET ... WHERE id = %s AND usuario = %s
+
+Asi no se puede olvidar: la consulta que edita no alcanza una fila ajena
+aunque alguien saltee el chequeo. Y "no existe" y "no es tuyo" contestan lo
+mismo (404), porque distinguirlos convierte al endpoint en una forma de
+averiguar que ids estan tomados.
+
+### El tope
+
+Tres por cuenta (`pois.MAX_COMERCIOS`), y **sin tope para un admin**: es quien
+carga los lugares de demostracion y quien acomoda las fichas que reclama la
+gente. El limite no es tecnico —la base aguanta los que sean— sino para que una
+cuenta no siembre el mapa. El panel apaga el boton "Agregar otro" al llegar,
+en vez de esconderlo: quien lo busca tiene que enterarse de que hay un limite,
+no quedarse pensando que la opcion no existe.
+
+### Los endpoints en singular siguen vivos
+
+`/api/mi-comercio` y sus hijos quedaron apuntando al primer comercio de la
+cuenta. No es indecision: la app movil se publica aparte de la web, y el dia
+que se actualiza el backend los telefonos ya instalados siguen pidiendo esas
+rutas. Se van cuando el movil use la coleccion.
+
 ## El rubro se elige una vez
 
-`tipo` salio de `pois.CAMPOS_EDITABLES` y quedo solo en `CAMPOS_ALTA`. No es
+`tipo` salio de `pois.CAMPOS_EDITABLES` y quedo solo en `CAMPOS_ALTA`. Ojo:
+"una vez" es por COMERCIO, no por cuenta — una cuenta puede tener un parador y
+ademas una cabaña, y cada ficha nace con su rubro y se queda con el. No es
 capricho: el rubro decide **que pantallas existen** (la carta es solo del
 parador, el tablero de cruces solo de la lancha-taxi), que servicios se
 ofrecen, y con que forma se dibuja el pin. Cambiarlo en caliente deja datos de
@@ -760,6 +1019,83 @@ datos para WhatsApp pero si señal de voz.
 - **106 y canal VHF 16** van escritos y no como boton: en el rio se puede
   quedar sin datos pero con señal de voz, y ahi el numero anotado sirve mas que
   un enlace que puede fallar.
+
+## Fotos: se suben, no se pegan
+
+El editor tenia un campo para pegar una URL, con el texto *"pegá el link de una
+foto tuya ya publicada (Instagram, Drive, tu web)"*. Eso mandaba a la gente
+derecho al pozo: un link de Instagram es una **pagina**, no un archivo. El
+`<img>` recibe HTML, Instagram redirige al muro de login y el navegador corta
+con `ERR_TOO_MANY_REDIRECTS`.
+
+Y el sintoma era mudo: el `onError` escondia la imagen con `display: none`, asi
+que el comerciante guardaba, no veia nada raro y se iba convencido de que su
+foto estaba publicada mientras el nauta no veia ninguna.
+
+Ese campo ya no existe. Ahora se elige el archivo del telefono.
+
+### Donde se guardan, y por que
+
+Los tres servicios gratuitos del proyecto descartan la mitad de las opciones
+antes de empezar: **el disco de Render es efimero** (se borra en cada deploy y
+en cada reinicio, que en el plan free pasa varias veces por dia) y **Vercel es
+solo el frontend**.
+
+Quedan dos caminos razonables, y estan los dos implementados:
+
+| | plan free | quien las sirve | cuenta nueva |
+| --- | --- | --- | --- |
+| **Postgres** (por defecto) | 0,5 GB en Neon, de los que hoy se usan 12 MB → entran ~1.900 fotos de 250 KB | Render, via `/api/fotos/{id}` | no |
+| **Cloudinary** (recomendado) | 25 GB | su CDN | si |
+
+Se elige por variable de entorno, sin tocar codigo: si estan
+`CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET` se usa Cloudinary, si no,
+Postgres. Lo que se guarda en `pois.fotos` es una URL en los dos casos, asi que
+el mapa, la ficha y la app no se enteran de la diferencia — y activar
+Cloudinary no obliga a migrar nada: las viejas siguen saliendo de la base.
+
+**Por que Cloudinary y no otro.** 25 GB gratis es cincuenta veces lo de Neon,
+pero lo que de verdad decide es que las entrega **desde un CDN**: la foto se ve
+aunque Render este dormido, que en el plan free pasa seguido. Ademas convierte
+a WebP y ajusta calidad sola (`f_auto,q_auto,w_1600`), y sobre el rio con mala
+señal eso es la diferencia entre que cargue y que no. Se evaluaron Supabase
+Storage (1 GB) y Cloudflare R2 (10 GB, sin cargo de egress): R2 es mejor a
+escala grande, pero no hace transformaciones, asi que habria que armar el
+redimensionado del lado del servidor.
+
+El riesgo del preset sin firmar hay que decirlo: cualquiera que sepa su nombre
+puede subir a esa cuenta. Se acota del lado de Cloudinary limitandole carpeta,
+tamaño y formatos.
+
+Si Cloudinary no contesta, la foto se guarda igual en Postgres. Perder la foto
+que alguien acaba de sacar porque un tercero esta caido seria el peor final
+posible.
+
+### La foto se achica en el navegador
+
+Antes de subir, la imagen pasa por un canvas y sale en 1600 px de lado mayor y
+JPEG al 82%: de 4-8 MB queda en 200-400 KB.
+
+No es una optimizacion, es lo que hace que la funcion sirva. Subir una foto de
+celular entera desde un muelle —con la señal que hay ahi y contra un backend
+que puede estar despertando— no termina nunca. Y se hace del lado del cliente
+porque lo caro es el viaje, y el viaje ocurre antes de que el servidor vea
+nada.
+
+Un detalle chico: el canvas se pinta de blanco antes de dibujar. Un PNG con
+transparencia pasado a JPEG deja los huecos en negro, y una foto de un parador
+con manchas negras se ve rota aunque tecnicamente este bien.
+
+### Lo que se limpia solo
+
+Al guardar la ficha, las fotos que salieron de la lista se borran de la base
+(`almacen_fotos.borrar_huerfanas`). `pois.fotos` es la unica fuente de verdad
+de que se muestra: lo que no esta ahi no lo va a ver nadie nunca mas, y sin
+esto cada foto quitada quedaria ocupando lugar para siempre.
+
+Y las que no cargan **se ven rotas** en el editor, con el motivo, en vez de
+desaparecer. En la ficha del nauta se siguen escondiendo, y ahi si corresponde:
+al visitante no le sirve un recuadro roto, al dueño si.
 
 ## Pipeline de datos hidrologicos
 
@@ -1071,7 +1407,10 @@ algorio/
 │   ├── tokens.py               # token Bearer para la app movil (itsdangerous)
 │   ├── activos.py               # CRUD de "Mi flota" (embarcaciones/dragas/muelles/tramos)
 │   ├── pois.py                   # paradores/cabañas/lanchas-taxi: alta, moderacion, metricas
-│   ├── reclamos.py                # "ese lugar del mapa es mio": pedidos de propiedad
+│   ├── reclamos.py                # "ese lugar del mapa es mio": pedidos de propiedad y traspasos
+│   ├── correo.py                  # mandar un mail suelto por Resend, sin plantilla ni base
+│   ├── recuperacion.py             # "olvide mi contraseña": token de un uso por mail
+│   ├── almacen_fotos.py            # donde viven las fotos: Postgres o Cloudinary
 │   ├── tablero.py                 # cruces de las lanchas-taxi: estados, vigencia (sin moderacion)
 │   ├── reportes.py                # avisos efimeros del rio (vencen solos, sin cron)
 │   ├── resenas.py                  # puntajes y comentarios de los nautas
@@ -1099,7 +1438,7 @@ algorio/
 │       │   ├── ShellComercio.jsx                 # layout + estado de la ficha
 │       │   ├── InicioComercio.jsx                 # elegir camino: cargar o reclamar
 │       │   ├── AltaComercio.jsx                    # asistente de alta en 3 pasos
-│       │   ├── ReclamarComercio.jsx                 # buscar un lugar sin dueño y pedirlo
+│       │   ├── ReclamarComercio.jsx                 # elegir un lugar sin dueño en el mapa o la lista y pedirlo
 │       │   ├── MapaUbicacion.jsx                   # Leaflet satelital, pin arrastrable
 │       │   ├── MiComercio.jsx, EditorCarta.jsx,
 │       │   │   EditorHorarios.jsx                    # edicion de la ficha
@@ -1119,6 +1458,7 @@ algorio/
 │       │   └── ModeracionReclamos.jsx                     # quien es dueño de que (solo es_admin)
 │       ├── tablero.js                                     # estados y cuentas del tablero, compartido
 │       ├── coordenadas.js                                  # grados/minutos y el mensaje de auxilio
+│       ├── fotos.js                                         # redimensionado en el navegador
 │       ├── mapaSatelital.js                               # capa Esri + pines (punto y terminal)
 │       └── components/                                     # PERFIL NAVIERA + comunes
 │           ├── Login.jsx, Registro.jsx, SelectorRol.jsx,

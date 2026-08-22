@@ -16,8 +16,9 @@ import json
 import math
 from datetime import date, timedelta
 from typing import Optional
+from urllib.parse import urlparse
 
-from backend import tablero
+from backend import almacen_fotos, tablero
 from db import conexion, inicializar_db
 
 TIPOS_VALIDOS = {"parador", "alojamiento", "lancha_taxi"}
@@ -33,18 +34,26 @@ TIPOS_VISITA = {"ficha", "telefono", "whatsapp", "como_llegar"}
 # ella, un PUT podria mandar `estado: "aprobado"` y saltearse la moderacion.
 #
 # `tipo` NO esta: el rubro se elige una sola vez, en el alta, y despues queda
-# atado a la cuenta. No es una restriccion caprichosa — el rubro decide que
-# pantallas existen (la carta es solo del parador, el tablero solo de la
-# lancha-taxi), que servicios se ofrecen y con que forma se dibuja el pin en el
-# mapa. Cambiarlo en caliente deja datos de un rubro colgando en otro: una
-# cabaña con tablero de cruces, un parador con "chalecos incluidos".
+# atado a ESE COMERCIO — no a la cuenta, que puede tener un parador y ademas
+# una cabaña. No es una restriccion caprichosa: el rubro decide que pantallas
+# existen (la carta es solo del parador, el tablero solo de la lancha-taxi),
+# que servicios se ofrecen y con que forma se dibuja el pin en el mapa.
+# Cambiarlo en caliente deja datos de un rubro colgando en otro: una cabaña con
+# tablero de cruces, un parador con "chalecos incluidos".
 CAMPOS_EDITABLES = {
     "nombre", "descripcion", "lat", "lon", "telefono", "whatsapp",
     "instagram", "horarios", "menu", "servicios", "fotos",
 }
 
-# En el alta si se acepta, y es la unica vez.
+# En el alta si se acepta, y es la unica vez. Ojo: "la unica vez" es por
+# COMERCIO, no por cuenta — una cuenta puede tener un parador y una cabaña, y
+# cada ficha nace con su rubro y se queda con el.
 CAMPOS_ALTA = CAMPOS_EDITABLES | {"tipo"}
+
+# Cuantos comercios puede tener una cuenta. El tope no es tecnico: la base
+# aguanta los que sean. Es para que una cuenta no siembre el mapa, y por eso la
+# de un admin no lo tiene (lo decide main.py, que es quien sabe si es admin).
+MAX_COMERCIOS = 3
 
 # Los que van a la base como JSONB y por lo tanto hay que serializar.
 CAMPOS_JSON = {"horarios", "menu", "servicios", "fotos"}
@@ -53,6 +62,71 @@ CAMPOS_JSON = {"horarios", "menu", "servicios", "fotos"}
 # con el coseno de la latitud. Alcanza para acotar la consulta a una caja: el
 # radio exacto se filtra despues en Python con la distancia real.
 KM_POR_GRADO_LAT = 111.0
+
+
+# Plataformas que NO pueden servir una imagen a un <img> de otro sitio. Sirven
+# las fotos desde un CDN con URLs firmadas que vencen y bloquean el hotlinking
+# a proposito; la unica via soportada es su API de embebido con un token.
+#
+# Esto se valida tambien aca y no solo en el editor web (ver frontend/src/
+# fotos.js) porque el PUT de la ficha lo puede llamar cualquier cliente: la app
+# movil, una version vieja del panel, o alguien con curl. Y el sintoma del lado
+# del nauta es mudo — un <img> que no carga y se esconde —, asi que conviene
+# que el dato malo no entre.
+DOMINIOS_SIN_HOTLINK = (
+    "instagram.com", "instagr.am",
+    "facebook.com", "fb.com", "fb.watch",
+    "tiktok.com", "twitter.com", "x.com",
+)
+
+
+def _mismo_dominio(host: str, dominio: str) -> bool:
+    """Compara por partes y no por substring: "x.com" aparece dentro de
+    "dropbox.com", y con un `in` los links de Dropbox quedaban rechazados como
+    si fueran de Twitter."""
+    return host == dominio or host.endswith("." + dominio)
+
+
+def _validar_fotos(fotos):
+    """Las URLs de foto que se pueden guardar.
+
+    No intenta adivinar si la imagen existe —eso no se puede saber sin
+    descargarla—, solo frena lo que con certeza nunca va a poder mostrarse.
+    """
+    if fotos is None:
+        return None
+    if not isinstance(fotos, list):
+        raise ValueError("Las fotos tienen que venir como lista de links.")
+
+    limpias = []
+    for cruda in fotos:
+        url = str(cruda or "").strip()
+        if not url:
+            continue
+
+        # Las fotos que subio el comerciante quedan como ruta relativa de esta
+        # misma API (ver almacen_fotos._a_postgres). No pasan por el chequeo de
+        # dominio porque no tienen dominio: son nuestras.
+        if url.startswith("/api/fotos/") and url.rsplit("/", 1)[-1].isdigit():
+            if url not in limpias:
+                limpias.append(url)
+            continue
+
+        partes = urlparse(url)
+        if partes.scheme not in ("http", "https") or not partes.netloc:
+            raise ValueError(f"Ese link no es válido: {url[:80]}")
+
+        host = partes.hostname.lower() if partes.hostname else ""
+        for dominio in DOMINIOS_SIN_HOTLINK:
+            if _mismo_dominio(host, dominio):
+                raise ValueError(
+                    f"Los links de {dominio.split('.')[0].capitalize()} no se pueden usar como foto: "
+                    "esa red no deja mostrar sus imágenes desde afuera. "
+                    "Descargá la foto y subila a Drive o a tu web."
+                )
+        if url not in limpias:
+            limpias.append(url)
+    return limpias
 
 
 def _serializar(valores: dict) -> dict:
@@ -182,15 +256,53 @@ def obtener(poi_id: int, solo_aprobado: bool = True) -> Optional[dict]:
         return _con_promedio(con, [dict(fila)])[0]
 
 
-def obtener_de_usuario(usuario: str) -> Optional[dict]:
-    """El comercio de esa cuenta, en cualquier estado. Uno por cuenta (ver el
-    indice unico parcial en db.py): el panel es "mi comercio", no una lista."""
+def listar_de_usuario(usuario: str) -> list[dict]:
+    """Los comercios de esa cuenta, en cualquier estado.
+
+    Devuelve lista y no una ficha suelta: una cuenta puede tener un parador y
+    ademas alquilar cabañas, y son dos pines distintos en el mapa. Antes esto
+    era `obtener_de_usuario` y devolvia uno solo, atado por un indice unico que
+    ya no existe (ver db.py).
+
+    Ordenados por antiguedad para que el panel abra siempre en el mismo:
+    ordenar por nombre haria que renombrar una ficha te cambie cual ves al
+    entrar.
+    """
     inicializar_db()
     with conexion() as con:
-        fila = con.execute("SELECT * FROM pois WHERE usuario = %s", (usuario,)).fetchone()
+        filas = [
+            dict(f)
+            for f in con.execute(
+                "SELECT * FROM pois WHERE usuario = %s ORDER BY creado_en, id", (usuario,)
+            ).fetchall()
+        ]
+        return _con_promedio(con, filas)
+
+
+def obtener_propio(usuario: str, poi_id: int) -> Optional[dict]:
+    """UN comercio de esa cuenta, o None si no existe o no es suyo.
+
+    Los dos casos devuelven lo mismo a proposito: con el id en la URL, "ese
+    comercio no es tuyo" y "ese comercio no existe" tienen que contestar igual,
+    o el endpoint sirve para averiguar que ids estan tomados.
+    """
+    inicializar_db()
+    with conexion() as con:
+        fila = con.execute(
+            "SELECT * FROM pois WHERE id = %s AND usuario = %s", (poi_id, usuario)
+        ).fetchone()
         if fila is None:
             return None
         return _con_promedio(con, [dict(fila)])[0]
+
+
+def contar_de_usuario(usuario: str) -> int:
+    """Cuantos tiene ya. Lo usa el alta para no pasarse del tope."""
+    inicializar_db()
+    with conexion() as con:
+        return con.execute(
+            "SELECT COUNT(*) AS n FROM pois WHERE usuario = %s", (usuario,)
+        ).fetchone()["n"]
 
 
 def crear(usuario: str, datos: dict) -> dict:
@@ -203,6 +315,8 @@ def crear(usuario: str, datos: dict) -> dict:
     if datos.get("lat") is None or datos.get("lon") is None:
         raise ValueError("Hay que marcar la ubicación en el mapa.")
 
+    if "fotos" in datos:
+        datos = {**datos, "fotos": _validar_fotos(datos["fotos"])}
     campos = _serializar({k: v for k, v in datos.items() if k in CAMPOS_ALTA})
     columnas = ", ".join(campos)
     marcadores = ", ".join(["%s"] * len(campos))
@@ -216,8 +330,8 @@ def crear(usuario: str, datos: dict) -> dict:
     return _con_tablero([dict(fila)])[0]
 
 
-def actualizar(usuario: str, cambios: dict) -> dict:
-    """Edita el comercio del usuario.
+def actualizar(usuario: str, poi_id: int, cambios: dict) -> dict:
+    """Edita UN comercio del usuario.
 
     Editar una ficha ya aprobada la devuelve a 'pendiente' solo si cambio algo
     que se publica en el mapa (nombre o ubicacion). Corregir un horario o
@@ -226,25 +340,39 @@ def actualizar(usuario: str, cambios: dict) -> dict:
     que alguien lo vuelva a mirar.
 
     El rubro no entra en esa lista porque directamente no se puede cambiar
-    (ver CAMPOS_EDITABLES).
+    (ver CAMPOS_EDITABLES): es del comercio y nace con el.
+
+    La pertenencia se chequea DENTRO del WHERE y no antes con un `if`: con el
+    id viajando en la URL, la unica forma de que no se pueda olvidar es que la
+    consulta que escribe no pueda tocar una fila de otra cuenta.
     """
     inicializar_db()
     with conexion() as con:
-        actual = con.execute("SELECT * FROM pois WHERE usuario = %s", (usuario,)).fetchone()
+        actual = con.execute(
+            "SELECT * FROM pois WHERE id = %s AND usuario = %s", (poi_id, usuario)
+        ).fetchone()
         if actual is None:
-            raise ValueError("Todavía no cargaste tu comercio.")
+            raise ValueError("Ese comercio no existe o no es tuyo.")
 
         # Se rechaza en voz alta en vez de ignorarlo por la lista blanca: si
         # una pantalla vieja sigue mandando el rubro, es mejor que se entere a
         # que crea que lo cambio y no haya pasado nada.
         if "tipo" in cambios and cambios["tipo"] not in (None, actual["tipo"]):
             raise ValueError(
-                "El rubro no se puede cambiar: queda asociado a la cuenta desde el alta."
+                "El rubro no se puede cambiar: queda asociado al comercio desde el alta. "
+                "Si querés otro rubro, cargalo como un comercio aparte."
             )
 
         campos = {k: v for k, v in cambios.items() if k in CAMPOS_EDITABLES}
         if not campos:
             raise ValueError("No hay nada para actualizar.")
+        if "fotos" in campos:
+            campos["fotos"] = _validar_fotos(campos["fotos"])
+            # Las que se sacaron de la lista se borran de la base. Sin esto,
+            # cada foto quitada queda ocupando lugar para siempre: `pois.fotos`
+            # es la unica fuente de verdad de que se muestra, y lo que no esta
+            # ahi no lo va a ver nadie nunca mas.
+            almacen_fotos.borrar_huerfanas(actual["id"], campos["fotos"])
 
         vuelve_a_revision = actual["estado"] == "aprobado" and any(
             clave in campos and campos[clave] != actual[clave]
@@ -257,38 +385,43 @@ def actualizar(usuario: str, cambios: dict) -> dict:
             asignaciones += ", estado = 'pendiente', motivo_rechazo = NULL"
 
         fila = con.execute(
-            f"UPDATE pois SET {asignaciones}, actualizado_en = now() WHERE usuario = %s RETURNING *",
-            [*serializados.values(), usuario],
+            f"UPDATE pois SET {asignaciones}, actualizado_en = now() "
+            "WHERE id = %s AND usuario = %s RETURNING *",
+            [*serializados.values(), poi_id, usuario],
         ).fetchone()
     return _con_tablero([dict(fila)])[0]
 
 
-def _tablero_del_usuario(con, usuario: str) -> dict:
-    """La fila del comercio de esa cuenta, ya verificada como lancha-taxi.
+def _tablero_del_comercio(con, usuario: str, poi_id: int) -> dict:
+    """La fila de ESE comercio de esa cuenta, ya verificada como lancha-taxi.
 
     Se pide antes de cada escritura del tablero y no se cachea: es el mismo
     chequeo de propiedad que hace `actualizar`, y saltearselo dejaria que
     cualquier cuenta con rol comercio mandara un estado al tablero de otra.
+
+    Con varios comercios por cuenta el chequeo pasa a ser doble —que exista y
+    que sea tuyo— y por eso el id va en el WHERE junto al usuario.
     """
     fila = con.execute(
-        "SELECT id, tipo, cruces FROM pois WHERE usuario = %s", (usuario,)
+        "SELECT id, tipo, cruces FROM pois WHERE id = %s AND usuario = %s", (poi_id, usuario)
     ).fetchone()
     if fila is None:
-        raise ValueError("Todavía no cargaste tu comercio.")
+        raise ValueError("Ese comercio no existe o no es tuyo.")
     if fila["tipo"] != "lancha_taxi":
         raise ValueError("El tablero de cruces es solo para lanchas-taxi.")
     return fila
 
 
-def _guardar_cruces(con, usuario: str, cruces: list) -> dict:
+def _guardar_cruces(con, usuario: str, poi_id: int, cruces: list) -> dict:
     fila = con.execute(
-        "UPDATE pois SET cruces = %s, actualizado_en = now() WHERE usuario = %s RETURNING *",
-        (json.dumps(cruces), usuario),
+        "UPDATE pois SET cruces = %s, actualizado_en = now() "
+        "WHERE id = %s AND usuario = %s RETURNING *",
+        (json.dumps(cruces), poi_id, usuario),
     ).fetchone()
     return _con_promedio(con, [dict(fila)])[0]
 
 
-def guardar_tablero(usuario: str, cruces: list) -> dict:
+def guardar_tablero(usuario: str, poi_id: int, cruces: list) -> dict:
     """Reemplaza el tablero entero: es la pantalla de edicion, donde se dan de
     alta los cruces y se corrigen horarios, frecuencia y precios.
 
@@ -297,12 +430,15 @@ def guardar_tablero(usuario: str, cruces: list) -> dict:
     """
     inicializar_db()
     with conexion() as con:
-        actual = _tablero_del_usuario(con, usuario)
-        return _guardar_cruces(con, usuario, tablero.validar(cruces, previos=actual["cruces"]))
+        actual = _tablero_del_comercio(con, usuario, poi_id)
+        return _guardar_cruces(
+            con, usuario, poi_id, tablero.validar(cruces, previos=actual["cruces"])
+        )
 
 
 def cambiar_estado_cruce(
     usuario: str,
+    poi_id: int,
     cruce_id: str,
     estado: str,
     demora_min: Optional[int] = None,
@@ -312,13 +448,14 @@ def cambiar_estado_cruce(
     dos toques desde el muelle y listo, sin pasar por ninguna aprobacion."""
     inicializar_db()
     with conexion() as con:
-        actual = _tablero_del_usuario(con, usuario)
+        actual = _tablero_del_comercio(con, usuario, poi_id)
         nuevos = tablero.cambiar_estado(actual["cruces"], cruce_id, estado, demora_min, nota)
-        return _guardar_cruces(con, usuario, nuevos)
+        return _guardar_cruces(con, usuario, poi_id, nuevos)
 
 
 def cambiar_estado_salida(
     usuario: str,
+    poi_id: int,
     cruce_id: str,
     hora: str,
     estado,
@@ -331,11 +468,11 @@ def cambiar_estado_salida(
     """
     inicializar_db()
     with conexion() as con:
-        actual = _tablero_del_usuario(con, usuario)
+        actual = _tablero_del_comercio(con, usuario, poi_id)
         nuevos = tablero.cambiar_estado_salida(
             actual["cruces"], cruce_id, hora, estado, demora_min
         )
-        return _guardar_cruces(con, usuario, nuevos)
+        return _guardar_cruces(con, usuario, poi_id, nuevos)
 
 
 def registrar_visita(poi_id: int, tipo: str) -> None:
@@ -403,6 +540,40 @@ def listar_para_moderar(estado: str = "pendiente") -> list[dict]:
             (estado,),
         ).fetchall()
     return _con_tablero([dict(f) for f in filas])
+
+
+def contar_pendientes() -> int:
+    """Cuantas fichas estan esperando revision. Es el numerito del panel."""
+    inicializar_db()
+    with conexion() as con:
+        fila = con.execute(
+            "SELECT COUNT(*) AS cantidad FROM pois WHERE estado = 'pendiente'"
+        ).fetchone()
+    return fila["cantidad"]
+
+
+def eliminar(usuario: str, poi_id: int) -> Optional[dict]:
+    """Borra UN comercio de esa cuenta. Devuelve el que borro, o None.
+
+    Borra de verdad, y con el se van las reseñas, las visitas y las fotos
+    (ON DELETE CASCADE, ver db.py). Es la diferencia con dar de baja la cuenta,
+    que deja el pin puesto y solo lo huerfana: ahi el nauta sigue viendo un
+    lugar que existe y que alguien puede reclamar, y aca el lugar se va del
+    mapa porque su dueño dijo que ya no esta.
+
+    Que sea irreversible es del pedido, no un descuido: "eliminar mi comercio"
+    tiene que sacarlo del mapa. Lo que compensa es el aviso de la pantalla, que
+    dice que se lleva puestas las reseñas antes de que se confirme — quien solo
+    queria dejar de figurar un tiempo tiene "sin servicio" y los horarios.
+
+    Borra uno solo: los otros comercios de la cuenta siguen donde estaban.
+    """
+    inicializar_db()
+    with conexion() as con:
+        fila = con.execute(
+            "DELETE FROM pois WHERE id = %s AND usuario = %s RETURNING *", (poi_id, usuario)
+        ).fetchone()
+    return dict(fila) if fila else None
 
 
 def moderar(poi_id: int, aprobado: bool, motivo: Optional[str] = None) -> Optional[dict]:

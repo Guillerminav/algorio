@@ -2,34 +2,32 @@
 
 Es el equivalente fluvial del tablero de salidas de un aeropuerto: una fila por
 cruce, con la proxima salida, cada cuanto sale, cuanto cuesta, a que hora es el
-ultimo regreso y —lo unico que cambia varias veces por dia— en que estado esta.
+ultimo regreso y en que estado esta.
 
-El estado vive en DOS niveles y esa es la parte importante del modelo:
+DOS COSAS QUE PARECEN UNA
 
-- El del **cruce** es el default del dia: "hoy no cruzo a Apipe", "todo el
-  recorrido va demorado". Un toque y vale para todas las salidas.
-- El de cada **salida** lo pisa cuando hace falta: la de las 09:30 se demoro
-  media hora pero la de las 12:00 sale bien. Una salida sin estado propio
-  (`estado` en None) hereda el del cruce; no es lo mismo que estar "a horario".
+La confusion mas facil de este modulo es mezclar el PLAN con el ESTADO, y estan
+separados a proposito:
 
-Sin el primer nivel, marcar un dia entero serian quince toques. Sin el segundo,
-un tablero de aeropuerto no seria un tablero de aeropuerto: ahi la demora es de
-un vuelo, no de la aerolinea.
+- El **plan** son los horarios de la semana: `salidas` es un diccionario de dia
+  a lista de horas. Es informacion estable — la carga el lanchero una vez y
+  vale hasta que la cambie. No caduca nunca.
+- El **estado** es lo de hoy: "el de las 09:30 va demorado", "hoy no cruzo".
+  Eso si caduca, porque un "cancelado" del sabado que sigue el martes es peor
+  que no tener tablero.
 
-Vive aparte de pois.py por una razon de fondo: **las ediciones del tablero no
-pasan por moderacion**. Todo lo demas de una ficha (nombre, ubicacion, rubro)
-lo revisa un admin porque publica algo nuevo en el mapa; el tablero no publica
-nada nuevo, actualiza un dato operativo que envejece en minutos. Un "demorado"
-esperando aprobacion no sirve para nada: cuando lo aprueben, la lancha ya
-salio. Por eso el tablero tiene su propia puerta de entrada (ver main.py:
-/api/mi-comercio/tablero) y no esta en pois.CAMPOS_EDITABLES, que es la lista
-blanca del PUT que si puede mandar la ficha a revision.
+Que la planilla sea semanal y no de un solo dia importa de verdad: casi ningun
+lanchero cruza igual un martes que un domingo, y con una sola lista tenia que
+reescribirla cada vez.
 
-El estado tampoco es eterno. Un "cancelado" cargado un sabado a la mañana que
-sigue ahi el martes es peor que no tener tablero: el nauta deja de creerle,
-igual que pasaria con los reportes si no vencieran (ver reportes.py). Aca la
-caducidad no necesita cron ni columna: se calcula al leer, comparando contra la
-fecha en la que el lanchero toco el interruptor.
+TAMPOCO PASA POR MODERACION
+
+Todo lo demas de una ficha (nombre, ubicacion, rubro) lo revisa un admin porque
+publica algo nuevo en el mapa; el tablero no publica nada nuevo, actualiza un
+dato operativo que envejece en minutos. Un "demorado" esperando aprobacion no
+sirve para nada: cuando lo aprueben, la lancha ya salio. Por eso el tablero
+tiene su propia puerta de entrada (main.py: /api/mi-comercio/tablero) y no esta
+en pois.CAMPOS_EDITABLES.
 """
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -40,12 +38,16 @@ from typing import Optional
 # para esto (en Windows, zoneinfo no trae la base de datos de zonas).
 HORA_ARGENTINA = timezone(timedelta(hours=-3))
 
+# Las mismas claves que usa pois.horarios, y en el mismo orden: lunes primero,
+# como se lee un cartel en Argentina. Python.weekday() da 0 para el lunes, asi
+# que el indice coincide sin traducir nada.
+DIAS = ("lun", "mar", "mie", "jue", "vie", "sab", "dom")
+
 # Los estados del tablero, en el orden en que se muestran los interruptores.
 #
 # `alterado` marca los que no son la normalidad: son los que caducan y los que
 # el mapa le levanta al pin. `pide_demora` es el unico que ademas necesita un
-# numero — "demorado" a secas no le dice nada a nadie: media hora se espera,
-# dos horas se cambia de plan.
+# numero — "demorado" a secas no le dice nada a nadie.
 ESTADOS = {
     "a_horario": {"etiqueta": "A horario", "alterado": False, "pide_demora": False},
     "por_salir": {"etiqueta": "Por salir", "alterado": True, "pide_demora": False},
@@ -58,26 +60,26 @@ ESTADOS = {
 ESTADO_NORMAL = "a_horario"
 
 # Los que puede tener una salida suelta. `sin_servicio` no esta: describe que el
-# lanchero no opera ese recorrido por ahora, y eso es del cruce entero — no hay
-# tal cosa como "no opero la salida de las 12".
+# lanchero no opera ese recorrido por ahora, y eso es del cruce entero.
 ESTADOS_SALIDA = {"a_horario", "por_salir", "demorado", "completo", "cancelado"}
 
 # "Por salir" es de otra naturaleza que el resto: no describe el dia, describe
-# los proximos minutos ("ya esta amarrando, corre"). Dejarlo prendido cuatro
-# horas seria mentir, asi que se apaga solo mucho antes que los demas.
+# los proximos minutos. Dejarlo prendido cuatro horas seria mentir.
 MINUTOS_VIGENCIA_POR_SALIR = 45
 
-# Cuantos cruces y cuantas salidas por cruce se aceptan. No es una restriccion
-# tecnica: un tablero de veinte filas no se lee de un vistazo desde una lancha
-# en movimiento, que es la unica situacion en la que se mira esto.
 MAX_CRUCES = 12
-MAX_SALIDAS = 24
+MAX_SALIDAS_POR_DIA = 24
 MAX_LARGO_TEXTO = 80
 MAX_LARGO_NOTA = 140
 
 
 def _ahora_ar() -> datetime:
     return datetime.now(HORA_ARGENTINA)
+
+
+def dia_de_hoy(ahora: Optional[datetime] = None) -> str:
+    """La clave del dia de la semana en Argentina."""
+    return DIAS[(ahora or _ahora_ar()).weekday()]
 
 
 def _texto(valor, maximo: int = MAX_LARGO_TEXTO) -> Optional[str]:
@@ -143,11 +145,7 @@ def _caduco(estado_desde: Optional[str], ahora: datetime, es_por_salir: bool) ->
     La regla es "hasta que termine el dia de servicio" y no "N horas": el
     lanchero piensa por jornada ("hoy no cruzo por el viento"), no por reloj.
     Cuando cambia el dia en Argentina el tablero vuelve solo a la normalidad, y
-    asi la mañana arranca limpio en vez de depender de que alguien se acuerde de
-    apagar lo de ayer.
-
-    La usan los dos niveles —el del cruce y el de cada salida— con la misma
-    cuenta: lo que caduca no es el estado, es la decision de haberlo puesto.
+    asi la mañana arranca limpia sin depender de que alguien apague lo de ayer.
     """
     if not estado_desde:
         # Marcado sin marca de tiempo: viene de una version anterior o de un
@@ -172,40 +170,81 @@ def _vencido(estado: str, estado_desde: Optional[str], ahora: datetime) -> bool:
     return _caduco(estado_desde, ahora, estado == "por_salir")
 
 
-def _salida_normalizada(cruda) -> Optional[dict]:
-    """Una salida, venga como "07:00" o como objeto con su estado.
+def _semana(crudas) -> dict:
+    """Las salidas de la semana: {dia: [horas]}.
 
-    Se sigue aceptando el string suelto porque asi se guardaban los tableros
-    antes de que cada salida tuviera estado propio, y porque es lo comodo para
-    cargarlas de a muchas desde el editor ("07:00, 09:30, 12:00").
+    Acepta tambien la forma vieja —una lista suelta de horas o de objetos— y
+    la copia a los siete dias. Es la migracion de los tableros que se cargaron
+    cuando la planilla era de un solo dia: quien tenia "07:00, 12:00" queria
+    decir que cruza a esas horas, y repetirlo toda la semana es la lectura mas
+    fiel de esa intencion.
     """
-    if isinstance(cruda, dict):
-        hora = _hora(cruda.get("hora"))
-        if hora is None:
-            return None
-        estado = cruda.get("estado") if cruda.get("estado") in ESTADOS_SALIDA else None
-        return {
-            "hora": hora,
-            "estado": estado,
-            "demora_min": _entero(cruda.get("demora_min"), 5, 720) if estado == "demorado" else None,
-            "estado_desde": cruda.get("estado_desde"),
-        }
+    if isinstance(crudas, list):
+        horas = _horas_de(crudas)
+        return {dia: list(horas) for dia in DIAS}
 
-    hora = _hora(cruda)
-    if hora is None:
-        return None
-    # `estado` en None y no en "a_horario": la salida hereda el del cruce, que
-    # no es lo mismo que afirmar que va bien.
-    return {"hora": hora, "estado": None, "demora_min": None, "estado_desde": None}
+    if not isinstance(crudas, dict):
+        return {dia: [] for dia in DIAS}
+
+    return {dia: _horas_de(crudas.get(dia)) for dia in DIAS}
+
+
+def _horas_de(lista) -> list:
+    """Una lista de horas, ordenada y sin repetir. Acepta strings y objetos
+    `{hora: ...}`, que es como venian antes las salidas."""
+    if not isinstance(lista, list):
+        return []
+    horas = set()
+    for cruda in lista:
+        valor = cruda.get("hora") if isinstance(cruda, dict) else cruda
+        hora = _hora(valor)
+        if hora:
+            horas.add(hora)
+    # Ordenadas: el tablero se lee de arriba abajo. Dos veces la misma hora es
+    # un error de tipeo, no una salida mas.
+    return sorted(horas)[:MAX_SALIDAS_POR_DIA]
+
+
+def _estados_salida(crudos, ahora: datetime, previos=None) -> dict:
+    """Los estados de las salidas de HOY, indexados por hora.
+
+    Van aparte de la planilla y no dentro de cada salida porque son cosas
+    distintas: la planilla es el plan de la semana y esto es lo que pasa hoy.
+    Mezclarlos obligaba a decidir si "el de las 09:30 esta demorado" se referia
+    al 09:30 de todos los martes o al de hoy — y siempre es al de hoy.
+    """
+    anteriores = previos if isinstance(previos, dict) else {}
+    limpios = {}
+
+    for hora_cruda, valor in (crudos or {}).items():
+        hora = _hora(hora_cruda)
+        if hora is None or not isinstance(valor, dict):
+            continue
+        estado = valor.get("estado")
+        if estado not in ESTADOS_SALIDA:
+            continue
+
+        previo = anteriores.get(hora, {})
+        cambio = previo.get("estado") != estado
+        limpios[hora] = {
+            "estado": estado,
+            "demora_min": _entero(valor.get("demora_min"), 5, 720) if estado == "demorado" else None,
+            "estado_desde": (
+                ahora.isoformat(timespec="seconds")
+                if cambio or not previo.get("estado_desde")
+                else previo.get("estado_desde")
+            ),
+        }
+    return limpios
 
 
 def normalizar(cruces, ahora: Optional[datetime] = None) -> list:
-    """Los cruces como los tiene que ver quien lee: con los estados vencidos ya
-    devueltos a "a horario".
+    """Los cruces como los tiene que ver quien lee: con la planilla completa de
+    la semana y con los estados vencidos ya limpiados.
 
-    Se resuelve al leer y no con una tarea programada, igual que la vigencia de
-    los reportes: sin cron no hay nada que pueda fallar en silencio y dejar el
-    tablero mintiendo un lunes a la mañana.
+    La caducidad se resuelve al leer y no con una tarea programada, igual que
+    la vigencia de los reportes: sin cron no hay nada que pueda fallar en
+    silencio y dejar el tablero mintiendo un lunes a la mañana.
     """
     if not cruces:
         return []
@@ -216,6 +255,7 @@ def normalizar(cruces, ahora: Optional[datetime] = None) -> list:
         if not isinstance(cruce, dict):
             continue
         copia = dict(cruce)
+
         estado = copia.get("estado") or ESTADO_NORMAL
         if estado not in ESTADOS or _vencido(estado, copia.get("estado_desde"), ahora):
             copia["estado"] = ESTADO_NORMAL
@@ -225,61 +265,25 @@ def normalizar(cruces, ahora: Optional[datetime] = None) -> list:
         else:
             copia["estado"] = estado
 
-        # Las salidas caducan por su cuenta y no con la del cruce: son dos
-        # decisiones distintas, tomadas en momentos distintos.
-        salidas = []
-        for cruda in (copia.get("salidas") or []):
-            salida = _salida_normalizada(cruda)
-            if salida is None:
+        copia["salidas"] = _semana(copia.get("salidas"))
+
+        # Los estados de salida caducan por su cuenta, no con el del cruce: son
+        # dos decisiones distintas tomadas en momentos distintos.
+        vigentes = {}
+        for hora, valor in (copia.get("estados_salida") or {}).items():
+            if not isinstance(valor, dict) or valor.get("estado") not in ESTADOS_SALIDA:
                 continue
-            if salida["estado"] is not None and _caduco(
-                salida["estado_desde"], ahora, salida["estado"] == "por_salir"
-            ):
-                salida["estado"] = None
-                salida["demora_min"] = None
-                salida["estado_desde"] = None
-            salidas.append(salida)
-        copia["salidas"] = salidas
+            if _caduco(valor.get("estado_desde"), ahora, valor["estado"] == "por_salir"):
+                continue
+            vigentes[hora] = {
+                "estado": valor["estado"],
+                "demora_min": valor.get("demora_min"),
+                "estado_desde": valor.get("estado_desde"),
+            }
+        copia["estados_salida"] = vigentes
 
         normalizados.append(copia)
     return normalizados
-
-
-def _validar_salidas(crudas, previas, ahora: datetime) -> list:
-    """Las salidas de un cruce, saneadas y con la marca de tiempo del servidor.
-
-    Se indexan por hora y no por posicion: la hora ES el identificador de una
-    salida dentro de su cruce (no puede haber dos a las 09:30), asi que agregar
-    un horario al principio de la lista no le mueve el estado a los demas.
-
-    De `previas` se rescata `estado_desde` cuando el estado no cambio, por lo
-    mismo que en el cruce: si corregir un precio reiniciara el reloj, un
-    "demorado" no caducaria nunca.
-    """
-    anteriores = {s.get("hora"): s for s in (previas or []) if isinstance(s, dict)}
-    limpias: dict[str, dict] = {}
-
-    for cruda in (crudas or []):
-        salida = _salida_normalizada(cruda)
-        # Dos veces la misma hora es un error de tipeo, no una salida mas.
-        if salida is None or salida["hora"] in limpias:
-            continue
-
-        previa = anteriores.get(salida["hora"], {})
-        # A diferencia del cruce, aca "a_horario" tambien es algo que alguien
-        # decidio —es el override de una salida que va bien dentro de un
-        # recorrido demorado— y por lo tanto tambien caduca.
-        marcada = salida["estado"] is not None
-        cambio = previa.get("estado") != salida["estado"]
-        salida["estado_desde"] = (
-            ahora.isoformat(timespec="seconds")
-            if marcada and (cambio or not previa.get("estado_desde"))
-            else (previa.get("estado_desde") if marcada else None)
-        )
-        limpias[salida["hora"]] = salida
-
-    # Ordenadas: el tablero se lee de arriba abajo.
-    return [limpias[hora] for hora in sorted(limpias)][:MAX_SALIDAS]
 
 
 def validar(cruces, previos=None) -> list:
@@ -325,13 +329,25 @@ def validar(cruces, previos=None) -> list:
         alterado = ESTADOS[estado]["alterado"]
         cambio_estado = previo.get("estado") != estado
 
-        salidas = _validar_salidas(crudo.get("salidas"), previo.get("salidas"), ahora)
+        salidas = _semana(crudo.get("salidas"))
+        # Un estado sin su salida en la planilla de hoy no significa nada: si
+        # el lanchero borro el horario de las 09:30, el "demorado" de las 09:30
+        # sobra. Se descartan aca y no al leer para que no queden en la base.
+        horas_de_hoy = set(salidas[dia_de_hoy(ahora)])
+        estados = {
+            hora: valor
+            for hora, valor in _estados_salida(
+                crudo.get("estados_salida"), ahora, previo.get("estados_salida")
+            ).items()
+            if hora in horas_de_hoy
+        }
 
         limpios.append({
             "id": identificador,
             "origen": _texto(crudo.get("origen")),
             "destino": destino,
             "salidas": salidas,
+            "estados_salida": estados,
             "frecuencia_min": _entero(crudo.get("frecuencia_min"), 5, 1440),
             "precio": _precio(crudo.get("precio")),
             "duracion_min": _entero(crudo.get("duracion_min"), 1, 1440),
@@ -356,12 +372,15 @@ def cambiar_estado_salida(
     estado: Optional[str],
     demora_min: Optional[int] = None,
 ) -> list:
-    """Mueve el interruptor de UNA salida y deja el resto intacto.
+    """Mueve el interruptor de UNA salida de hoy y deja el resto intacto.
 
     `estado` en None borra el estado propio de esa salida y la devuelve a
-    heredar el del cruce. Es lo que hace falta para deshacer: sin eso, la unica
-    forma de sacar un "demorado" de las 09:30 seria marcarla "a horario", que
-    afirma algo distinto —y quedaria pisando al cruce para siempre.
+    heredar el del cruce, que no es lo mismo que marcarla "a horario": si
+    manana el recorrido entero va demorado, la que hereda va demorada y la que
+    afirma "a horario" seguiria diciendo que sale bien. El editor hoy siempre
+    manda un estado —su botonera arranca con el que la salida ya tiene, asi que
+    deshacer es tocar el que va—, pero la distincion es del dato, no de la
+    pantalla, y quien la necesite la tiene.
     """
     if estado is not None and estado not in ESTADOS_SALIDA:
         raise ValueError(f"Estado desconocido para una salida: {estado}.")
@@ -370,30 +389,27 @@ def cambiar_estado_salida(
     if objetivo is None:
         raise ValueError("Esa hora no se entiende.")
 
-    actuales = normalizar(cruces)
+    ahora = _ahora_ar()
+    actuales = normalizar(cruces, ahora)
     cruce = next((c for c in actuales if c.get("id") == cruce_id), None)
     if cruce is None:
         raise ValueError("Ese cruce no existe en tu tablero.")
-    if not any(s.get("hora") == objetivo for s in cruce.get("salidas") or []):
-        raise ValueError(f"Ese cruce no tiene una salida a las {objetivo}.")
+    if objetivo not in cruce["salidas"][dia_de_hoy(ahora)]:
+        raise ValueError(f"Hoy no tenés una salida a las {objetivo} en ese cruce.")
 
-    return validar(
-        [
-            {
-                **c,
-                "salidas": [
-                    {**s, "estado": estado, "demora_min": demora_min}
-                    if s.get("hora") == objetivo
-                    else s
-                    for s in c.get("salidas") or []
-                ],
-            }
-            if c.get("id") == cruce_id
-            else c
-            for c in actuales
-        ],
-        previos=actuales,
-    )
+    nuevos = []
+    for c in actuales:
+        if c.get("id") != cruce_id:
+            nuevos.append(c)
+            continue
+        estados = dict(c.get("estados_salida") or {})
+        if estado is None:
+            estados.pop(objetivo, None)
+        else:
+            estados[objetivo] = {"estado": estado, "demora_min": demora_min}
+        nuevos.append({**c, "estados_salida": estados})
+
+    return validar(nuevos, previos=actuales)
 
 
 def cambiar_estado(
@@ -408,8 +424,7 @@ def cambiar_estado(
     Existe aparte del guardado completo porque es la operacion del dia a dia y
     la unica que se hace apurado: el lanchero abre la app, toca "Demorado" y
     guarda el telefono. Mandar el tablero entero tambien funcionaria, pero
-    pisaria con una copia vieja cualquier cambio hecho desde otro dispositivo
-    —o desde la web, con la pantalla del celular abierta al mismo tiempo.
+    pisaria con una copia vieja cualquier cambio hecho desde otro dispositivo.
     """
     if estado not in ESTADOS:
         raise ValueError(f"Estado desconocido: {estado}.")

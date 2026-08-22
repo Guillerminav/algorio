@@ -6,7 +6,7 @@ import BotonGoogle from "./BotonGoogle.jsx";
 import CruceProducto from "./CruceProducto.jsx";
 import PantallaMarca from "./PantallaMarca.jsx";
 
-export default function Login({ onIrARegistro }) {
+export default function Login({ onIrARegistro, onIrARecuperar }) {
   const { login } = useAuth();
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
@@ -56,6 +56,15 @@ export default function Login({ onIrARegistro }) {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
+
+        {/* Arriba del botón y no al pie de la tarjeta: quien lo busca es
+            porque su contraseña acaba de fallar, y en ese momento está mirando
+            el campo, no el final de la pantalla. */}
+        <p className="enlace-olvide">
+          <button type="button" className="enlace-boton" onClick={onIrARecuperar}>
+            ¿Olvidaste tu contraseña?
+          </button>
+        </p>
 
         <div className="mensaje-error">{error}</div>
 

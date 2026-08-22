@@ -52,6 +52,23 @@ def _hashear_password(password: str, salt: str) -> str:
     ).hex()
 
 
+def credencial_nueva(password: str) -> tuple[str, str]:
+    """Un par (salt, hash) listo para guardar. Devuelve, no escribe.
+
+    Existe para backend/recuperacion.py, que escribe la contraseña con el
+    permiso de un token de mail y no con la anterior. Devolver el par en vez de
+    hacer el UPDATE es lo que le deja meter ese UPDATE en la MISMA transaccion
+    en la que marca el token como usado: si fueran dos operaciones sueltas,
+    fallar entre medio dejaria la contraseña cambiada y el token todavia vivo.
+
+    Que el hasheo viva en un solo lugar tampoco es cosmetico — dos formas de
+    derivar el hash es una forma de que un dia dejen de coincidir y nadie pueda
+    entrar.
+    """
+    salt = secrets.token_hex(16)
+    return salt, _hashear_password(password, salt)
+
+
 def crear_usuario(
     usuario: str,
     password: str,

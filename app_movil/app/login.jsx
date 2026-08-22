@@ -82,6 +82,12 @@ export default function Login() {
               deshabilitado={!usuario.trim() || !password}
             />
 
+            {/* Debajo del botón de entrar: se busca justo después de que la
+                contraseña falló, no antes de probarla. */}
+            <Link href="/recuperar" asChild>
+              <Boton titulo="Olvidé mi contraseña" variante="secundario" />
+            </Link>
+
             <Link href="/registro" asChild>
               <Boton titulo="Crear una cuenta" variante="secundario" />
             </Link>

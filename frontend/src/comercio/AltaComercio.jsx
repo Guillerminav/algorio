@@ -13,7 +13,8 @@ const PASOS = [
     titulo: "Tipo de comercio náutico",
     // Se avisa que no se cambia JUSTO donde se elige, y no despues en "Mi
     // comercio": el rubro decide que pantallas existen (la carta es solo del
-    // parador, el tablero solo de la lancha-taxi) y queda atado a la cuenta.
+    // parador, el tablero solo de la lancha-taxi) y queda atado a ESE comercio.
+    // La cuenta no tiene rubro: puede tener un parador y ademas una cabaña.
     ayuda: "Define cómo se muestra tu lugar en el mapa. Después no se puede cambiar.",
   },
   { clave: "datos", titulo: "Contanos de vos", ayuda: "El nombre y la descripción son lo primero que ve el nauta." },
@@ -56,7 +57,7 @@ export default function AltaComercio({ onCreado, onVolver }) {
 
     setEnviando(true);
     try {
-      const creado = await pedirJSON("/api/mi-comercio", {
+      const creado = await pedirJSON("/api/mis-comercios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

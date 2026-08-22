@@ -74,7 +74,15 @@ LUGARES = [
             {
                 "destino": "Isla del Cerrito",
                 "origen": "Puerto Corrientes",
-                "salidas": ["07:00", "09:30", "12:00", "15:00", "17:30"],
+                # Semana y fin de semana distintos, que es como cruza
+                # cualquier lanchero de verdad: el demo tiene que mostrar para
+                # que sirve que la planilla sea semanal.
+                "salidas": {
+                    **{d: ["07:00", "09:30", "12:00", "15:00", "17:30"]
+                       for d in ("lun", "mar", "mie", "jue", "vie")},
+                    "sab": ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00"],
+                    "dom": ["09:00", "12:00", "16:00"],
+                },
                 "frecuencia_min": 150,
                 "precio": 3500,
                 "duracion_min": 25,
@@ -87,12 +95,14 @@ LUGARES = [
                 # El recorrido va bien, pero una salida suelta esta demorada
                 # y otra se cayo: es el caso que muestra para que sirven los
                 # dos niveles de estado, y con todo en verde no se ve.
-                "salidas": [
-                    "08:00",
-                    {"hora": "14:00", "estado": "demorado", "demora_min": 20,
-                     "estado_desde": _AHORA},
-                    {"hora": "18:00", "estado": "cancelado", "estado_desde": _AHORA},
-                ],
+                "salidas": {d: ["08:00", "14:00", "18:00"] for d in
+                            ("lun", "mar", "mie", "jue", "vie", "sab", "dom")},
+                # Los estados van aparte de la planilla: la planilla es el plan
+                # de la semana y esto es lo que pasa HOY.
+                "estados_salida": {
+                    "14:00": {"estado": "demorado", "demora_min": 20, "estado_desde": _AHORA},
+                    "18:00": {"estado": "cancelado", "estado_desde": _AHORA},
+                },
                 "frecuencia_min": 360,
                 "precio": 5200,
                 "duracion_min": 40,

@@ -47,6 +47,58 @@ export default function ModeracionPois() {
     cargar(estado);
   }, [estado]);
 
+  /**
+   * Cambia de mano un lugar: lo libera o se lo asigna a una cuenta.
+   *
+   * Es lo que faltaba para pasarle un comercio a su dueño real. La cola de
+   * reclamos solo sabe entregar lugares SIN dueño, así que uno cargado desde
+   * la cuenta con la que se llena el mapa antes de salir a vender no había
+   * forma de traspasarlo: no aparecía entre los reclamables y nadie podía
+   * pedirlo.
+   *
+   * Liberar es el camino que deja rastro —el titular lo reclama y alguien
+   * aprueba— y asignar es el atajo para cuando lo tenés sentado al lado.
+   */
+  async function cambiarTitular(poi, liberar) {
+    let cuenta = null;
+    if (liberar) {
+      const ok = window.confirm(
+        `¿Dejar "${poi.nombre}" sin dueño?\n\n` +
+          `${poi.email_dueno || poi.usuario} pierde el acceso a esa ficha, y el lugar ` +
+          "pasa a la lista de los que se pueden reclamar. La ficha, las reseñas y las " +
+          "métricas quedan como están.",
+      );
+      if (!ok) return;
+    } else {
+      cuenta = window.prompt(
+        `¿A qué cuenta le asignamos "${poi.nombre}"?\n\n` +
+          "Escribí el usuario. Tiene que ser una cuenta de comercio y no tener otro " +
+          "comercio asignado.",
+      );
+      if (cuenta === null) return;
+      cuenta = cuenta.trim();
+      if (!cuenta) return;
+    }
+
+    setEnCurso(poi.id);
+    setError("");
+    try {
+      await pedirJSON(`/api/admin/pois/${poi.id}/titular`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario: cuenta }),
+      });
+      // Se recarga en vez de parchear la fila: asignar puede cerrar reclamos
+      // de ese lugar, y el dueño que se muestra sale de un JOIN que esta
+      // pantalla no rehace sola.
+      await cargar(estado);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setEnCurso(null);
+    }
+  }
+
   async function moderar(poi, aprobado) {
     const motivo = aprobado
       ? null
@@ -125,7 +177,9 @@ export default function ModeracionPois() {
               </div>
               {lugar.descripcion && <p className="moderacion-descripcion">{lugar.descripcion}</p>}
               <div className="moderacion-meta">
-                <span>{lugar.email_dueno ?? lugar.usuario ?? "sin dueño"}</span>
+                <span className={lugar.usuario ? undefined : "moderacion-sin-dueno"}>
+                  {lugar.email_dueno ?? lugar.usuario ?? "Sin dueño · se puede reclamar"}
+                </span>
                 <a href={enlaceMapa(lugar.lat, lugar.lon)} target="_blank" rel="noreferrer">
                   Ver ubicación
                 </a>
@@ -152,6 +206,32 @@ export default function ModeracionPois() {
                   Rechazar
                 </button>
               )}
+
+              {/* Titularidad. Solo sobre lo publicado: soltar o entregar una
+                  ficha que todavía nadie aprobó es decidir dos cosas a la vez,
+                  y la que importa primero es si eso puede salir al mapa. */}
+              {lugar.estado === "aprobado" &&
+                (lugar.usuario ? (
+                  <button
+                    type="button"
+                    className="boton-secundario"
+                    title="Deja el lugar sin dueño para que su titular lo reclame"
+                    disabled={enCurso === lugar.id}
+                    onClick={() => cambiarTitular(lugar, true)}
+                  >
+                    Liberar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="boton-secundario"
+                    title="Se lo entrega directo a una cuenta de comercio"
+                    disabled={enCurso === lugar.id}
+                    onClick={() => cambiarTitular(lugar, false)}
+                  >
+                    Asignar a una cuenta
+                  </button>
+                ))}
             </div>
           </li>
         ))}

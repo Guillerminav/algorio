@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { pedirJSON } from "../api.js";
+import FiltroComercios from "./FiltroComercios.jsx";
 import { ETIQUETAS_VISITA } from "./tiposComercio.js";
 
 // Los tres cortes que le importan a un comercio de rio: como viene el fin de
@@ -20,6 +21,8 @@ const COLORES = {
   como_llegar: "var(--alerta)",
 };
 
+const CLAVES = Object.keys(ETIQUETAS_VISITA);
+
 // El eje X con 90 etiquetas es ilegible. Se muestra una de cada N segun el
 // rango, calculado para que nunca haya mas de ~10 marcas.
 const pasoEtiquetas = (cantidad) => Math.max(1, Math.ceil(cantidad / 10));
@@ -29,28 +32,82 @@ function formatearDia(iso) {
   return `${dia}/${mes}`;
 }
 
-export default function MetricasComercio({ comercio }) {
+/**
+ * Suma las métricas de varios comercios en una sola serie.
+ *
+ * Se suma acá y no en el servidor porque son tres respuestas chicas y ya
+ * vienen alineadas: `pois.metricas` devuelve un renglón por día del rango,
+ * exista o no movimiento, así que las fechas coinciden entre comercios y
+ * alcanza con acumular por fecha. Un endpoint agregado sería otra consulta que
+ * mantener para ahorrar una vuelta de bucle.
+ */
+function sumar(respuestas) {
+  if (respuestas.length === 1) return respuestas[0];
+
+  const totales = Object.fromEntries(CLAVES.map((c) => [c, 0]));
+  const porFecha = new Map();
+
+  for (const r of respuestas) {
+    for (const clave of CLAVES) totales[clave] += r.totales?.[clave] ?? 0;
+    for (const fila of r.serie ?? []) {
+      const acumulada =
+        porFecha.get(fila.fecha) ??
+        { fecha: fila.fecha, ...Object.fromEntries(CLAVES.map((c) => [c, 0])) };
+      for (const clave of CLAVES) acumulada[clave] += fila[clave] ?? 0;
+      porFecha.set(fila.fecha, acumulada);
+    }
+  }
+
+  return {
+    totales,
+    serie: [...porFecha.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)),
+  };
+}
+
+/**
+ * "¿Cuánta gente me miró?", de toda la cuenta o de un comercio.
+ *
+ * Es una pantalla de la CUENTA y no de un comercio, y por eso no cuelga del
+ * desplegable de ninguno: quien tiene un parador y una cabaña quiere ver el
+ * total primero y recién después abrir cuál de los dos lo traccionó. Con el
+ * filtro adentro, ese total no existía en ningún lado — había que mirar dos
+ * pantallas y sumar de cabeza.
+ */
+export default function MetricasComercio({ comercios }) {
   const [dias, setDias] = useState(30);
+  const [filtro, setFiltro] = useState(null);
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
+
+  const mirando = useMemo(
+    () => (filtro === null ? comercios : comercios.filter((c) => c.id === filtro)),
+    [comercios, filtro],
+  );
 
   useEffect(() => {
     let cancelado = false;
     setCargando(true);
     setError("");
-    pedirJSON(`/api/mi-comercio/metricas?dias=${dias}`)
-      .then((d) => !cancelado && setDatos(d))
+    Promise.all(
+      mirando.map((c) => pedirJSON(`/api/mis-comercios/${c.id}/metricas?dias=${dias}`)),
+    )
+      .then((respuestas) => !cancelado && setDatos(sumar(respuestas)))
       .catch((e) => !cancelado && setError(e.message))
       .finally(() => !cancelado && setCargando(false));
     return () => {
       cancelado = true;
     };
-  }, [dias]);
+  }, [mirando, dias]);
 
   const totales = datos?.totales ?? {};
   const totalGeneral = Object.values(totales).reduce((suma, n) => suma + n, 0);
   const serie = (datos?.serie ?? []).map((fila) => ({ ...fila, etiqueta: formatearDia(fila.fecha) }));
+
+  // Los que todavía no se ven en el mapa: sus números van a estar en cero y no
+  // por falta de interés, así que conviene decirlo antes de que alguien saque
+  // conclusiones.
+  const sinPublicar = mirando.filter((c) => c.estado !== "aprobado");
 
   return (
     <div className="panel-comercio">
@@ -59,10 +116,13 @@ export default function MetricasComercio({ comercio }) {
         tocar tu teléfono, escribirte por WhatsApp o pedir cómo llegar.
       </p>
 
-      {comercio.estado !== "aprobado" && (
+      <FiltroComercios comercios={comercios} elegido={filtro} onElegir={setFiltro} />
+
+      {sinPublicar.length > 0 && (
         <div className="aviso-revision">
-          Tu ficha todavía no está publicada, así que nadie puede verte en el mapa.
-          Los números van a arrancar cuando la aprobemos.
+          {sinPublicar.length === mirando.length
+            ? "Todavía no está publicado, así que nadie puede verte en el mapa. Los números van a arrancar cuando lo aprobemos."
+            : `Todavía no publicamos ${sinPublicar.map((c) => c.nombre).join(", ")}, así que no suma visitas.`}
         </div>
       )}
 

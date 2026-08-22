@@ -95,18 +95,57 @@ export const aHora = (minutos) => {
   return `${String(Math.floor(normalizado / 60)).padStart(2, "0")}:${String(normalizado % 60).padStart(2, "0")}`;
 };
 
+// Lunes primero, como se lee un cartel en Argentina. Las mismas claves que usa
+// pois.horarios y backend/tablero.py: DIAS.
+export const DIAS = [
+  { clave: "lun", etiqueta: "Lunes", corto: "Lun" },
+  { clave: "mar", etiqueta: "Martes", corto: "Mar" },
+  { clave: "mie", etiqueta: "Miércoles", corto: "Mié" },
+  { clave: "jue", etiqueta: "Jueves", corto: "Jue" },
+  { clave: "vie", etiqueta: "Viernes", corto: "Vie" },
+  { clave: "sab", etiqueta: "Sábado", corto: "Sáb" },
+  { clave: "dom", etiqueta: "Domingo", corto: "Dom" },
+];
+
 /**
- * Las salidas de un cruce, siempre como objetos y ordenadas.
+ * Qué día de la semana es hoy en Argentina.
  *
- * El backend ya las devuelve así, pero acá se sigue aceptando el string suelto
- * ("07:00") porque es lo que produce el editor mientras se escribe la lista de
- * horarios, antes de que el servidor la haya visto.
+ * Se calcula con el offset fijo y no con `getDay()` del dispositivo por lo
+ * mismo que la hora: alguien mirando la ficha desde otro huso podría estar en
+ * lunes cuando en el río todavía es domingo, y vería la planilla equivocada.
+ * `getUTCDay()` da 0 para el domingo, así que se corre para que el lunes sea 0.
  */
-export function salidasDe(cruce) {
-  return (cruce?.salidas ?? [])
-    .map((salida) => (typeof salida === "string" ? { hora: salida } : salida))
-    .filter((salida) => aMinutos(salida?.hora) !== null)
-    .sort((a, b) => aMinutos(a.hora) - aMinutos(b.hora));
+export function diaAR(ahora = new Date()) {
+  const corrido = new Date(ahora.getTime() + MINUTOS_OFFSET_AR * 60_000);
+  return DIAS[(corrido.getUTCDay() + 6) % 7].clave;
+}
+
+/**
+ * Las salidas de HOY, con el estado que le corresponde a cada una.
+ *
+ * La planilla (`cruce.salidas`) es semanal y estable; los estados
+ * (`cruce.estados_salida`) son de hoy y caducan solos. Acá se juntan las dos
+ * cosas para la única pregunta que importa en pantalla: qué sale hoy y cómo
+ * viene.
+ *
+ * Se sigue aceptando la forma vieja —una lista suelta de horas u objetos—
+ * porque el editor la produce mientras se escribe, antes de que el servidor la
+ * haya normalizado.
+ */
+export function salidasDe(cruce, dia = diaAR()) {
+  const planilla = cruce?.salidas;
+  let horas;
+  if (Array.isArray(planilla)) {
+    horas = planilla.map((s) => (typeof s === "string" ? s : s?.hora));
+  } else {
+    horas = planilla?.[dia] ?? [];
+  }
+
+  const estados = cruce?.estados_salida ?? {};
+  return horas
+    .filter((hora) => aMinutos(hora) !== null)
+    .sort((a, b) => aMinutos(a) - aMinutos(b))
+    .map((hora) => ({ hora, ...(estados[hora] ?? {}) }));
 }
 
 /**

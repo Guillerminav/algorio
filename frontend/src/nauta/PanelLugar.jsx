@@ -173,7 +173,7 @@ export default function PanelLugar({ poiId, onCerrar }) {
           que lo mira quiere saber a que hora sale la proxima, no leer dos
           parrafos sobre los paseos. Para los otros rubros no existe (el
           backend devuelve `cruces` en null). */}
-      <TableroCruces cruces={lugar.cruces} actualizado={formatearFecha(lugar.actualizado_en)} />
+      <TableroCruces cruces={lugar.cruces} />
 
       {lugar.descripcion && <p className="lugar-descripcion">{lugar.descripcion}</p>}
 

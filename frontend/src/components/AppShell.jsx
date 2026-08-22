@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import ModeracionPois from "../admin/ModeracionPois.jsx";
+import ModeracionReclamos from "../admin/ModeracionReclamos.jsx";
 import Alertas from "./Alertas.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Historico from "./Historico.jsx";
@@ -18,7 +19,12 @@ import { useAuth } from "../context/AuthContext.jsx";
 // "suscripcion" no esta en la barra de navegacion (no es una seccion mas del
 // producto): se llega desde el menu de perfil, o automaticamente cuando el
 // acceso vencio.
-const TITULOS = { ...TITULOS_SECCION, suscripcion: "Suscripción", moderacion: "Moderación" };
+const TITULOS = {
+  ...TITULOS_SECCION,
+  suscripcion: "Suscripción",
+  moderacion: "Moderación",
+  reclamos: "Reclamos",
+};
 
 export default function AppShell() {
   const { usuario, suscripcion } = useAuth();
@@ -45,16 +51,26 @@ export default function AppShell() {
     !suscripcion?.secciones ||
     seccionActiva === "suscripcion" ||
     seccionActiva === "moderacion" ||
+    seccionActiva === "reclamos" ||
     suscripcion.secciones.includes(seccionActiva);
   const seccionVisible = habilitada ? seccionActiva : "dashboard";
 
-  // La cola de moderacion de comercios no depende del plan ni del rol, sino
-  // del permiso de la cuenta: quien aprueba paradores puede tener cualquier
-  // tipo de cuenta. Antes solo existia dentro del panel del comerciante, asi
-  // que un aprobador con cuenta de naviera no tenia forma de llegar.
+  // Las dos colas de moderacion no dependen del plan ni del rol, sino del
+  // permiso de la cuenta: quien aprueba paradores puede tener cualquier tipo
+  // de cuenta. Antes solo existian dentro del panel del comerciante, asi que
+  // un aprobador con cuenta de naviera no tenia forma de llegar.
+  //
+  // "Reclamos" se sumo despues por lo mismo: quedaba solo en el panel del
+  // comerciante, y ahi encima hacia falta tener una ficha cargada — sin ella
+  // el shell devuelve el asistente de alta antes de llegar a las secciones.
   const secciones = [
     ...seccionesVisibles(suscripcion),
-    ...(usuario?.es_admin ? [{ id: "moderacion", etiqueta: "Moderación" }] : []),
+    ...(usuario?.es_admin
+      ? [
+          { id: "moderacion", etiqueta: "Moderación" },
+          { id: "reclamos", etiqueta: "Reclamos" },
+        ]
+      : []),
   ];
 
   return (
@@ -87,6 +103,7 @@ export default function AppShell() {
               {seccionVisible === "flota" && <MiFlota />}
               {seccionVisible === "rutas" && <Rutas />}
               {seccionVisible === "moderacion" && <ModeracionPois />}
+              {seccionVisible === "reclamos" && <ModeracionReclamos />}
             </>
           )}
         </main>

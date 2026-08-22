@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
+  DIAS,
   ESTADOS_CRUCE,
   ESTADOS_SALIDA,
   aHora,
   aMinutos,
+  diaAR,
   estadoCruce,
   estadoDeSalida,
   faltanEnTexto,
@@ -27,7 +29,8 @@ const nuevoCruce = () => ({
   _nueva: true,
   destino: "",
   origen: "",
-  salidas: [],
+  salidas: Object.fromEntries(DIAS.map((d) => [d.clave, []])),
+  estados_salida: {},
   frecuencia_min: null,
   precio: null,
   duracion_min: null,
@@ -49,29 +52,18 @@ const normalizarHora = (valor) => {
   return minutos === null ? String(valor).trim() : aHora(minutos);
 };
 
-const salidasATexto = (salidas) => salidasDe({ salidas }).map((s) => s.hora).join(", ");
-
 /**
- * De "07:00, 09:30" a la lista de salidas, conservando lo que ya tenía cada una.
+ * La lista de horas de un día: ordenada, sin repetidas y sin lo que no es hora.
  *
- * `previas` importa: si al reescribir el renglón se perdiera el estado, tocar
- * una coma borraría el "demorado" que el lanchero acaba de marcar en la salida
- * de las 09:30.
+ * Devuelve strings y no objetos: la planilla es solo el plan (qué hora sale) y
+ * el estado de cada salida vive aparte, en `estados_salida`. Mezclarlos
+ * obligaba a decidir si «el de las 09:30 está demorado» se refería al 09:30 de
+ * todos los martes o al de hoy — y siempre es al de hoy.
  */
-function textoASalidas(texto, previas = []) {
-  const porHora = new Map(previas.map((salida) => [salida.hora, salida]));
-  const vistas = new Set();
-  const salidas = [];
-
-  for (const trozo of String(texto).split(/[,;\s]+/)) {
-    if (!trozo.trim()) continue;
-    const hora = normalizarHora(trozo);
-    if (vistas.has(hora)) continue;
-    vistas.add(hora);
-    salidas.push(porHora.get(hora) ?? { hora, estado: null, demora_min: null });
-  }
-  return salidas;
-}
+const ordenarHoras = (horas) =>
+  [...new Set((horas ?? []).map(normalizarHora))]
+    .filter((hora) => aMinutos(hora) !== null)
+    .sort((a, b) => aMinutos(a) - aMinutos(b));
 
 /**
  * La aclaración del lanchero («río picado, sale del muelle chico»).
@@ -154,94 +146,182 @@ function Botonera({ opciones, actual, demora, publicando, etiqueta, onCambiar })
 }
 
 /**
- * Las salidas del cruce: el renglón donde se cargan y el estado de cada una.
+ * Las salidas del cruce: la planilla de la semana y el estado de las de hoy.
  *
- * El renglón guarda su propio texto mientras se escribe y solo lo interpreta al
- * salir del campo. Sin eso no se puede tipear: si el valor del input se
- * recalculara desde la lista en cada tecla, la coma que uno acaba de escribir
- * desaparecería al instante —se parsea, queda un elemento vacío, se descarta y
- * se vuelve a unir sin ella—, que es exactamente lo que pasaba antes.
+ * Son dos cosas distintas y por eso se cargan distinto:
  *
- * Debajo, una salida por chip. Tocar uno abre sus interruptores: es lo que
- * convierte esto en un tablero de aeropuerto de verdad, donde la demora es de
- * un vuelo y no de la aerolínea.
+ * - La PLANILLA: los horarios de cada día. Casi ningún lanchero cruza igual un
+ *   martes que un domingo, así que se carga por día, con un botón para repetir
+ *   el mismo en toda la semana (que es el caso más común y, sin él, son siete
+ *   cargas iguales). Los días que ya tienen horarios quedan marcados con su
+ *   cuenta de salidas: de un vistazo se ve qué días sale la lancha a la isla y
+ *   cuáles todavía están vacíos.
+ * - El ESTADO de las salidas de HOY. Marcar el 09:30 del sábado un martes no
+ *   significaría nada, así que los interruptores solo salen en el día de hoy.
+ *
+ * La hora se carga con el selector del sistema —el mismo que abre el celular
+ * para poner una alarma— y un botón «+», en vez de un renglón de texto con
+ * comas: desde el muelle, con una mano, tipear «07:00, 09:30, 12:00» sin
+ * equivocarse es más trabajo que elegir la hora y tocar más. Cada hora cargada
+ * queda como un chip con su ✕, que es también la única forma de sacarla.
  */
 function EditorSalidas({ cruce, horasGuardadas, publicando, onCambiarCampo, onCambiarEstadoSalida }) {
-  const salidas = salidasDe(cruce);
-  const canonico = salidasATexto(cruce.salidas);
-  const [texto, setTexto] = useState(canonico);
+  const hoy = diaAR();
+  const [dia, setDia] = useState(hoy);
   const [abierta, setAbierta] = useState(null);
+  const [nueva, setNueva] = useState("");
 
-  // Se adopta la versión del servidor solo cuando de verdad dice otra cosa: si
-  // lo tipeado significa lo mismo (una coma de más, un espacio), se respeta
-  // como está escrito y no se le reacomoda el cursor a nadie.
-  useEffect(() => {
-    setTexto((previo) => (salidasATexto(textoASalidas(previo)) === canonico ? previo : canonico));
-  }, [canonico]);
+  const planilla = cruce.salidas ?? {};
+  const horas = ordenarHoras(planilla[dia]);
+  const esHoy = dia === hoy;
+  const nombreDia = DIAS.find((d) => d.clave === dia).etiqueta.toLowerCase();
 
-  const confirmar = () => {
-    const nuevas = textoASalidas(texto, salidas);
-    if (JSON.stringify(nuevas) !== JSON.stringify(salidas)) onCambiarCampo({ salidas: nuevas });
-    setTexto(salidasATexto(nuevas));
-  };
+  const guardarDia = (clave, lista) =>
+    onCambiarCampo({ salidas: { ...planilla, [clave]: lista } });
 
-  const seleccionada = salidas.find((s) => s.hora === abierta) ?? null;
+  function agregar() {
+    const hora = normalizarHora(nueva);
+    if (aMinutos(hora) === null) return;
+    if (!horas.includes(hora)) guardarDia(dia, ordenarHoras([...horas, hora]));
+    setNueva("");
+  }
+
+  function quitar(hora) {
+    guardarDia(
+      dia,
+      horas.filter((h) => h !== hora),
+    );
+    if (abierta === hora) setAbierta(null);
+  }
+
+  function repetirEnLaSemana() {
+    onCambiarCampo({ salidas: Object.fromEntries(DIAS.map((d) => [d.clave, [...horas]])) });
+  }
+
+  // El panel de estado es de HOY: el chip de un sábado, mirado un martes, es
+  // solo el plan.
+  const seleccionada = esHoy
+    ? (salidasDe(cruce, dia).find((s) => s.hora === abierta) ?? null)
+    : null;
   const estadoSeleccionada = seleccionada ? estadoDeSalida(cruce, seleccionada) : null;
-  // Una salida que el servidor todavía no vio no se puede publicar suelta: no
-  // hay a qué aplicarle el cambio del otro lado. Se edita en el borrador y
-  // viaja con el botón de guardar, como el resto de la fila.
   const publicable = seleccionada ? horasGuardadas.has(seleccionada.hora) : false;
 
   return (
     <div className="tablero-salidas-bloque">
-      <label>
-        <span>Salidas</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          placeholder="07:00, 09:30, 12:00"
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          onBlur={confirmar}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-        />
-        <small>En 24 h, separadas por coma. Se ordenan solas.</small>
-      </label>
+      <p className="tablero-salidas-ayuda">
+        Los días marcados son los que salen viajes. Tocá uno para ver o cargar sus horarios.
+      </p>
 
-      {salidas.length > 0 && (
-        <>
-          <p className="tablero-salidas-ayuda">
-            Tocá una salida para marcarla aparte. Las que no toques siguen el estado del
-            recorrido.
-          </p>
-          <div className="tablero-chips-salida">
-            {salidas.map((salida) => {
-              const estado = estadoDeSalida(cruce, salida);
-              const activa = abierta === salida.hora;
-              return (
+      <div className="tablero-dias" role="group" aria-label="Día de la semana">
+        {DIAS.map((d) => {
+          const cargado = (planilla[d.clave] ?? []).length;
+          return (
+            <button
+              key={d.clave}
+              type="button"
+              className={`tablero-dia${d.clave === dia ? " activo" : ""}${cargado ? " cargado" : ""}`}
+              aria-pressed={d.clave === dia}
+              title={`${d.etiqueta}: ${cargado || "sin"} ${cargado === 1 ? "salida" : "salidas"}`}
+              onClick={() => setDia(d.clave)}
+            >
+              <span className="tablero-dia-nombre">{d.corto}</span>
+              <span className="tablero-dia-cuenta">{cargado || "–"}</span>
+              {d.clave === hoy && <span className="tablero-dia-hoy" aria-label="hoy" />}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="tablero-alta-hora">
+        <label>
+          <span>Salidas del {nombreDia}</span>
+          <input
+            type="time"
+            step="300"
+            value={nueva}
+            disabled={publicando}
+            onChange={(e) => setNueva(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              agregar();
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="tablero-mas"
+          title="Agregar este horario"
+          aria-label={`Agregar una salida del ${nombreDia}`}
+          disabled={!nueva || publicando}
+          onClick={agregar}
+        >
+          +
+        </button>
+      </div>
+
+      {horas.length === 0 ? (
+        <p className="tablero-sin-horarios">
+          El {nombreDia} todavía no sale ninguna lancha. Elegí la hora y tocá «+».
+        </p>
+      ) : (
+        <ul className="tablero-horarios">
+          {horas.map((hora) => {
+            const estado = esHoy
+              ? estadoDeSalida(cruce, { hora, ...(cruce.estados_salida?.[hora] ?? {}) })
+              : null;
+            const marcada = Boolean(estado?.propio && estado.alterado);
+            const activa = esHoy && abierta === hora;
+            return (
+              <li
+                key={hora}
+                className={`tablero-horario${marcada ? " marcada" : ""}${activa ? " abierta" : ""}`}
+                style={estado ? { "--tono-estado": estado.color } : undefined}
+              >
+                {esHoy ? (
+                  <button
+                    type="button"
+                    className="tablero-horario-hora"
+                    aria-expanded={activa}
+                    title="Cómo viene esta salida"
+                    onClick={() => setAbierta(activa ? null : hora)}
+                  >
+                    <span>{hora}</span>
+                    {marcada && (
+                      <span className="tablero-horario-estado">
+                        {estado.etiqueta}
+                        {estado.clave === "demorado" && estado.demora_min
+                          ? ` ${estado.demora_min}′`
+                          : ""}
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <span className="tablero-horario-hora">{hora}</span>
+                )}
                 <button
-                  key={salida.hora}
                   type="button"
-                  className={`tablero-chip-salida${estado.propio ? " propia" : ""}${activa ? " abierta" : ""}`}
-                  style={{ "--tono-estado": estado.color }}
-                  aria-expanded={activa}
-                  onClick={() => setAbierta(activa ? null : salida.hora)}
+                  className="tablero-horario-quitar"
+                  aria-label={`Quitar la salida de las ${hora}`}
+                  title="Quitar este horario"
+                  onClick={() => quitar(hora)}
                 >
-                  <span className="tablero-chip-salida-hora">{salida.hora}</span>
-                  {estado.propio && estado.alterado && (
-                    <span className="tablero-chip-salida-estado">
-                      {estado.etiqueta}
-                      {estado.clave === "demorado" && estado.demora_min
-                        ? ` ${estado.demora_min}′`
-                        : ""}
-                    </span>
-                  )}
+                  ✕
                 </button>
-              );
-            })}
-          </div>
-        </>
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      <button
+        type="button"
+        className="tablero-repetir"
+        disabled={horas.length === 0}
+        onClick={repetirEnLaSemana}
+      >
+        Repetir en toda la semana
+      </button>
 
       {seleccionada && (
         <div className="tablero-panel-salida">
@@ -257,41 +337,27 @@ function EditorSalidas({ cruce, horasGuardadas, publicando, onCambiarCampo, onCa
             </button>
           </div>
 
+          {/* La botonera arranca con el estado que la salida ya tiene y no en
+              blanco: recién cargada eso es «A horario», que es la verdad y no
+              una casilla sin contestar. Por eso tampoco hace falta un botón
+              para deshacer una demora — se toca el estado que va. */}
           <Botonera
             opciones={ESTADOS_SALIDA}
-            actual={estadoSeleccionada.propio ? estadoSeleccionada.clave : null}
-            demora={estadoSeleccionada.propio ? estadoSeleccionada.demora_min : null}
+            actual={estadoSeleccionada.clave}
+            demora={estadoSeleccionada.demora_min}
             publicando={publicando}
             etiqueta={`Estado de la salida de las ${seleccionada.hora}`}
             onCambiar={(parcial) =>
               onCambiarEstadoSalida(seleccionada.hora, {
-                estado: estadoSeleccionada.propio ? estadoSeleccionada.clave : "a_horario",
+                estado: estadoSeleccionada.clave,
                 demora_min: estadoSeleccionada.demora_min,
                 ...parcial,
               })
             }
           />
 
-          {/* Deshacer sin tener que afirmar otra cosa. Marcarla "a horario"
-              para sacarle un "demorado" no es lo mismo: eso la deja pisando al
-              recorrido para siempre, y si mañana el cruce entero va demorado,
-              esta seguiría diciendo que sale bien. */}
-          <button
-            type="button"
-            className="tablero-heredar"
-            disabled={publicando || !estadoSeleccionada.propio}
-            onClick={() => onCambiarEstadoSalida(seleccionada.hora, { estado: null, demora_min: null })}
-          >
-            {estadoSeleccionada.propio
-              ? "Que siga al recorrido"
-              : `Sigue al recorrido (${estadoCruce(cruce.estado).etiqueta.toLowerCase()})`}
-          </button>
-
           {!publicable && (
-            <p className="tablero-panel-salida-aviso">
-              Esta salida todavía no está guardada: el estado va a publicarse cuando toques
-              &ldquo;Guardar cambios&rdquo;.
-            </p>
+            <p className="tablero-panel-salida-aviso">Guardá primero para poder marcarla.</p>
           )}
         </div>
       )}
@@ -344,9 +410,7 @@ function FilaEditor({
       </div>
 
       <div className="tablero-interruptores">
-        <p className="tablero-interruptores-ayuda">
-          Estado de todo el recorrido. Vale para las salidas que no marcaste aparte.
-        </p>
+        <p className="tablero-interruptores-ayuda">Estado del recorrido</p>
         <Botonera
           opciones={ESTADOS_CRUCE}
           actual={cruce.estado ?? "a_horario"}
@@ -492,16 +556,10 @@ export default function EditorTablero({
       previos.map((cruce) => {
         const guardado = guardados.get(cruce.id);
         if (!guardado) return cruce;
-        const porHora = new Map(salidasDe(guardado).map((s) => [s.hora, s]));
-        const { estado, demora_min, nota, estado_desde } = guardado;
-        return {
-          ...cruce,
-          estado,
-          demora_min,
-          nota,
-          estado_desde,
-          salidas: salidasDe(cruce).map((salida) => porHora.get(salida.hora) ?? salida),
-        };
+        const { estado, demora_min, nota, estado_desde, estados_salida } = guardado;
+        // Solo lo que decide el servidor: los estados y su vigencia. La
+        // planilla no se pisa — borraria lo que se esta escribiendo.
+        return { ...cruce, estado, demora_min, nota, estado_desde, estados_salida };
       }),
     );
   }, [comercio.cruces]);
@@ -522,10 +580,16 @@ export default function EditorTablero({
     // Los estados quedan afuera de la comparación en los dos niveles: los
     // mueven los interruptores, que se publican solos y no por este botón.
     const limpiar = (lista) =>
-      (lista ?? []).map(({ _clave, _nueva, estado, demora_min, nota, estado_desde, ...resto }) => ({
-        ...resto,
-        salidas: salidasDe({ salidas: resto.salidas }).map((s) => s.hora),
-      }));
+      (lista ?? []).map(
+        ({ _clave, _nueva, estado, demora_min, nota, estado_desde, estados_salida, ...resto }) => ({
+          ...resto,
+          // La planilla se compara dia por dia y con las horas ordenadas: el
+          // orden en que se escribieron no es un cambio.
+          salidas: Object.fromEntries(
+            DIAS.map((d) => [d.clave, [...(resto.salidas?.[d.clave] ?? [])].sort()]),
+          ),
+        }),
+      );
     return JSON.stringify(limpiar(cruces)) !== JSON.stringify(limpiar(comercio.cruces));
   }, [cruces, comercio.cruces]);
 
@@ -570,39 +634,36 @@ export default function EditorTablero({
     );
   }
 
-  /** El interruptor de una salida suelta. */
+  /** El interruptor de una salida de hoy. */
   function cambiarEstadoSalida(cruce, hora, parcial) {
-    const salidas = salidasDe(cruce);
-    const previas = salidas.map((s) => ({ ...s }));
-    const parche = {
-      salidas: salidas.map((s) =>
-        s.hora === hora
-          ? {
-              ...s,
-              estado: parcial.estado ?? null,
-              demora_min: parcial.estado === "demorado" ? (parcial.demora_min ?? null) : null,
-            }
-          : s,
-      ),
-    };
+    const previos = { ...(cruce.estados_salida ?? {}) };
+    const estados = { ...previos };
+    if (parcial.estado === null || parcial.estado === undefined) {
+      delete estados[hora];
+    } else {
+      estados[hora] = {
+        estado: parcial.estado,
+        demora_min: parcial.estado === "demorado" ? (parcial.demora_min ?? null) : null,
+      };
+    }
     const guardadas = horasPorCruce.get(cruce.id);
 
-    // Una salida que el servidor no conoce todavía viaja con el botón de
+    // Una salida que el servidor no conoce todavia viaja con el boton de
     // guardar, igual que el resto de la fila.
     if (!guardadas?.has(hora)) {
-      cambiarCampo(clave(cruce), parche);
+      cambiarCampo(clave(cruce), { estados_salida: estados });
       return Promise.resolve();
     }
 
     return publicar(
       cruce,
-      parche,
+      { estados_salida: estados },
       () =>
         onCambiarEstadoSalida(cruce.id, hora, {
           estado: parcial.estado ?? null,
           demora_min: parcial.estado === "demorado" ? (parcial.demora_min ?? null) : null,
         }),
-      { salidas: previas },
+      { estados_salida: previos },
     );
   }
 
@@ -627,11 +688,8 @@ export default function EditorTablero({
   return (
     <div className="panel-comercio">
       <p className="descripcion">
-        Es el tablero que ve el nauta en tu ficha, como el de salidas de un aeropuerto: a
-        qué hora cruzás, cada cuánto, cuánto sale y hasta qué hora puede volver.{" "}
-        <strong>Los botones de estado se publican en el momento</strong>, sin pasar por
-        revisión — y vuelven solos a &ldquo;A horario&rdquo; al día siguiente, así no
-        arrastrás una demora de ayer.
+        El tablero que ve el nauta en tu ficha: a qué hora cruzás cada día, cada cuánto,
+        cuánto sale y hasta qué hora puede volver.
       </p>
 
       {cruces.length === 0 ? (

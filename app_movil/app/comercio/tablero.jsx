@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,10 +13,12 @@ import {
 
 import { Boton, Campo, Cargando, Error } from "../../src/componentes.jsx";
 import {
+  DIAS,
   ESTADOS_CRUCE,
   ESTADOS_SALIDA,
   aHora,
   aMinutos,
+  diaAR,
   estadoCruce,
   estadoDeSalida,
   faltanEnTexto,
@@ -38,7 +41,8 @@ const nuevoCruce = () => ({
   _nueva: true,
   destino: "",
   origen: "",
-  salidas: [],
+  salidas: Object.fromEntries(DIAS.map((d) => [d.clave, []])),
+  estados_salida: {},
   frecuencia_min: null,
   precio: null,
   duracion_min: null,
@@ -60,29 +64,24 @@ const normalizarHora = (valor) => {
   return minutos === null ? String(valor).trim() : aHora(minutos);
 };
 
-const salidasATexto = (salidas) => salidasDe({ salidas }).map((s) => s.hora).join(", ");
-
 /**
- * De "07:00, 09:30" a la lista de salidas, conservando lo que ya tenía cada una.
+ * La lista de horas de un día: ordenada, sin repetidas y sin lo que no es hora.
  *
- * `previas` importa: si al reescribir el renglón se perdiera el estado, tocar
- * una coma borraría el "demorado" que el lanchero acaba de marcar en la salida
- * de las 09:30.
+ * Devuelve strings y no objetos: la planilla es solo el plan (qué hora sale) y
+ * el estado de cada salida vive aparte, en `estados_salida`. Mezclarlos
+ * obligaba a decidir si "el de las 09:30 está demorado" se refería al 09:30 de
+ * todos los martes o al de hoy — y siempre es al de hoy.
  */
-function textoASalidas(texto, previas = []) {
-  const porHora = new Map(previas.map((salida) => [salida.hora, salida]));
-  const vistas = new Set();
-  const salidas = [];
+const ordenarHoras = (horas) =>
+  [...new Set((horas ?? []).map(normalizarHora))]
+    .filter((hora) => aMinutos(hora) !== null)
+    .sort((a, b) => aMinutos(a) - aMinutos(b));
 
-  for (const trozo of String(texto).split(/[,;\s]+/)) {
-    if (!trozo.trim()) continue;
-    const hora = normalizarHora(trozo);
-    if (vistas.has(hora)) continue;
-    vistas.add(hora);
-    salidas.push(porHora.get(hora) ?? { hora, estado: null, demora_min: null });
-  }
-  return salidas;
-}
+// Las dos columnas del selector. Los minutos van de cinco en cinco: ninguna
+// lancha sale 07:03, y una rueda de sesenta números es una rueda que hay que
+// buscar en vez de tocar.
+const HORAS_DEL_DIA = Array.from({ length: 24 }, (_, i) => i);
+const MINUTOS_DEL_RELOJ = Array.from({ length: 12 }, (_, i) => i * 5);
 
 /**
  * La aclaración del lanchero ("río picado, sale del muelle chico").
@@ -172,39 +171,138 @@ function Botonera({ opciones, actual, demora, publicando, onCambiar }) {
   );
 }
 
+/** Una columna del reloj: las horas o los minutos, el elegido resaltado. */
+function ColumnaReloj({ valores, elegido, etiqueta, onElegir }) {
+  return (
+    <View style={estilos.columna}>
+      <Text style={estilos.columnaEtiqueta}>{etiqueta}</Text>
+      <ScrollView
+        style={estilos.columnaRueda}
+        contentContainerStyle={estilos.columnaContenido}
+        showsVerticalScrollIndicator={false}
+      >
+        {valores.map((n) => {
+          const activo = n === elegido;
+          return (
+            <Pressable
+              key={n}
+              onPress={() => onElegir(n)}
+              style={[estilos.numero, activo && estilos.numeroActivo]}
+            >
+              <Text style={[estilos.numeroTexto, activo && estilos.numeroTextoActivo]}>
+                {String(n).padStart(2, "0")}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 /**
- * Las salidas del cruce: el renglón donde se cargan y el estado de cada una.
+ * El selector de hora, como el de una alarma: dos ruedas, hora y minuto.
  *
- * El renglón guarda su propio texto mientras se escribe y solo lo interpreta al
- * salir del campo. Sin eso no se puede tipear: si el valor del campo se
- * recalculara desde la lista en cada tecla, la coma que uno acaba de escribir
- * desaparecería al instante —se parsea, queda un elemento vacío, se descarta y
- * se vuelve a unir sin ella—, que es exactamente lo que pasaba antes.
+ * Es propio y no el del sistema porque el picker nativo es un módulo aparte
+ * (@react-native-community/datetimepicker) que hay que compilar dentro de la
+ * app, y esta pantalla también corre en la web. Lo que importa del gesto —no
+ * tipear una hora con una mano desde el muelle— lo da igual.
+ */
+function SelectorHora({ abierto, valor, onElegir, onCerrar }) {
+  const minutos = aMinutos(valor) ?? 0;
+  const hora = Math.floor(minutos / 60);
+  // A la rueda de a cinco: una hora guardada 07:03 tiene que caer en alguna, y
+  // 07:58 no puede redondear a un 07:60 que la rueda no tiene.
+  const minuto = Math.min(55, Math.round((minutos % 60) / 5) * 5);
+
+  const cambiar = (h, m) => onElegir(aHora(h * 60 + m));
+
+  return (
+    <Modal visible={abierto} transparent animationType="fade" onRequestClose={onCerrar}>
+      <Pressable style={estilos.fondoModal} onPress={onCerrar}>
+        {/* El toque de adentro no cierra: sin esto, elegir una hora cerraría
+            el selector porque el Pressable de afuera se lleva el gesto. */}
+        <Pressable style={estilos.reloj} onPress={() => {}}>
+          <Text style={estilos.relojTitulo}>Hora de la salida</Text>
+          <Text style={estilos.relojValor}>{aHora(hora * 60 + minuto)}</Text>
+
+          <View style={estilos.columnas}>
+            <ColumnaReloj
+              valores={HORAS_DEL_DIA}
+              elegido={hora}
+              etiqueta="Hora"
+              onElegir={(h) => cambiar(h, minuto)}
+            />
+            <ColumnaReloj
+              valores={MINUTOS_DEL_RELOJ}
+              elegido={minuto}
+              etiqueta="Minutos"
+              onElegir={(m) => cambiar(hora, m)}
+            />
+          </View>
+
+          <Boton titulo="Listo" onPress={onCerrar} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/**
+ * Las salidas del cruce: la planilla de la semana y el estado de las de hoy.
  *
- * Debajo, una salida por chip. Tocar uno abre sus interruptores: es lo que
- * convierte esto en un tablero de aeropuerto de verdad, donde la demora es de
- * un vuelo y no de la aerolínea.
+ * Son dos cosas distintas y por eso se cargan distinto:
+ *
+ * - La PLANILLA: los horarios de cada día. Casi ningún lanchero cruza igual un
+ *   martes que un domingo, así que se carga por día, con un botón para repetir
+ *   el mismo en toda la semana (que es el caso más común y, sin él, son siete
+ *   cargas iguales). Los días que ya tienen horarios quedan marcados con su
+ *   cuenta de salidas: de un vistazo se ve qué días sale la lancha a la isla y
+ *   cuáles todavía están vacíos.
+ * - El ESTADO de las salidas de HOY. Marcar el 09:30 del sábado un martes no
+ *   significaría nada, así que los interruptores solo salen en el día de hoy.
+ *
+ * La hora se elige en el reloj —dos ruedas, como una alarma— y se agrega con
+ * el "+". Antes era un renglón de texto con comas, y tipear "07:00, 09:30,
+ * 12:00" sin equivocarse, con una mano y desde el muelle, es más trabajo que
+ * elegir la hora y tocar más. Cada hora cargada queda como un chip con su ✕,
+ * que es también la única forma de sacarla.
  */
 function EditorSalidas({ cruce, horasGuardadas, publicando, onCambiarCampo, onCambiarEstadoSalida }) {
-  const salidas = salidasDe(cruce);
-  const canonico = salidasATexto(cruce.salidas);
-  const [texto, setTexto] = useState(canonico);
+  const hoy = diaAR();
+  const [dia, setDia] = useState(hoy);
   const [abierta, setAbierta] = useState(null);
+  const [nueva, setNueva] = useState("07:00");
+  const [eligiendo, setEligiendo] = useState(false);
 
-  // Se adopta la versión del servidor solo cuando de verdad dice otra cosa: si
-  // lo tipeado significa lo mismo (una coma de más, un espacio), se respeta
-  // como está escrito y no se le mueve el cursor a nadie.
-  useEffect(() => {
-    setTexto((previo) => (salidasATexto(textoASalidas(previo)) === canonico ? previo : canonico));
-  }, [canonico]);
+  const planilla = cruce.salidas ?? {};
+  const horas = ordenarHoras(planilla[dia]);
+  const esHoy = dia === hoy;
+  const nombreDia = DIAS.find((d) => d.clave === dia).etiqueta.toLowerCase();
+  const yaCargada = horas.includes(normalizarHora(nueva));
 
-  const confirmar = () => {
-    const nuevas = textoASalidas(texto, salidas);
-    if (JSON.stringify(nuevas) !== JSON.stringify(salidas)) onCambiarCampo({ salidas: nuevas });
-    setTexto(salidasATexto(nuevas));
-  };
+  const guardarDia = (clave, lista) =>
+    onCambiarCampo({ salidas: { ...planilla, [clave]: lista } });
 
-  const seleccionada = salidas.find((s) => s.hora === abierta) ?? null;
+  function agregar() {
+    const hora = normalizarHora(nueva);
+    if (aMinutos(hora) === null || horas.includes(hora)) return;
+    guardarDia(dia, ordenarHoras([...horas, hora]));
+  }
+
+  function quitar(hora) {
+    guardarDia(
+      dia,
+      horas.filter((h) => h !== hora),
+    );
+    if (abierta === hora) setAbierta(null);
+  }
+
+  // El panel de estado es de HOY: el chip de un sábado, mirado un martes, es
+  // solo el plan.
+  const seleccionada = esHoy
+    ? (salidasDe(cruce, dia).find((s) => s.hora === abierta) ?? null)
+    : null;
   const estadoSeleccionada = seleccionada ? estadoDeSalida(cruce, seleccionada) : null;
   // Una salida que el servidor todavía no vio no se puede publicar suelta: no
   // hay a qué aplicarle el cambio del otro lado. Se edita en el borrador y
@@ -213,41 +311,102 @@ function EditorSalidas({ cruce, horasGuardadas, publicando, onCambiarCampo, onCa
 
   return (
     <View style={estilos.salidasBloque}>
-      <Campo
-        etiqueta="Salidas"
-        ayuda="En 24 h, separadas por coma. Se ordenan solas."
-        placeholder="07:00, 09:30, 12:00"
-        keyboardType="numbers-and-punctuation"
-        value={texto}
-        onChangeText={setTexto}
-        onBlur={confirmar}
-      />
+      <Text style={estilos.ayudaChica}>
+        Los días marcados son los que salen viajes. Tocá uno para ver o cargar sus horarios.
+      </Text>
 
-      {salidas.length > 0 ? (
-        <>
-          <Text style={estilos.ayudaChica}>
-            Tocá una salida para marcarla aparte. Las que no toques siguen el estado del
-            recorrido.
-          </Text>
-          <View style={estilos.chipsSalida}>
-            {salidas.map((salida) => {
-              const estado = estadoDeSalida(cruce, salida);
-              const activa = abierta === salida.hora;
-              return (
-                <Pressable
-                  key={salida.hora}
-                  onPress={() => setAbierta(activa ? null : salida.hora)}
+      <View style={estilos.dias}>
+        {DIAS.map((d) => {
+          const cargado = (planilla[d.clave] ?? []).length;
+          const activo = d.clave === dia;
+          return (
+            <Pressable
+              key={d.clave}
+              onPress={() => setDia(d.clave)}
+              style={[estilos.dia, cargado > 0 && estilos.diaCargado, activo && estilos.diaActivo]}
+            >
+              <Text style={[estilos.diaTexto, cargado > 0 && estilos.diaTextoCargado, activo && estilos.diaTextoActivo]}>
+                {d.corto}
+              </Text>
+              <View
+                style={[
+                  estilos.diaCuenta,
+                  cargado > 0 && estilos.diaCuentaCargado,
+                  activo && estilos.diaCuentaActivo,
+                ]}
+              >
+                <Text
                   style={[
-                    estilos.chipSalida,
-                    // Una salida que hereda va neutra; la que se marcó aparte
-                    // se tiñe. Con quince chips de colores no se distingue cuál
-                    // es la excepción, que es lo único que hay que mirar.
-                    estado.propio && { borderColor: estado.color },
-                    activa && estilos.chipSalidaAbierta,
+                    estilos.diaCuentaTexto,
+                    (cargado > 0 || activo) && estilos.diaCuentaTextoFuerte,
                   ]}
                 >
-                  <Text style={estilos.chipSalidaHora}>{salida.hora}</Text>
-                  {estado.propio && estado.alterado ? (
+                  {cargado || "–"}
+                </Text>
+              </View>
+              {d.clave === hoy ? <View style={estilos.diaHoy} /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={estilos.altaHora}>
+        <View style={estilos.altaHoraCampo}>
+          <Text style={estilos.altaHoraEtiqueta}>Salidas del {nombreDia}</Text>
+          <Pressable style={estilos.altaHoraValor} onPress={() => setEligiendo(true)}>
+            <Text style={estilos.altaHoraValorTexto}>{nueva}</Text>
+          </Pressable>
+        </View>
+        {/* El "+" se apaga cuando esa hora ya está cargada: un botón que
+            responde al toque sin hacer nada se lee como que la app se colgó. */}
+        <Pressable
+          style={[estilos.mas, (publicando || yaCargada) && estilos.apagado]}
+          disabled={publicando || yaCargada}
+          onPress={agregar}
+        >
+          <Text style={estilos.masTexto}>+</Text>
+        </Pressable>
+      </View>
+
+      <SelectorHora
+        abierto={eligiendo}
+        valor={nueva}
+        onElegir={setNueva}
+        onCerrar={() => setEligiendo(false)}
+      />
+
+      {horas.length === 0 ? (
+        <Text style={estilos.ayudaChica}>
+          El {nombreDia} todavía no sale ninguna lancha. Elegí la hora y tocá «+».
+        </Text>
+      ) : (
+        <View style={estilos.chipsSalida}>
+          {horas.map((hora) => {
+            const estado = esHoy
+              ? estadoDeSalida(cruce, { hora, ...(cruce.estados_salida?.[hora] ?? {}) })
+              : null;
+            const marcada = Boolean(estado?.propio && estado.alterado);
+            const activa = esHoy && abierta === hora;
+            return (
+              <View
+                key={hora}
+                style={[
+                  estilos.chipSalida,
+                  // Una salida que va como va el recorrido queda neutra; la que
+                  // se marcó aparte se tiñe. Con quince chips de colores no se
+                  // distingue cuál es la excepción, que es lo único que hay que
+                  // mirar.
+                  marcada && { borderColor: estado.color },
+                  activa && estilos.chipSalidaAbierta,
+                ]}
+              >
+                <Pressable
+                  disabled={!esHoy}
+                  onPress={() => setAbierta(activa ? null : hora)}
+                  style={estilos.chipSalidaCuerpo}
+                >
+                  <Text style={estilos.chipSalidaHora}>{hora}</Text>
+                  {marcada ? (
                     <Text style={[estilos.chipSalidaEstado, { color: estado.color }]}>
                       {estado.etiqueta.toUpperCase()}
                       {estado.clave === "demorado" && estado.demora_min
@@ -256,11 +415,24 @@ function EditorSalidas({ cruce, horasGuardadas, publicando, onCambiarCampo, onCa
                     </Text>
                   ) : null}
                 </Pressable>
-              );
-            })}
-          </View>
-        </>
-      ) : null}
+                <Pressable hitSlop={8} onPress={() => quitar(hora)} style={estilos.chipSalidaQuitar}>
+                  <Text style={estilos.chipSalidaQuitarTexto}>✕</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      <Pressable
+        disabled={horas.length === 0}
+        onPress={() =>
+          onCambiarCampo({ salidas: Object.fromEntries(DIAS.map((d) => [d.clave, [...horas]])) })
+        }
+        style={[estilos.repetir, horas.length === 0 && estilos.apagado]}
+      >
+        <Text style={estilos.repetirTexto}>Repetir en toda la semana</Text>
+      </Pressable>
 
       {seleccionada ? (
         <View style={estilos.panelSalida}>
@@ -271,35 +443,23 @@ function EditorSalidas({ cruce, horasGuardadas, publicando, onCambiarCampo, onCa
             </Pressable>
           </View>
 
+          {/* La botonera arranca con el estado que la salida ya tiene y no en
+              blanco: recién cargada eso es "A horario", que es la verdad y no
+              una casilla sin contestar. Por eso tampoco hace falta un botón
+              para deshacer una demora — se toca el estado que va. */}
           <Botonera
             opciones={ESTADOS_SALIDA}
-            actual={estadoSeleccionada.propio ? estadoSeleccionada.clave : null}
-            demora={estadoSeleccionada.propio ? estadoSeleccionada.demora_min : null}
+            actual={estadoSeleccionada.clave}
+            demora={estadoSeleccionada.demora_min}
             publicando={publicando}
             onCambiar={(parcial) =>
               onCambiarEstadoSalida(seleccionada.hora, {
-                estado: estadoSeleccionada.propio ? estadoSeleccionada.clave : "a_horario",
+                estado: estadoSeleccionada.clave,
                 demora_min: estadoSeleccionada.demora_min,
                 ...parcial,
               })
             }
           />
-
-          {/* Deshacer sin tener que afirmar otra cosa. Marcarla "a horario"
-              para sacarle un "demorado" no es lo mismo: eso la deja pisando al
-              recorrido para siempre, y si mañana el cruce entero va demorado,
-              esta seguiría diciendo que sale bien. */}
-          <Pressable
-            disabled={publicando || !estadoSeleccionada.propio}
-            onPress={() => onCambiarEstadoSalida(seleccionada.hora, { estado: null, demora_min: null })}
-            style={[estilos.heredar, !estadoSeleccionada.propio && estilos.apagado]}
-          >
-            <Text style={estilos.heredarTexto}>
-              {estadoSeleccionada.propio
-                ? "Que siga al recorrido"
-                : `Sigue al recorrido (${estadoCruce(cruce.estado).etiqueta.toLowerCase()})`}
-            </Text>
-          </Pressable>
 
           {!publicable ? (
             <Text style={estilos.ayudaChica}>
@@ -367,16 +527,10 @@ export default function TableroComercio() {
       return previos.map((cruce) => {
         const guardado = guardados.get(cruce.id);
         if (!guardado) return cruce;
-        const porHora = new Map(salidasDe(guardado).map((s) => [s.hora, s]));
-        const { estado, demora_min, nota, estado_desde } = guardado;
-        return {
-          ...cruce,
-          estado,
-          demora_min,
-          nota,
-          estado_desde,
-          salidas: salidasDe(cruce).map((salida) => porHora.get(salida.hora) ?? salida),
-        };
+        const { estado, demora_min, nota, estado_desde, estados_salida } = guardado;
+        // Solo lo que decide el servidor: los estados y su vigencia. La
+        // planilla no se pisa — borraría lo que se está escribiendo.
+        return { ...cruce, estado, demora_min, nota, estado_desde, estados_salida };
       });
     });
   }, [comercio]);
@@ -394,10 +548,16 @@ export default function TableroComercio() {
   // Los estados quedan afuera de la comparación en los dos niveles: los mueven
   // los interruptores, que se publican solos y no por este botón.
   const limpiar = (lista) =>
-    (lista ?? []).map(({ _clave, _nueva, estado, demora_min, nota, estado_desde, ...resto }) => ({
+    (lista ?? []).map(
+      ({ _clave, _nueva, estado, demora_min, nota, estado_desde, estados_salida, ...resto }) => ({
       ...resto,
-      salidas: salidasDe({ salidas: resto.salidas }).map((s) => s.hora),
-    }));
+      // Dia por dia y con las horas ordenadas: el orden en que se
+      // escribieron no es un cambio.
+      salidas: Object.fromEntries(
+        DIAS.map((d) => [d.clave, [...(resto.salidas?.[d.clave] ?? [])].sort()]),
+      ),
+      }),
+    );
   const hayCambios = JSON.stringify(limpiar(cruces)) !== JSON.stringify(limpiar(comercio?.cruces));
 
   const cambiarCampo = (id, parcial) => {
@@ -443,38 +603,42 @@ export default function TableroComercio() {
     );
   }
 
-  /** El interruptor de una salida suelta. */
+  /**
+   * El interruptor de una salida suelta.
+   *
+   * El estado va en `estados_salida`, indexado por hora, y no adentro de la
+   * planilla: la planilla es el plan de la semana —un diccionario de día a
+   * horas— y esto es lo que pasa hoy. Es también la forma que espera el
+   * backend (ver tablero._estados_salida).
+   */
   function cambiarEstadoDeSalida(cruce, hora, parcial) {
-    const salidas = salidasDe(cruce);
-    const previas = salidas.map((s) => ({ ...s }));
-    const parche = {
-      salidas: salidas.map((s) =>
-        s.hora === hora
-          ? {
-              ...s,
-              estado: parcial.estado ?? null,
-              demora_min: parcial.estado === "demorado" ? (parcial.demora_min ?? null) : null,
-            }
-          : s,
-      ),
-    };
+    const previos = { ...(cruce.estados_salida ?? {}) };
+    const estados = { ...previos };
+    if (parcial.estado === null || parcial.estado === undefined) {
+      delete estados[hora];
+    } else {
+      estados[hora] = {
+        estado: parcial.estado,
+        demora_min: parcial.estado === "demorado" ? (parcial.demora_min ?? null) : null,
+      };
+    }
 
     // Una salida que el servidor no conoce todavía viaja con el botón de
     // guardar, igual que el resto de la fila.
     if (!horasPorCruce.get(cruce.id)?.has(hora)) {
-      cambiarCampo(clave(cruce), parche);
+      cambiarCampo(clave(cruce), { estados_salida: estados });
       return Promise.resolve();
     }
 
     return publicar(
       cruce,
-      parche,
+      { estados_salida: estados },
       () =>
         cambiarEstadoSalida(cruce.id, hora, {
           estado: parcial.estado ?? null,
           demora_min: parcial.estado === "demorado" ? (parcial.demora_min ?? null) : null,
         }),
-      { salidas: previas },
+      { estados_salida: previos },
     );
   }
 
@@ -502,10 +666,8 @@ export default function TableroComercio() {
     >
       <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
         <Text style={estilos.ayuda}>
-          Es el tablero que ve el nauta en tu ficha, como el de salidas de un aeropuerto.{" "}
-          <Text style={estilos.ayudaFuerte}>Los botones de estado se publican en el momento</Text>,
-          sin pasar por revisión — y vuelven solos a “A horario” al día siguiente, así no
-          arrastrás una demora de ayer.
+          El tablero que ve el nauta en tu ficha: a qué hora cruzás cada día, cada cuánto
+          y cuánto sale.
         </Text>
 
         {cruces.length === 0 ? (
@@ -709,11 +871,126 @@ const estilos = StyleSheet.create({
   // <Campo> compartido (src/componentes.jsx), el mismo de todas las pantallas.
   campo: { flexGrow: 1, flexBasis: "45%" },
 
-  // El renglón de texto carga la lista de horarios de un saque; los chips de
-  // abajo son para lo otro: marcar UNA salida cuando se corrió solo esa. Van
-  // juntos y en ese orden porque así se usa —primero se carga el día, después
-  // se lo va corrigiendo—, y separarlos en dos pantallas obligaría a ir y venir
-  // con el motor prendido.
+  // El reloj y el "+" cargan la planilla del día; los chips de abajo son las
+  // horas ya cargadas y, en el día de hoy, sirven además para lo otro: marcar
+  // UNA salida cuando se corrió solo esa. Van juntos y en ese orden porque así
+  // se usa —primero se carga el día, después se lo va corrigiendo—, y
+  // separarlos en dos pantallas obligaría a ir y venir con el motor prendido.
+  //
+  // Los siete días en una fila de a siete y no envueltos: es una semana, y una
+  // semana cortada en 5 + 2 deja de leerse como semana justo cuando lo único
+  // que se le pregunta es qué días sale.
+  dias: { flexDirection: "row", gap: 4 },
+  dia: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    backgroundColor: COLORES.superficie,
+  },
+  // Un día que tiene horarios queda marcado —pintado y con la cuenta de
+  // salidas abajo— y uno vacío con un guion. No es decoración: es lo que
+  // contesta de un vistazo qué días sale la lancha a la isla y lo que evita
+  // publicar un tablero al que le falta el domingo.
+  diaCargado: { borderColor: COLORES.acento, backgroundColor: COLORES.chipFondo },
+  diaActivo: { backgroundColor: COLORES.acento, borderColor: COLORES.acento },
+  diaTexto: { fontSize: 12.5, fontWeight: "600", color: COLORES.textoSuave },
+  diaTextoCargado: { color: COLORES.acento, fontWeight: "700" },
+  diaTextoActivo: { color: "#fff" },
+  diaCuenta: {
+    minWidth: 18,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    backgroundColor: COLORES.chipFondo,
+    alignItems: "center",
+  },
+  diaCuentaCargado: { backgroundColor: COLORES.acento },
+  diaCuentaActivo: { backgroundColor: "rgba(255,255,255,0.3)" },
+  diaCuentaTexto: { fontSize: 10, fontWeight: "800", color: COLORES.textoSuave, lineHeight: 15 },
+  diaCuentaTextoFuerte: { color: "#fff" },
+  // Los chips de estado son de HOY; sin esta marca no se entiende por que
+  // aparecen o no segun la pestaña.
+  diaHoy: {
+    position: "absolute",
+    top: 3,
+    right: 4,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORES.ok,
+  },
+
+  // El alta de una hora: el reloj y un "+" al lado, del mismo alto. Los dos
+  // tienen que ser un blanco de dedo, no un ícono.
+  altaHora: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  altaHoraCampo: { flex: 1, gap: 4 },
+  altaHoraEtiqueta: { fontSize: 13, fontWeight: "600", color: COLORES.texto },
+  altaHoraValor: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    backgroundColor: "#fff",
+  },
+  altaHoraValorTexto: { fontSize: 18, fontWeight: "700", color: COLORES.texto },
+  mas: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: COLORES.acento,
+  },
+  masTexto: { fontSize: 24, lineHeight: 26, fontWeight: "700", color: "#fff" },
+
+  // El reloj: dos ruedas, hora y minuto, como una alarma.
+  fondoModal: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  reloj: {
+    width: "100%",
+    maxWidth: 340,
+    gap: 10,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: COLORES.superficie,
+  },
+  relojTitulo: { fontSize: 14, fontWeight: "700", color: COLORES.texto },
+  relojValor: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: COLORES.acento,
+    textAlign: "center",
+  },
+  columnas: { flexDirection: "row", gap: 10 },
+  columna: { flex: 1, gap: 4 },
+  columnaEtiqueta: { fontSize: 11, fontWeight: "700", color: COLORES.textoSuave, textAlign: "center" },
+  columnaRueda: {
+    height: 190,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORES.bordeSuave,
+    backgroundColor: COLORES.fondo,
+  },
+  columnaContenido: { paddingVertical: 4 },
+  numero: { paddingVertical: 9, alignItems: "center" },
+  numeroActivo: { backgroundColor: COLORES.acento },
+  numeroTexto: { fontSize: 17, fontWeight: "600", color: COLORES.texto },
+  numeroTextoActivo: { color: "#fff", fontWeight: "800" },
+
+  repetir: { alignSelf: "flex-start", paddingVertical: 4 },
+  repetirTexto: { fontSize: 13, fontWeight: "600", color: COLORES.acento },
+
   salidasBloque: {
     gap: 9,
     paddingTop: 12,
@@ -724,9 +1001,6 @@ const estilos = StyleSheet.create({
   chipSalida: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: COLORES.borde,
@@ -735,8 +1009,20 @@ const estilos = StyleSheet.create({
   // La abierta se marca con el fondo y no cambiando el borde: el borde de ese
   // chip ya significa otra cosa (su estado).
   chipSalidaAbierta: { backgroundColor: COLORES.chipFondo },
+  chipSalidaCuerpo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingLeft: 11,
+    paddingRight: 3,
+    paddingVertical: 7,
+  },
   chipSalidaHora: { fontSize: 14, fontWeight: "700", color: COLORES.texto },
   chipSalidaEstado: { fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  // Sin el renglón de texto, este "✕" es la única forma de sacar una hora: va
+  // pegado a ella y no en un modo aparte de borrar.
+  chipSalidaQuitar: { paddingLeft: 3, paddingRight: 10, paddingVertical: 7 },
+  chipSalidaQuitarTexto: { fontSize: 12, fontWeight: "700", color: COLORES.textoSuave },
 
   panelSalida: {
     gap: 9,
@@ -752,19 +1038,6 @@ const estilos = StyleSheet.create({
     justifyContent: "space-between",
   },
   panelSalidaTitulo: { fontSize: 14.5, fontWeight: "700", color: COLORES.texto },
-
-  // Deshacer sin tener que afirmar otra cosa: marcar "a horario" para sacar un
-  // "demorado" dejaría la salida pisando al recorrido para siempre.
-  heredar: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: COLORES.borde,
-  },
-  heredarTexto: { fontSize: 13, fontWeight: "600", color: COLORES.textoSuave },
 
   // Cómo queda del otro lado. Sin esto el lanchero carga cinco números sueltos
   // y no ve qué frase arman hasta abrir la ficha del nauta en otra pantalla.

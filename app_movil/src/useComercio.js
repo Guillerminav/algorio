@@ -72,6 +72,16 @@ export function useComercio() {
     [api],
   );
 
+  // Borrar la ficha. Deja `comercio` en null, que es el mismo estado del que
+  // se sale por SinComercio: la cuenta sigue viva y puede cargar otra o
+  // reclamar una del mapa. El reclamo se recarga porque despues de borrar
+  // vuelve a tener sentido tener uno.
+  const eliminar = useCallback(async () => {
+    await api("/api/mi-comercio", { method: "DELETE" });
+    setComercio(null);
+    setReclamo(null);
+  }, [api]);
+
   // El tablero de cruces tiene su propio endpoint y no viaja por el PUT de
   // arriba: es la unica edicion del panel que NO pasa por moderacion y que
   // nunca devuelve la ficha a 'pendiente' (ver backend/tablero.py).
@@ -107,6 +117,21 @@ export function useComercio() {
     [api],
   );
 
+  // El interruptor de UNA salida de hoy ("la de las 09:30 va demorada"). Va
+  // aparte del de arriba porque son dos niveles distintos: el del recorrido
+  // entero y el de una salida, que lo pisa cuando hace falta.
+  const cambiarEstadoSalida = useCallback(
+    async (cruceId, hora, cuerpo) => {
+      const actualizado = await api(
+        `/api/mi-comercio/tablero/${encodeURIComponent(cruceId)}/salidas/${encodeURIComponent(hora)}/estado`,
+        { method: "POST", body: JSON.stringify(cuerpo) },
+      );
+      setComercio(actualizado);
+      return actualizado;
+    },
+    [api],
+  );
+
   const crear = useCallback(
     async (datos) => {
       const creado = await api("/api/mi-comercio", {
@@ -120,7 +145,7 @@ export function useComercio() {
   );
 
   return {
-    comercio, reclamo, cargando, error, guardando, recargar, guardar, crear,
-    guardarTablero, cambiarEstadoCruce,
+    comercio, reclamo, cargando, error, guardando, recargar, guardar, crear, eliminar,
+    guardarTablero, cambiarEstadoCruce, cambiarEstadoSalida,
   };
 }
