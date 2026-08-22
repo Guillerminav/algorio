@@ -11,6 +11,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import TopBar from "../components/TopBar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { ProveedorRio } from "../nauta/ContextoRio.jsx";
+import ClimaNauta from "../nauta/ClimaNauta.jsx";
 import MapaNauta from "../nauta/MapaNauta.jsx";
 import NivelRio from "../nauta/NivelRio.jsx";
 import InicioComercio from "./InicioComercio.jsx";
@@ -320,16 +321,17 @@ export default function ShellComercio() {
 
   // Las de la cuenta, que no cuelgan de ningun comercio. El orden importa:
   //
-  //   1. El MAPA arriba de todo. Es lo que el comerciante mira aunque no venga
-  //      a editar nada — donde esta la competencia, que reporto la gente cerca,
-  //      como viene el viento del fin de semana.
-  //   2. Los COMERCIOS, cada uno con su desplegable de edicion.
-  //   3. METRICAS y RESEÑAS, que son de la cuenta entera y no de un comercio:
+  //   1. Los COMERCIOS arriba de todo, cada uno con su desplegable de edicion.
+  //      Es a lo que el comerciante entra: lo suyo primero.
+  //   2. METRICAS y RESEÑAS, que son de la cuenta entera y no de un comercio:
   //      "¿como me esta yendo?" se pregunta una vez, no una por pin. Adentro
   //      de cada desplegable, el total de la cuenta no existia en ningun lado
   //      y habia que sumar de cabeza.
+  //   3. El rio: el MAPA, el CLIMA y el NIVEL. No es lo que viene a hacer aca,
+  //      pero es la misma agua sobre la que trabaja — donde esta la
+  //      competencia, si esta picado (no viene nadie al parador) y si el rio
+  //      esta creciendo.
   const secciones = [
-    { id: "mapa", etiqueta: "Mapa del río" },
     ...(comercios.length > 0 ? [{ id: "__comercios", nodo: selector }] : []),
     ...(comercios.length > 0
       ? [
@@ -337,9 +339,13 @@ export default function ShellComercio() {
           { id: "resenas", etiqueta: "Reseñas" },
         ]
       : []),
-    // Al final y no arriba: no es lo que el comerciante viene a hacer acá,
-    // pero saber si el río está creciendo le cambia el fin de semana tanto
-    // como al nauta. Es la misma pantalla que ve el nauta.
+    { id: "mapa", etiqueta: "Mapa del río" },
+    // El clima es del comerciante tanto como del nauta, y por las mismas
+    // razones al reves: si esta picado no viene nadie al parador, y el sabado
+    // que sopla del sur el lanchero no cruza. Ademas es a donde tiene que
+    // llevar el cartel de clima que flota sobre el mapa — antes caia en "Nivel
+    // del rio", que contesta otra pregunta.
+    { id: "clima", etiqueta: "Clima" },
     { id: "nivel", etiqueta: "Nivel del río" },
     ...(usuario?.es_admin
       ? [
@@ -394,7 +400,7 @@ export default function ShellComercio() {
               comercio; en suscripción, moderación y nivel del río no viene a
               cuento y sería ruido fijo arriba de todo. */}
           {comercio &&
-            !["suscripcion", "moderacion", "reclamos", "nivel", "mapa"].includes(
+            !["suscripcion", "moderacion", "reclamos", "clima", "nivel", "mapa"].includes(
               seccionActiva,
             ) && <BannerEstado comercio={comercio} />}
 
@@ -427,7 +433,7 @@ export default function ShellComercio() {
           {seccionActiva === "resenas" && <ResenasComercio comercios={comercios} />}
           {seccionActiva === "mapa" && (
             <MapaNauta
-              onIrAClima={() => setSeccionActiva("nivel")}
+              onIrAClima={() => setSeccionActiva("clima")}
               // Sin esto el boton de hamburguesa que flota sobre el mapa se
               // dibujaba igual (su CSS no depende del shell) pero no abria
               // nada, y con la barra superior escondida no quedaba ninguna
@@ -435,6 +441,7 @@ export default function ShellComercio() {
               onAbrirMenu={() => setMenuMovilAbierto(true)}
             />
           )}
+          {seccionActiva === "clima" && <ClimaNauta />}
           {seccionActiva === "nivel" && <NivelRio />}
           {seccionActiva === "moderacion" && <ModeracionPois />}
           {seccionActiva === "reclamos" && <ModeracionReclamos />}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 import { ETIQUETAS_ESTADO, tipoDe } from "./tiposComercio.js";
 
@@ -20,8 +20,13 @@ import { ETIQUETAS_ESTADO, tipoDe } from "./tiposComercio.js";
  * —«¿cómo me está yendo?» se pregunta una vez, no una por pin— y viven abajo,
  * con su propio filtro por comercio.
  *
- * Solo se despliega el activo. Con los tres abiertos la barra es una lista de
+ * Se despliega uno a la vez. Con los tres abiertos la barra es una lista de
  * quince renglones donde encontrar algo cuesta más que cambiar de comercio.
+ *
+ * El encabezado alterna: tocar el que ya está abierto lo cierra. Antes no
+ * hacía nada —el desplegado era siempre el activo, sin estado propio—, y un
+ * control que se abre pero no se cierra deja al que solo quería mirar el
+ * nombre del segundo comercio con la lista larga puesta.
  */
 export default function SelectorComercio({
   comercios,
@@ -33,6 +38,27 @@ export default function SelectorComercio({
   puedeAgregar,
   onAgregar,
 }) {
+  // Cuál está desplegado, aparte de cuál está activo. Son dos cosas: el activo
+  // es el que se está editando —lo que se ve en pantalla— y esto es solo si su
+  // lista está a la vista. Cerrarla no cambia de comercio.
+  const [desplegado, setDesplegado] = useState(activo);
+
+  // Si el activo cambia desde afuera —al crear uno nuevo, o al elegirlo desde
+  // otro lado— se despliega solo: quedaría raro pasar a un comercio y que sus
+  // pantallas no aparezcan.
+  useEffect(() => {
+    setDesplegado(activo);
+  }, [activo]);
+
+  const alternar = (c) => {
+    if (c.id === desplegado) {
+      setDesplegado(null);
+      return;
+    }
+    setDesplegado(c.id);
+    onElegir(c.id);
+  };
+
   return (
     <div className="selector-comercio">
       <p className="selector-comercio-titulo">Mis comercios</p>
@@ -40,14 +66,14 @@ export default function SelectorComercio({
       <ul className="selector-comercio-lista">
         {comercios.map((c) => {
           const definicion = tipoDe(c.tipo);
-          const abierto = c.id === activo;
+          const abierto = c.id === desplegado;
           return (
             <li key={c.id}>
               <button
                 type="button"
-                className={`selector-comercio-item${abierto ? " activo" : ""}`}
+                className={`selector-comercio-item${c.id === activo ? " activo" : ""}`}
                 aria-expanded={abierto}
-                onClick={() => onElegir(c.id)}
+                onClick={() => alternar(c)}
               >
                 <span className="selector-comercio-flecha" aria-hidden="true">
                   {abierto ? "▾" : "▸"}

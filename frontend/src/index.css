@@ -3123,6 +3123,48 @@ tr.fila-critica {
   gap: 0.25rem;
 }
 
+/* El arbol de comercios, mas grande adentro del menu del celular.
+   En la barra lateral se navega con el mouse y un renglon de 0,82rem se
+   acierta igual; en el telefono estos son blancos de dedo, y las pantallas de
+   un comercio quedaban como la letra chica de un contrato. */
+.menu-movil .selector-comercio {
+  margin: 0 0 1rem;
+  padding-bottom: 1rem;
+}
+
+.menu-movil .selector-comercio-titulo {
+  font-size: 0.74rem;
+}
+
+.menu-movil .selector-comercio-item {
+  gap: 0.5rem;
+  padding: 0.7rem 0.7rem;
+}
+
+.menu-movil .selector-comercio-flecha { font-size: 0.85rem; }
+.menu-movil .selector-comercio-nombre { font-size: 1rem; }
+.menu-movil .selector-comercio-meta { font-size: 0.78rem; }
+
+.menu-movil .selector-comercio-pantallas {
+  gap: 0.2rem;
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.6rem;
+}
+
+/* 44px de alto: el blanco de dedo minimo. Con los 28 que tenian —los mismos
+   de la barra de escritorio, donde se apunta con el mouse— fallar el renglon y
+   caer en el de al lado era la norma. */
+.menu-movil .selector-comercio-pantalla {
+  padding: 0.72rem 0.8rem;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.95rem;
+}
+
+.menu-movil .selector-comercio-agregar {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 880px) {
   .barra-lateral {
     display: none;
