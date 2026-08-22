@@ -247,18 +247,18 @@ export default function ShellComercio() {
     );
   }
 
-  // Sin ficha cargada no hay panel posible (no hay metricas, ni reseñas, ni
-  // menu de nada), asi que el asistente ocupa la pantalla entera. Puede que la
-  // cuenta no tenga ficha pero si un reclamo en curso: eso lo resuelve
-  // InicioComercio, que decide entre cargar, reclamar y esperar.
+  // Sin ficha cargada el asistente de alta es la seccion "ficha" —lo resuelve
+  // el `main`, que sin comercio monta InicioComercio— y NO una pantalla suelta
+  // que reemplace al shell.
   //
-  // Un admin es la excepcion: no viene por su ficha, viene a moderar. Cortarle
-  // acá le escondía las dos colas detrás de "cargá tu comercio" — y como la de
-  // Reclamos solo existía en este shell, una cuenta de comercio con es_admin y
-  // sin ficha no podia aprobar nada desde ningun lado.
-  if (comercios.length === 0 && !usuario?.es_admin) {
-    return <InicioComercio onCreado={agregar} yaTiene={comercios.length} />;
-  }
+  // Antes acá se cortaba y se devolvia el asistente a pantalla completa. Eso
+  // dejaba a la cuenta sin barra lateral, y con ella se iban el Mapa del rio,
+  // el Clima y el Nivel: quien todavia no cargo su ficha no podia ni mirar el
+  // mapa —ni, desde ahi, abrir el tablero de cruces de una lancha-taxi por
+  // "Ver mas"—, que no depende en nada de tener comercio propio.
+  //
+  // InicioComercio sigue decidiendo entre cargar, reclamar y esperar un
+  // reclamo en curso; lo unico que cambia es que ahora vive adentro del shell.
 
   const definicion = tipoDe(comercio?.tipo);
 
@@ -333,6 +333,11 @@ export default function ShellComercio() {
   //      esta creciendo.
   const secciones = [
     ...(comercios.length > 0 ? [{ id: "__comercios", nodo: selector }] : []),
+    // Sin ningun comercio cargado no hay arbol que desplegar, pero el asistente
+    // de alta tiene que seguir a un toque de distancia: es lo que la cuenta
+    // vino a hacer. Va como una seccion mas de la barra —y no como pantalla
+    // entera, que era lo de antes— para que se pueda ir al mapa y volver.
+    ...(comercios.length === 0 ? [{ id: "ficha", etiqueta: "Cargar mi comercio" }] : []),
     ...(comercios.length > 0
       ? [
           { id: "metricas", etiqueta: "Métricas" },

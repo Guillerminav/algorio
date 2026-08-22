@@ -4,6 +4,7 @@ import { useRio } from "./ContextoRio.jsx";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { formatearFecha, pedirJSON } from "../api.js";
+import { precioEnTexto } from "../tablero.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   DIAS,
@@ -199,6 +200,33 @@ export default function PanelLugar({ poiId, onCerrar }) {
           Está en {lugar.lat.toFixed(5)}, {lugar.lon.toFixed(5)}.
         </p>
       )}
+
+      {/* Los precios van ANTES de los servicios y del menu: es lo primero que
+          se pregunta el que esta eligiendo a donde parar, y enterrarlo abajo
+          de la lista de platos obliga a scrollear para saber si entra en el
+          presupuesto. Solo el parador los tiene (ver pois.TIPOS_CON_PRECIOS). */}
+      {(lugar.precio_estadia !== null && lugar.precio_estadia !== undefined) ||
+      (lugar.precio_acampe !== null && lugar.precio_acampe !== undefined) ? (
+        <div className="lugar-bloque">
+          <h3>Precios</h3>
+          <dl className="lugar-precios">
+            {lugar.precio_estadia !== null && lugar.precio_estadia !== undefined && (
+              <div>
+                <dt>Entrada</dt>
+                <dd>{precioEnTexto(lugar.precio_estadia)}</dd>
+                <span className="lugar-precio-unidad">por persona, por día</span>
+              </div>
+            )}
+            {lugar.precio_acampe !== null && lugar.precio_acampe !== undefined && (
+              <div>
+                <dt>Acampe</dt>
+                <dd>{precioEnTexto(lugar.precio_acampe)}</dd>
+                <span className="lugar-precio-unidad">por persona, por noche</span>
+              </div>
+            )}
+          </dl>
+        </div>
+      ) : null}
 
       {lugar.servicios?.length > 0 && (
         <div className="lugar-bloque">

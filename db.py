@@ -433,6 +433,20 @@ def _crear_esquema() -> None:
             )
             """
         )
+        # Lo que sale entrar al parador y lo que sale acampar.
+        #
+        # Columnas y no un campo mas adentro de `menu`: son UN precio cada uno,
+        # los mira el nauta antes de decidir a donde va, y el dia que haya un
+        # filtro de "paradores hasta $X" tiene que poder consultarse. El menu
+        # es una lista de platos y esto no es un plato.
+        #
+        # Enteros: son pesos, y los centavos en un precio de parador no existen.
+        # Nulos cuando no aplica — un parador puede no cobrar entrada, y el que
+        # no admite acampe no tiene precio de acampe (ver pois.actualizar, que
+        # lo limpia solo si se saca el servicio).
+        con.execute("ALTER TABLE pois ADD COLUMN IF NOT EXISTS precio_estadia INTEGER")
+        con.execute("ALTER TABLE pois ADD COLUMN IF NOT EXISTS precio_acampe INTEGER")
+
         # El tablero de cruces de una lancha-taxi (ver backend/tablero.py): a
         # que hora cruza, cada cuanto, cuanto sale y si hoy va demorada.
         #

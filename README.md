@@ -994,6 +994,35 @@ cuenta. No es indecision: la app movil se publica aparte de la web, y el dia
 que se actualiza el backend los telefonos ya instalados siguen pidiendo esas
 rutas. Se van cuando el movil use la coleccion.
 
+## Los precios del parador
+
+Dos columnas nuevas en `pois`: `precio_estadia` y `precio_acampe`, enteros y
+nulables. Columnas y no un campo mas adentro de `menu`, porque son **un precio
+cada uno**, los mira el nauta antes de decidir a donde va, y el dia que haya un
+filtro de "paradores hasta $X" tiene que poder consultarse. El menu es una
+lista de platos y esto no es un plato.
+
+Solo del **parador** (`pois.TIPOS_CON_PRECIOS`): una cabaña cobra por unidad
+—eso vive en su lista de habitaciones— y una lancha-taxi por cruce, que vive en
+el tablero. Mandarlos en otro rubro devuelve 400.
+
+**Vacio y cero no son lo mismo.** Null es "no lo dice"; `0` es **gratis**, y eso
+es un dato: la ficha muestra "Gratis" y no un vacio.
+
+### El acampe depende de su servicio
+
+El precio de acampe solo existe si el parador tiene tildado "Se puede acampar".
+El campo aparece en el panel al tildar el chip, y el backend **limpia el precio
+solo** cuando el servicio no esta — aunque el PUT no lo haya mandado, que es
+justamente el caso normal: se destilda el servicio y se guarda sin tocar el
+precio. Mirar unicamente lo que vino en el request dejaba el numero viejo
+publicandose en un parador que ya no admite carpas.
+
+El texto del servicio esta duplicado a proposito en los dos lados
+(`pois.SERVICIO_ACAMPE` y `tiposComercio.SERVICIO_ACAMPE`) y cada uno dice que
+tiene que coincidir con el otro: es la unica forma de que el backend sepa si
+ese precio corresponde sin inventar una tabla de servicios.
+
 ## El rubro se elige una vez
 
 `tipo` salio de `pois.CAMPOS_EDITABLES` y quedo solo en `CAMPOS_ALTA`. Ojo:

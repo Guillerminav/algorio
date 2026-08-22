@@ -11,6 +11,11 @@
 // Los plurales van escritos y no se arman agregando "es": "sección" pluraliza
 // a "secciones" (sin tilde) y "tipo de servicio" a "tipos de servicio", que
 // ninguna regla de sufijo saca bien.
+// El servicio que habilita el precio de acampe. Tiene que decir exactamente lo
+// mismo que pois.SERVICIO_ACAMPE del backend, que lo usa para limpiar el precio
+// cuando el parador deja de admitir carpas.
+export const SERVICIO_ACAMPE = "Se puede acampar";
+
 export const TIPOS_COMERCIO = [
   {
     tipo: "parador",
@@ -24,7 +29,11 @@ export const TIPOS_COMERCIO = [
     pluralItem: "platos y bebidas",
     ejemploSeccion: "Bebidas",
     ejemploItem: "Cerveza artesanal",
-    servicios: ["Amarre", "Baños", "Wifi", "Sombrillas", "Estacionamiento", "Combustible", "Música en vivo", "Acepta tarjeta"],
+    servicios: ["Amarre", "Baños", "Wifi", "Sombrillas", "Estacionamiento", "Combustible", "Música en vivo", "Acepta tarjeta", "Acepta heladerita", "Se puede acampar"],
+    // El parador es el unico que cobra una entrada por persona: la cabaña
+    // cobra por unidad (eso vive en su lista de habitaciones) y la lancha-taxi
+    // por cruce (eso vive en el tablero).
+    tienePrecios: true,
   },
   {
     tipo: "alojamiento",

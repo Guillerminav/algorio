@@ -1,7 +1,7 @@
 import React from "react";
 
 import MapaUbicacion from "./MapaUbicacion.jsx";
-import { TIPOS_COMERCIO, tipoDe } from "./tiposComercio.js";
+import { SERVICIO_ACAMPE, TIPOS_COMERCIO, tipoDe } from "./tiposComercio.js";
 
 /**
  * Los datos base del comercio: rubro, nombre, descripcion, ubicacion y
@@ -15,6 +15,17 @@ import { TIPOS_COMERCIO, tipoDe } from "./tiposComercio.js";
 export default function FormularioFicha({ valores, onCambiar, mostrarTipo = true }) {
   const definicion = tipoDe(valores.tipo);
   const cambiar = (campo) => (evento) => onCambiar({ [campo]: evento.target.value });
+
+  // Los precios viajan como numero y no como texto: se guardan en columnas
+  // enteras y el dia que haya un filtro de "paradores hasta $X" tiene que
+  // poder compararse. Vacio es null —"no lo dice"— y distinto de 0, que es
+  // "es gratis" y sí es un dato.
+  const cambiarPrecio = (campo) => (evento) => {
+    const limpio = evento.target.value.replace(/[^\d]/g, "");
+    onCambiar({ [campo]: limpio === "" ? null : Number(limpio) });
+  };
+
+  const admiteAcampe = (valores.servicios ?? []).includes(SERVICIO_ACAMPE);
 
   return (
     <>
@@ -145,6 +156,55 @@ export default function FormularioFicha({ valores, onCambiar, mostrarTipo = true
           })}
         </div>
       </fieldset>
+
+      {/* Los precios van DESPUES de los servicios y no arriba con el resto de
+          los datos: el de acampe aparece al tildar "Se puede acampar", que es
+          un chip de la caja de arriba, y pedirlo antes de que se pueda tildar
+          no se entiende. */}
+      {definicion.tienePrecios && (
+        <fieldset className="grupo-campos" aria-label="Precios">
+          <legend>¿Cuánto sale?</legend>
+          <p className="descripcion">
+            Lo que ve el nauta antes de decidir a dónde va. Dejalo vacío si preferís no
+            publicarlo; poné <strong>0</strong> si la entrada es libre.
+          </p>
+
+          <div className="fila-campos">
+            <label>
+              Entrada por persona
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={9}
+                placeholder="3500"
+                value={valores.precio_estadia ?? ""}
+                onChange={cambiarPrecio("precio_estadia")}
+              />
+            </label>
+
+            {admiteAcampe && (
+              <label>
+                Acampe por persona
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={9}
+                  placeholder="5000"
+                  value={valores.precio_acampe ?? ""}
+                  onChange={cambiarPrecio("precio_acampe")}
+                />
+              </label>
+            )}
+          </div>
+
+          {!admiteAcampe && (
+            <p className="descripcion">
+              ¿También se puede acampar? Tildá <strong>«{SERVICIO_ACAMPE}»</strong> arriba y
+              aparece el precio del acampe.
+            </p>
+          )}
+        </fieldset>
+      )}
     </>
   );
 }

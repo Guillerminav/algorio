@@ -43,6 +43,7 @@ TIPOS_VISITA = {"ficha", "telefono", "whatsapp", "como_llegar"}
 CAMPOS_EDITABLES = {
     "nombre", "descripcion", "lat", "lon", "telefono", "whatsapp",
     "instagram", "horarios", "menu", "servicios", "fotos",
+    "precio_estadia", "precio_acampe",
 }
 
 # En el alta si se acepta, y es la unica vez. Ojo: "la unica vez" es por
@@ -57,6 +58,16 @@ MAX_COMERCIOS = 3
 
 # Los que van a la base como JSONB y por lo tanto hay que serializar.
 CAMPOS_JSON = {"horarios", "menu", "servicios", "fotos"}
+
+# El servicio que habilita el precio de acampe. Es el texto exacto del chip que
+# muestra el panel (ver frontend/src/comercio/tiposComercio.js): si alla se
+# cambia la redaccion, hay que cambiarla aca — es la unica forma de que el
+# backend sepa si ese precio corresponde.
+SERVICIO_ACAMPE = "Se puede acampar"
+
+# Los precios son solo del parador: una cabaña cobra por unidad (eso vive en su
+# lista de habitaciones) y una lancha-taxi por cruce (eso vive en el tablero).
+TIPOS_CON_PRECIOS = {"parador"}
 
 # Un grado de latitud son ~111 km en cualquier parte; el de longitud se achica
 # con el coseno de la latitud. Alcanza para acotar la consulta a una caja: el
@@ -127,6 +138,43 @@ def _validar_fotos(fotos):
         if url not in limpias:
             limpias.append(url)
     return limpias
+
+
+def _coherencia_de_precios(tipo: str, campos: dict, servicios) -> dict:
+    """Deja los precios como corresponden al rubro y a los servicios.
+
+    Dos reglas, y las dos existen porque el dato se le muestra al nauta y un
+    precio que no corresponde es peor que ninguno:
+
+    1. **Solo el parador tiene estos precios.** Una cabaña cobra por unidad
+       (eso vive en su lista de habitaciones) y una lancha-taxi por cruce (eso
+       vive en el tablero). Si llegan en otro rubro se rechaza en voz alta en
+       vez de guardarlos callado: es un cliente mandando algo que no va.
+
+    2. **Sin "se puede acampar" no hay precio de acampe.** Se limpia solo, no
+       se rechaza: sacar el servicio es una accion legitima del comerciante, y
+       el precio que queda colgado seguiria publicandose en la ficha de un
+       parador que ya no admite carpas. Es la misma idea que `_con_tablero`,
+       que no devuelve cruces de un POI que dejo de ser lancha-taxi.
+    """
+    campos = dict(campos)
+    precios = {"precio_estadia", "precio_acampe"} & campos.keys()
+
+    if tipo not in TIPOS_CON_PRECIOS:
+        if precios:
+            raise ValueError(
+                "Los precios de estadía y acampe son solo del parador."
+            )
+        return campos
+
+    # Se pone en None aunque el PUT no lo haya mandado: el caso normal es
+    # justamente ese —se destilda el servicio y se guarda, sin tocar el
+    # precio—, y mirar solo lo que vino dejaba el numero viejo publicandose en
+    # un parador que ya no admite carpas.
+    if SERVICIO_ACAMPE not in (servicios or []):
+        campos["precio_acampe"] = None
+
+    return campos
 
 
 def _serializar(valores: dict) -> dict:
@@ -317,7 +365,9 @@ def crear(usuario: str, datos: dict) -> dict:
 
     if "fotos" in datos:
         datos = {**datos, "fotos": _validar_fotos(datos["fotos"])}
-    campos = _serializar({k: v for k, v in datos.items() if k in CAMPOS_ALTA})
+    campos = {k: v for k, v in datos.items() if k in CAMPOS_ALTA}
+    campos = _coherencia_de_precios(datos["tipo"], campos, datos.get("servicios"))
+    campos = _serializar(campos)
     columnas = ", ".join(campos)
     marcadores = ", ".join(["%s"] * len(campos))
 
@@ -373,6 +423,12 @@ def actualizar(usuario: str, poi_id: int, cambios: dict) -> dict:
             # es la unica fuente de verdad de que se muestra, y lo que no esta
             # ahi no lo va a ver nadie nunca mas.
             almacen_fotos.borrar_huerfanas(actual["id"], campos["fotos"])
+
+        # Los servicios que van a quedar despues de este guardado: pueden venir
+        # en el mismo PUT que el precio (se destilda "se puede acampar" y se
+        # guarda), asi que mirar los de la base daria la foto de antes.
+        servicios = campos.get("servicios", actual["servicios"])
+        campos = _coherencia_de_precios(actual["tipo"], campos, servicios)
 
         vuelve_a_revision = actual["estado"] == "aprobado" and any(
             clave in campos and campos[clave] != actual[clave]

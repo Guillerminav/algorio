@@ -175,7 +175,10 @@ export default function MiComercio({ comercio, onGuardar, onEliminado, guardando
   // guardar, `comercio` llega actualizado y el boton vuelve a apagarse solo.
   // Sin "tipo": el rubro se elige en el alta y despues queda atado al comercio
   // (el backend lo rechaza igual, ver pois.CAMPOS_EDITABLES).
-  const CAMPOS = ["nombre", "descripcion", "lat", "lon", "telefono", "whatsapp", "instagram", "fotos", "servicios"];
+  const CAMPOS = [
+    "nombre", "descripcion", "lat", "lon", "telefono", "whatsapp", "instagram",
+    "fotos", "servicios", "precio_estadia", "precio_acampe",
+  ];
   const hayCambios = CAMPOS.some(
     (campo) => JSON.stringify(valores[campo] ?? null) !== JSON.stringify(comercio[campo] ?? null),
   );

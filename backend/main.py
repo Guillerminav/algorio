@@ -370,6 +370,11 @@ class ComercioEntrada(BaseModel):
     menu: Optional[list] = None
     servicios: Optional[list] = None
     fotos: Optional[list] = None
+    # Solo del parador (ver pois.TIPOS_CON_PRECIOS). `ge=0` porque un parador
+    # puede no cobrar entrada, y "gratis" es un precio: dejarlo en cero dice
+    # algo que null no dice.
+    precio_estadia: Optional[int] = Field(default=None, ge=0, le=100_000_000)
+    precio_acampe: Optional[int] = Field(default=None, ge=0, le=100_000_000)
 
 
 class ComercioActualizacion(BaseModel):
@@ -385,6 +390,8 @@ class ComercioActualizacion(BaseModel):
     menu: Optional[list] = None
     servicios: Optional[list] = None
     fotos: Optional[list] = None
+    precio_estadia: Optional[int] = Field(default=None, ge=0, le=100_000_000)
+    precio_acampe: Optional[int] = Field(default=None, ge=0, le=100_000_000)
 
 
 class TableroEntrada(BaseModel):

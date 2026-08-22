@@ -4442,6 +4442,43 @@ div.barra-viento { cursor: default; }
   box-shadow: 0 0 0 4px rgba(29, 111, 165, 0.3);
 }
 
+/* Los precios del parador, en la ficha del nauta. En renglones y no como
+   chips: son dos numeros que se comparan entre lugares, y un chip los deja
+   flotando entre los servicios como si fueran uno mas. */
+.lugar-precios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.6rem;
+  margin: 0;
+}
+
+.lugar-precios > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.lugar-precios dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.lugar-precios dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.lugar-precio-unidad {
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+}
+
 /* --- Panel de la ficha ---------------------------------------------------- */
 
 .panel-lugar {
@@ -7896,6 +7933,10 @@ button.tablero-horario-hora:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Que no se achique nunca: es un hijo flex, y en un mapa bajo —o mientras
+     Leaflet todavia no midio el contenedor— el navegador le comia el alto y
+     quedaba una pastilla de 19px imposible de tocar. */
+  flex-shrink: 0;
   width: 34px;
   height: 34px;
   padding: 0;
