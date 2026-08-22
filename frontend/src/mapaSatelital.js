@@ -13,6 +13,85 @@ export const ATRIBUCION_SATELITAL = "Imágenes &copy; Esri, Maxar, Earthstar Geo
 export const TILES_ETIQUETAS =
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
 
+// Las capas entre las que se puede elegir en el mapa.
+//
+// Leaflet no provee mapas: dibuja los mosaicos de quien se le indique. Esto es
+// esa lista de "quien", y cada entrada trae su atribucion porque las licencias
+// la exigen — no es un adorno, es la condicion de uso.
+//
+// `conEtiquetas` marca las que necesitan la capa de nombres encima. Las dos
+// satelitales la necesitan (sin ella se ve el terreno pero no hay forma de
+// ubicarse); las demas ya traen los nombres dibujados.
+//
+// Sobre que tan RECIENTES son: todas estas son mosaicos de imagen aerea o
+// dibujos vectoriales, y se actualizan por zona cada uno o varios años. La
+// unica forma de tener imagen de esta semana es satelite optico (Sentinel-2,
+// ~10 m por pixel), que necesita una clave de API y por eso no esta aca.
+export const CAPAS = [
+  {
+    clave: "satelital",
+    etiqueta: "Satelital",
+    detalle: "Se ven los bancos de arena y la costa real",
+    url: TILES_SATELITAL,
+    atribucion: ATRIBUCION_SATELITAL,
+    maxZoom: 19,
+    conEtiquetas: true,
+  },
+  {
+    clave: "clarity",
+    etiqueta: "Satelital nítido",
+    detalle: "Otra cosecha de imágenes: a veces más nueva y con menos nubes",
+    url: "https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    atribucion: "Imágenes &copy; Esri, Maxar, Earthstar Geographics",
+    maxZoom: 19,
+    conEtiquetas: true,
+  },
+  {
+    clave: "claro",
+    etiqueta: "Claro",
+    detalle: "Fondo blanco, para leer nombres sin que moleste la imagen",
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    atribucion: "&copy; OpenStreetMap contributors &copy; CARTO",
+    maxZoom: 20,
+  },
+  {
+    clave: "topo",
+    etiqueta: "Topográfico",
+    detalle: "Relieve y curvas de nivel de la costa",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    atribucion: "&copy; Esri, HERE, Garmin, USGS, NGA",
+    maxZoom: 19,
+  },
+];
+
+export const CAPA_POR_DEFECTO = "satelital";
+
+export const capaPorClave = (clave) =>
+  CAPAS.find((c) => c.clave === clave) ?? CAPAS[0];
+
+// Donde se recuerda la elegida. Se guarda para que no haya que volver a
+// elegirla en cada pantalla ni en cada visita: quien prefiere el mapa claro lo
+// prefiere siempre, no una vez.
+export const CLAVE_CAPA_GUARDADA = "algorio_capa_mapa";
+
+export function capaGuardada() {
+  try {
+    return capaPorClave(window.localStorage.getItem(CLAVE_CAPA_GUARDADA)).clave;
+  } catch {
+    // localStorage puede tirar en modo privado de algunos navegadores. No es
+    // motivo para no dibujar el mapa.
+    return CAPA_POR_DEFECTO;
+  }
+}
+
+export function guardarCapa(clave) {
+  try {
+    window.localStorage.setItem(CLAVE_CAPA_GUARDADA, clave);
+  } catch {
+    /* si no se puede guardar, se usa igual en esta sesion */
+  }
+}
+
 // Centro por defecto: Corrientes/Resistencia, sobre el Paraná. Es donde se
 // abre el mapa mientras no hay permiso de ubicación o todavía no llegó la
 // posición, para que la primera pantalla no sea un océano gris.

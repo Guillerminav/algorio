@@ -11,6 +11,7 @@ import {
   iconoTerminal,
 } from "../mapaSatelital.js";
 import { estadoResumen } from "../tablero.js";
+import CapasMapa from "../components/CapasMapa.jsx";
 import CapaEmbarcaciones from "./CapaEmbarcaciones.jsx";
 import CapaReportes from "./CapaReportes.jsx";
 import FichaRapida from "./FichaRapida.jsx";
@@ -373,10 +374,10 @@ export default function MapaNauta({ onIrAClima, onAbrirMenu }) {
           </div>
 
           <MapContainer center={centro} zoom={ZOOM_INICIAL} className="mapa-contenedor" scrollWheelZoom>
-            {/* Dos capas: el satelital de abajo muestra los bancos de arena,
-                y la de nombres encima permite ubicarse. */}
-            <TileLayer attribution={ATRIBUCION_SATELITAL} url={TILES_SATELITAL} maxZoom={19} />
-            <TileLayer url={TILES_ETIQUETAS} maxZoom={19} />
+            {/* El fondo y su selector. El satelital sigue siendo el default:
+                con la capa de calles el rio es una mancha azul lisa y ahi se
+                pierden los bancos de arena, que es el dato. */}
+            <CapasMapa />
 
             {posicion && <Marker position={[posicion.lat, posicion.lon]} icon={ICONO_YO} />}
 

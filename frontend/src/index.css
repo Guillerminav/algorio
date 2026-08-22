@@ -7854,6 +7854,134 @@ button.tablero-horario-hora:hover {
   max-height: clamp(20rem, 58vh, 34rem);
 }
 
+/* --- Elegir el fondo del mapa --------------------------------------------
+   Abajo a la izquierda, justo encima del zoom de Leaflet.
+
+   Arriba no podia ir: ese borde lo ocupan el cartel de viento, "Reportar" y
+   los filtros de tipo, y el boton quedaba tapado por la fila de chips. Abajo a
+   la izquierda solo esta el zoom, que es del mismo tamaño y del mismo orden de
+   cosas — controles del mapa, no del contenido.
+
+   `top` y `bottom` juntos hacen que el alto de esta caja SEA el espacio
+   disponible; con la columna alineada al final, el boton queda abajo y el
+   panel se abre hacia arriba sin posicionarlo a mano. La caja es alta e
+   invisible sobre el mapa, asi que no puede comerse el arrastre: no recibe
+   punteros, y sus hijos si. */
+.capas-mapa {
+  position: absolute;
+  left: 0.7rem;
+  top: 6.5rem;
+  bottom: 5rem;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.capas-mapa > * {
+  pointer-events: auto;
+}
+
+/* Vidrio, como el resto de lo que flota sobre el mapa (ver .chip-tipo y
+   .barra-viento): sobre imagen satelital un boton opaco se lee como un parche
+   pegado encima, y el vidrio deja ver que abajo sigue habiendo mapa.
+
+   Mas chico que los otros controles a proposito: cambiar el fondo es algo que
+   se hace una vez y despues no se toca mas, al reves que centrar la ubicacion
+   o alejar el zoom. */
+.capas-mapa-boton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 11px;
+  background: var(--vidrio);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  color: var(--vidrio-texto-suave);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(4, 18, 28, 0.22);
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.capas-mapa-boton:hover,
+.capas-mapa-boton.abierto {
+  background: var(--vidrio-denso);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--vidrio-texto);
+}
+
+.capas-mapa-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  /* `min-height: 0` es lo que deja que el panel se achique cuando el mapa es
+     bajo: sin el, un hijo flex se niega a bajar de su alto de contenido y se
+     sale por arriba. */
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  width: max-content;
+  max-width: min(16rem, 62vw);
+  padding: 0.3rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  background: var(--vidrio-denso);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  backdrop-filter: var(--vidrio-desenfoque);
+  box-shadow: 0 10px 30px rgba(4, 18, 28, 0.4);
+}
+
+.capas-mapa-opcion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--vidrio-texto-suave);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.capas-mapa-opcion:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--vidrio-texto);
+}
+
+.capas-mapa-opcion.activa {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--vidrio-texto);
+}
+
+.capas-mapa-nombre { font-size: 0.82rem; font-weight: 700; }
+
+/* Que muestra cada una, en un renglon. Sin esto los nombres solos —"claro",
+   "topografico", "nautico"— obligan a probarlas una por una para saber cual
+   sirve, y probar significa recargar mosaicos con la señal del rio. */
+.capas-mapa-detalle {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 560px) {
+  .capas-mapa {
+    top: 5.5rem;
+    bottom: 4.4rem;
+  }
+  .capas-mapa-panel { max-width: min(14rem, 74vw); }
+}
+
 /* Los controles flotantes, arriba a la derecha y apilados. Ahi y no abajo
    porque abajo vive la tarjeta del pin tocado. */
 .mapa-controles {

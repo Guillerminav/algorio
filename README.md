@@ -359,6 +359,46 @@ deberia dar ~300 por segundo. O sea que el problema no es el recuadro ni el
 codigo. Hay que revisar del lado de aisstream que la cuenta este activada para
 streaming.
 
+## Elegir el fondo del mapa
+
+Leaflet **no provee mapas**: dibuja los mosaicos de quien se le indique. Lo que
+define como se ve el mapa es el proveedor de tiles, y por eso cambiarlo es
+cambiar una URL. `mapaSatelital.CAPAS` es esa lista, y
+`components/CapasMapa.jsx` la dibuja junto con su selector — van juntos porque
+son la misma decision: que se ve abajo de los pines.
+
+| capa | para que |
+| --- | --- |
+| **Satelital** (Esri World Imagery) | El default. Se ven los bancos de arena y la costa real. |
+| **Satelital nitido** (Esri Clarity) | Otra cosecha del mismo mosaico: a veces mas nueva y con menos nubes. |
+| **Claro** (CARTO Positron) | Fondo blanco, para leer nombres sin que moleste la imagen. |
+| **Topografico** (Esri World Topo) | Relieve de la barranca. |
+
+El satelital sigue siendo el default y **no es una preferencia estetica**: en
+un mapa de calles el rio es una mancha azul lisa y ahi desaparecen los bancos
+de arena, que para quien esta navegando es el dato. Las otras dos estan para lo
+otro — reconocer un muelle por el nombre del pueblo, mirar la barranca.
+
+Cada entrada lleva su atribucion porque las licencias la exigen: no es un
+adorno, es la condicion de uso. Y la eleccion se guarda en `localStorage`:
+quien prefiere el mapa claro lo prefiere siempre, no una vez.
+
+### Que tan recientes son las imagenes
+
+Ninguna de estas es imagen de esta semana, y conviene saberlo antes de decidir
+si un banco de arena esta donde se ve. Todas son **mosaicos de imagen aerea o
+satelital de alta resolucion que se actualizan por zona cada uno o varios
+años**, y en un tramo rural del Parana esa frecuencia es mas lenta que en una
+ciudad. "Satelital nitido" (Clarity) es un mosaico distinto del principal, asi
+que a veces trae otra fecha — vale probar las dos y quedarse con la que se vea
+mejor.
+
+Para imagen de dias hay que ir a **satelite optico** (Sentinel-2 de la ESA, con
+revisita de pocos dias), a cambio de bajar de submetro a ~10 m por pixel: sirve
+para ver el canal principal, los bancos grandes y la turbidez, no un banco
+chico. Necesita una clave de API (Copernicus / Sentinel Hub), asi que iria por
+el backend como la de AIS y no en el frontend. No esta implementado.
+
 ## Los pines: vidrio sobre el satelital
 
 Los pines eran lo unico del mapa que no era de vidrio —discos de color liso con

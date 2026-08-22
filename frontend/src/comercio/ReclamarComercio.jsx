@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 
 import { pedirJSON } from "../api.js";
+import CapasMapa from "../components/CapasMapa.jsx";
 import {
   ATRIBUCION_SATELITAL,
   CENTRO_POR_DEFECTO,
@@ -384,11 +385,10 @@ export default function ReclamarComercio({ onReclamado, onVolver }) {
                   className="mapa-contenedor mapa-contenedor-reclamar"
                   scrollWheelZoom
                 >
-                  {/* Las mismas dos capas que el mapa del nauta: el satelital
-                      de abajo es lo que deja reconocer el propio muelle, y la
-                      de nombres encima permite ubicarse. */}
-                  <TileLayer attribution={ATRIBUCION_SATELITAL} url={TILES_SATELITAL} maxZoom={19} />
-                  <TileLayer url={TILES_ETIQUETAS} maxZoom={19} />
+                  {/* El mismo fondo y el mismo selector que el mapa del nauta.
+                      Aca el satelital importa por otra razon: es lo que deja
+                      reconocer el muelle propio entre tres parecidos. */}
+                  <CapasMapa />
 
                   <ControlesMapa
                     lugares={visibles}
